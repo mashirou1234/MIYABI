@@ -1,0 +1,14 @@
+# Build
+build/
+target/
+cargo/
+**/debug/
+core/CMakeFiles/
+build/
+*.o
+*.obj
+*.exe
+*.dll
+*.dylib
+.DS_Store
+.vscode/
