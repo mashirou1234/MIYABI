@@ -55,6 +55,11 @@ int main() {
     // build and compile our shader program
     // ------------------------------------
     unsigned int shaderProgram = create_shader_program("core/src/shaders/triangle.vert", "core/src/shaders/triangle.frag");
+    if (shaderProgram == 0) {
+        std::cerr << "Failed to create shader program. Exiting." << std::endl;
+        glfwTerminate();
+        return -1;
+    }
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
@@ -88,9 +93,9 @@ int main() {
     // ----------------
     GLint translationLoc = glGetUniformLocation(shaderProgram, "u_translation");
 
-    // Rust側のシーンを初期化
-    // -----------------
-    init_scene();
+    // RustからSceneオブジェクトの所有権付きポインタを受け取る
+    // ------------------------------------------------
+    auto scene = create_scene();
 
     // render loop
     // -----------
@@ -112,10 +117,9 @@ int main() {
         glUseProgram(shaderProgram);
         glBindVertexArray(VAO);
 
-        // RustからTransformを取得し、オブジェクトを描画
-        // -----------------------------------------
-        auto transforms = get_transforms();
-        for (const auto& transform : transforms) {
+        // RustからTransformのスライス（ゼロコピー）を取得し、オブジェクトを描画
+        // ---------------------------------------------------------------
+        for (const auto& transform : scene->get_transforms()) {
             // uniformに変形情報を送る
             glUniform3f(translationLoc, transform.position.x, transform.position.y, transform.position.z);
             // 三角形を描画

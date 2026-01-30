@@ -1,6 +1,3 @@
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
-
 #[cxx::bridge]
 mod ffi {
     // C++と共有するデータ構造
@@ -18,10 +15,18 @@ mod ffi {
         pub scale: Vec3,
     }
 
+    // Rust側の`Scene`オブジェクトへのOpaqueなハンドル
     extern "Rust" {
-        fn init_scene();
+        type Scene;
+
+        // Sceneのメソッド
+        fn get_transforms(&self) -> &[Transform];
+
+        // Sceneを生成してC++に所有権を渡す
+        fn create_scene() -> Box<Scene>;
+
+        // 毎フレームのロジック更新（将来用）
         fn run_logic();
-        fn get_transforms() -> Vec<Transform>;
     }
 }
 
@@ -29,19 +34,18 @@ mod ffi {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Entity(u64);
 
-use std::collections::HashMap;
-
-pub struct World {
+// C++に公開するScene構造体
+pub struct Scene {
     entities: Vec<Entity>,
-    transforms: HashMap<Entity, ffi::Transform>,
+    transforms: Vec<ffi::Transform>,
     next_entity: u64,
 }
 
-impl World {
+impl Scene {
     pub fn new() -> Self {
-        World {
+        Scene {
             entities: Vec::new(),
-            transforms: HashMap::new(),
+            transforms: Vec::new(),
             next_entity: 0,
         }
     }
@@ -53,34 +57,44 @@ impl World {
         entity
     }
 
-    pub fn add_transform(&mut self, entity: Entity, transform: ffi::Transform) {
-        self.transforms.insert(entity, transform);
+    pub fn add_transform(&mut self, _entity: Entity, transform: ffi::Transform) {
+        self.transforms.push(transform);
+    }
+
+    // C++に公開されるメソッド
+    pub fn get_transforms(&self) -> &[ffi::Transform] {
+        &self.transforms
     }
 }
 
-static WORLD: Lazy<Mutex<World>> = Lazy::new(|| Mutex::new(World::new()));
+// C++側から呼び出される、Sceneを生成する関数
+fn create_scene() -> Box<Scene> {
+    let mut scene = Scene::new();
 
-fn init_scene() {
-    let mut world = WORLD.lock().unwrap();
-    if world.entities.is_empty() {
-        let entity = world.create_entity();
-        world.add_transform(
-            entity,
-            ffi::Transform {
-                position: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
-            },
-        );
-    }
+    // 初期オブジェクトをシーンに追加
+    let entity1 = scene.create_entity();
+    scene.add_transform(
+        entity1,
+        ffi::Transform {
+            position: ffi::Vec3 { x: -0.5, y: 0.0, z: 0.0 },
+            rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+            scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+        },
+    );
+    let entity2 = scene.create_entity();
+    scene.add_transform(
+        entity2,
+        ffi::Transform {
+            position: ffi::Vec3 { x: 0.5, y: 0.0, z: 0.0 },
+            rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+            scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+        },
+    );
+
+    Box::new(scene)
 }
 
 fn run_logic() {
-    // mainループから毎フレーム呼ばれる
-    // 今後、オブジェクトを動かすなどのロジックをここに追加する
-}
-
-fn get_transforms() -> Vec<ffi::Transform> {
-    let world = WORLD.lock().unwrap();
-    world.transforms.values().cloned().collect()
+    // この関数はSceneオブジェクトを引数に取るように変更する必要があるだろう
+    // 例: fn run_logic(scene: &mut Scene)
 }
