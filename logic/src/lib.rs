@@ -1,3 +1,5 @@
+pub trait Component: 'static {}
+
 #[cxx::bridge]
 mod ffi {
     // C++と共有するデータ構造
@@ -15,37 +17,47 @@ mod ffi {
         pub scale: Vec3,
     }
 
-    // Rust側の`Scene`オブジェクトへのOpaqueなハンドル
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct Velocity {
+        pub x: f32,
+        pub y: f32,
+        pub z: f32,
+    }
+
+    // Rust側の`World`オブジェクトへのOpaqueなハンドル
     extern "Rust" {
-        type Scene;
+        type World;
 
-        // Sceneのメソッド
+        // Worldのメソッド
         fn get_transforms(&self) -> &[Transform];
+        fn run_logic(&mut self);
 
-        // Sceneを生成してC++に所有権を渡す
-        fn create_scene() -> Box<Scene>;
-
-        // 毎フレームのロジック更新（将来用）
-        fn run_logic();
+        // Worldを生成してC++に所有権を渡す
+        fn create_world() -> Box<World>;
     }
 }
+
+impl Component for ffi::Transform {}
+impl Component for ffi::Velocity {}
 
 // Rust内でのみ使用するデータ構造
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Entity(u64);
 
-// C++に公開するScene構造体
-pub struct Scene {
+// C++に公開するWorld構造体
+pub struct World {
     entities: Vec<Entity>,
     transforms: Vec<ffi::Transform>,
+    velocities: Vec<ffi::Velocity>,
     next_entity: u64,
 }
 
-impl Scene {
+impl World {
     pub fn new() -> Self {
-        Scene {
+        World {
             entities: Vec::new(),
             transforms: Vec::new(),
+            velocities: Vec::new(),
             next_entity: 0,
         }
     }
@@ -57,44 +69,50 @@ impl Scene {
         entity
     }
 
-    pub fn add_transform(&mut self, _entity: Entity, transform: ffi::Transform) {
+    pub fn spawn(&mut self, transform: ffi::Transform, velocity: ffi::Velocity) -> Entity {
+        let entity = self.create_entity();
         self.transforms.push(transform);
+        self.velocities.push(velocity);
+        entity
     }
 
     // C++に公開されるメソッド
     pub fn get_transforms(&self) -> &[ffi::Transform] {
         &self.transforms
     }
+
+    pub fn run_logic(&mut self) {
+        let dt = 0.016; // 60FPS相当の固定ステップ
+        for i in 0..self.transforms.len() {
+            self.transforms[i].position.x += self.velocities[i].x * dt;
+            self.transforms[i].position.y += self.velocities[i].y * dt;
+            self.transforms[i].position.z += self.velocities[i].z * dt;
+        }
+    }
 }
 
-// C++側から呼び出される、Sceneを生成する関数
-fn create_scene() -> Box<Scene> {
-    let mut scene = Scene::new();
+// C++側から呼び出される、Worldを生成する関数
+fn create_world() -> Box<World> {
+    let mut world = World::new();
 
-    // 初期オブジェクトをシーンに追加
-    let entity1 = scene.create_entity();
-    scene.add_transform(
-        entity1,
+    // 初期オブジェクトをワールドに追加
+    world.spawn(
         ffi::Transform {
             position: ffi::Vec3 { x: -0.5, y: 0.0, z: 0.0 },
             rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
             scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
         },
+        ffi::Velocity { x: 0.1, y: 0.0, z: 0.0 },
     );
-    let entity2 = scene.create_entity();
-    scene.add_transform(
-        entity2,
+    world.spawn(
         ffi::Transform {
             position: ffi::Vec3 { x: 0.5, y: 0.0, z: 0.0 },
             rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
             scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
         },
+        ffi::Velocity { x: -0.1, y: 0.0, z: 0.0 },
     );
 
-    Box::new(scene)
+    Box::new(world)
 }
 
-fn run_logic() {
-    // この関数はSceneオブジェクトを引数に取るように変更する必要があるだろう
-    // 例: fn run_logic(scene: &mut Scene)
-}

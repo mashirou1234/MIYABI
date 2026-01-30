@@ -93,9 +93,9 @@ int main() {
     // ----------------
     GLint translationLoc = glGetUniformLocation(shaderProgram, "u_translation");
 
-    // RustからSceneオブジェクトの所有権付きポインタを受け取る
+    // RustからWorldオブジェクトの所有権付きポインタを受け取る
     // ------------------------------------------------
-    auto scene = create_scene();
+    auto world = create_world();
 
     // render loop
     // -----------
@@ -106,7 +106,7 @@ int main() {
 
         // Rustのフレーム毎ロジックを呼び出し、シーンの状態を更新
         // ----------------------------------------------------
-        run_logic();
+        world->run_logic();
 
         // render
         // ------
@@ -119,7 +119,7 @@ int main() {
 
         // RustからTransformのスライス（ゼロコピー）を取得し、オブジェクトを描画
         // ---------------------------------------------------------------
-        for (const auto& transform : scene->get_transforms()) {
+        for (const auto& transform : world->get_transforms()) {
             // uniformに変形情報を送る
             glUniform3f(translationLoc, transform.position.x, transform.position.y, transform.position.z);
             // 三角形を描画
