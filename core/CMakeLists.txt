@@ -16,7 +16,6 @@ corrosion_add_cxxbridge(miyabi_cxxbridge
 
 add_executable(miyabi
     src/main.cpp
-    src/miyabi_bridge.cpp
     src/glad.c
 )
 

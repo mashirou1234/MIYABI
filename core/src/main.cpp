@@ -7,7 +7,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include "miyabi/miyabi.h" // For the Rust bridge
+#include "miyabi_cxxbridge/lib.h" // cxxが生成したヘッダー
 
 // Function prototypes
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -84,6 +84,14 @@ int main() {
     glBindVertexArray(0);
 
 
+    // uniform location
+    // ----------------
+    GLint translationLoc = glGetUniformLocation(shaderProgram, "u_translation");
+
+    // Rust側のシーンを初期化
+    // -----------------
+    init_scene();
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window)) {
@@ -91,19 +99,28 @@ int main() {
         // -----
         processInput(window);
 
+        // Rustのフレーム毎ロジックを呼び出し、シーンの状態を更新
+        // ----------------------------------------------------
+        run_logic();
+
         // render
         // ------
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // draw our first triangle
+        // シェーダーとVAOを有効化
         glUseProgram(shaderProgram);
-        glBindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glBindVertexArray(VAO);
 
-        // Call Rust code
-        // --------------
-        run_logic();
+        // RustからTransformを取得し、オブジェクトを描画
+        // -----------------------------------------
+        auto transforms = get_transforms();
+        for (const auto& transform : transforms) {
+            // uniformに変形情報を送る
+            glUniform3f(translationLoc, transform.position.x, transform.position.y, transform.position.z);
+            // 三角形を描画
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+        }
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
