@@ -1,23 +1,30 @@
-pub trait Component: 'static {}
+use serde::{Serialize, Deserialize};
+use std::any::TypeId;
+use std::collections::{HashMap, HashSet};
+use std::os::raw::c_char;
+use std::ffi::CString;
+
+pub trait Component: 'static + serde::Serialize + for<'de> serde::Deserialize<'de> {}
+
 
 #[cxx::bridge]
 mod ffi {
     // C++と共有するデータ構造
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
     pub struct Vec3 {
         pub x: f32,
         pub y: f32,
         pub z: f32,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
     pub struct Transform {
         pub position: Vec3,
         pub rotation: Vec3, // 一旦オイラー角で
         pub scale: Vec3,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
     pub struct Velocity {
         pub x: f32,
         pub y: f32,
@@ -25,7 +32,7 @@ mod ffi {
     }
 
     // A simple command for the renderer. For now, it only supports drawing a triangle.
-    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
     pub struct DrawTriangleCommand {
         pub transform: Transform,
     }
@@ -36,25 +43,17 @@ mod ffi {
     }
 }
 
-use std::any::{Any, TypeId};
-use std::collections::{HashMap, HashSet};
-
-#[repr(C)]
-pub struct RenderCommands {
-    pub commands: *const ffi::DrawTriangleCommand,
-    pub count: usize,
-}
-
+use std::any::{Any};
 impl Component for ffi::Transform {}
 impl Component for ffi::Velocity {}
 
 // Rust内でのみ使用するデータ構造
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Entity(u64);
 
 // The actual storage for components of a given type. Stored as a Box<dyn Any>
 // so we can have a collection of these of different underlying types.
-type ComponentVec = Box<dyn Any>;
+type ComponentVec = Box<dyn Any + 'static>;
 
 // An Archetype is a collection of entities that all have the same set of component types.
 pub struct Archetype {
@@ -77,12 +76,15 @@ impl Archetype {
 }
 
 // C++に公開するWorld構造体
+#[derive(Serialize, Deserialize)]
 pub struct World {
     entities: HashMap<Entity, (usize, usize)>, // Map Entity -> (archetype_idx, entity_idx_in_archetype)
     archetypes: Vec<Archetype>,
     next_entity: u64,
+    #[serde(skip)]
     render_commands: Vec<ffi::DrawTriangleCommand>,
 }
+
 
 // --- ComponentBundle Trait ---
 // This allows us to pass different combinations of components to the spawn function.
@@ -250,6 +252,12 @@ pub extern "C" fn run_logic(world: *mut World) {
     world.run_logic();
 }
 
+#[repr(C)]
+pub struct RenderCommands {
+    pub commands: *const ffi::DrawTriangleCommand,
+    pub count: usize,
+}
+
 #[no_mangle]
 pub extern "C" fn build_render_commands(world: *mut World) -> RenderCommands {
     let world = unsafe { &mut *world };
@@ -258,5 +266,41 @@ pub extern "C" fn build_render_commands(world: *mut World) -> RenderCommands {
         commands: world.render_commands.as_ptr(),
         count: world.render_commands.len(),
     }
+}
+
+#[no_mangle]
+pub extern "C" fn serialize_world(world: *const World) -> *const c_char {
+    let world = unsafe { &*world };
+    let serialized = serde_json::to_string(world).unwrap();
+    CString::new(serialized).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn deserialize_world(json: *const c_char) -> *mut World {
+    let c_str = unsafe { std::ffi::CStr::from_ptr(json) };
+    let json_str = c_str.to_str().unwrap();
+    let mut world: World = serde_json::from_str(json_str).unwrap();
+    // Re-initialize non-serialized fields
+    world.render_commands = Vec::new();
+    for archetype in &mut world.archetypes {
+        archetype.storage = HashMap::new();
+        if archetype.types.contains(&TypeId::of::<ffi::Transform>()) {
+            archetype.storage.insert(TypeId::of::<ffi::Transform>(), Box::new(Vec::<ffi::Transform>::new()));
+        }
+        if archetype.types.contains(&TypeId::of::<ffi::Velocity>()) {
+            archetype.storage.insert(TypeId::of::<ffi::Velocity>(), Box::new(Vec::<ffi::Velocity>::new()));
+        }
+    }
+    Box::into_raw(Box::new(world))
+}
+
+#[no_mangle]
+pub extern "C" fn free_serialized_string(s: *mut c_char) {
+    unsafe {
+        if s.is_null() {
+            return;
+        }
+        CString::from_raw(s)
+    };
 }
 

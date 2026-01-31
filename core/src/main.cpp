@@ -18,6 +18,11 @@ struct RenderCommands {
     size_t count;
 };
 
+struct SerializedWorld {
+    const uint8_t* data;
+    size_t len;
+};
+
 // Function prototypes
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -29,6 +34,10 @@ using create_world_t = World* (*)();
 using destroy_world_t = void (*)(World*);
 using run_logic_t = void (*)(World*);
 using build_render_commands_t = RenderCommands (*)(World*);
+using serialize_world_t = SerializedWorld (*)(const World*);
+using deserialize_world_t = World* (*)(const uint8_t*, size_t);
+using free_serialized_world_t = void (*)(SerializedWorld);
+
 
 // Global flag to signal library reload
 std::atomic<bool> g_reload_library(false);
@@ -59,6 +68,10 @@ int main() {
     destroy_world_t destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
     run_logic_t run_logic = (run_logic_t) dlsym(handle, "run_logic");
     build_render_commands_t build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
+    serialize_world_t serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
+    deserialize_world_t deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
+    free_serialized_world_t free_serialized_world = (free_serialized_world_t) dlsym(handle, "free_serialized_world");
+
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
         std::cerr << "Cannot load symbol: " << dlsym_error << std::endl;
@@ -151,36 +164,58 @@ int main() {
             g_reload_library = false;
             std::cout << "Reloading library..." << std::endl;
 
+            // Serialize the world
+            std::cout << "Serializing world..." << std::endl;
+            SerializedWorld serialized_world = serialize_world(world);
+            std::cout << "World serialized." << std::endl;
+            
             // Rebuild the library
+            std::cout << "Rebuilding library..." << std::endl;
             system("cmake --build build");
+            std::cout << "Library rebuilt." << std::endl;
 
             // Unload the old library
+            std::cout << "Unloading old library..." << std::endl;
             dlclose(handle);
+            std::cout << "Old library unloaded." << std::endl;
 
             // Load the new library
+            std::cout << "Loading new library..." << std::endl;
             handle = dlopen("liblogic.dylib", RTLD_LAZY);
             if (!handle) {
                 std::cerr << "Cannot open library: " << dlerror() << std::endl;
             } else {
+                std::cout << "New library loaded." << std::endl;
                 // Load the new symbols
+                std::cout << "Loading new symbols..." << std::endl;
                 create_world = (create_world_t) dlsym(handle, "create_world");
                 destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
                 run_logic = (run_logic_t) dlsym(handle, "run_logic");
                 build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
+                serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
+                deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
+                free_serialized_world = (free_serialized_world_t) dlsym(handle, "free_serialized_world");
                 dlsym_error = dlerror();
                 if (dlsym_error) {
                     std::cerr << "Cannot load symbol: " << dlsym_error << std::endl;
                     dlclose(handle);
                 }
+                std::cout << "New symbols loaded." << std::endl;
             }
 
             // Recreate the world
+            std::cout << "Recreating world..." << std::endl;
             destroy_world(world);
-            world = create_world();
+            world = deserialize_world(serialized_world.data, serialized_world.len);
+            free_serialized_world(serialized_world);
+            std::cout << "World recreated." << std::endl;
+
 
             // Restart the file watcher
+            std::cout << "Restarting file watcher..." << std::endl;
             watcher_thread.join();
             watcher_thread = std::thread(watch_for_changes);
+            std::cout << "File watcher restarted." << std::endl;
         }
 
         // input
@@ -237,6 +272,7 @@ int main() {
     glfwTerminate();
     return 0;
 }
+
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
