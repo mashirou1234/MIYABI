@@ -3,11 +3,18 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <dlfcn.h>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #include "miyabi_cxxbridge/lib.h" // cxxが生成したヘッダー
+
+// Define the struct to hold render commands from Rust
+struct RenderCommands {
+    const DrawTriangleCommand* commands;
+    size_t count;
+};
 
 // Function prototypes
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -15,11 +22,36 @@ void processInput(GLFWwindow *window);
 unsigned int create_shader_program(const char* vertex_path, const char* fragment_path);
 std::string read_shader_file(const char* file_path);
 
+// Define function pointers for Rust functions
+using create_world_t = World* (*)();
+using destroy_world_t = void (*)(World*);
+using run_logic_t = void (*)(World*);
+using build_render_commands_t = RenderCommands (*)(World*);
+
 // Settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 int main() {
+    // Load the Rust library
+    void* handle = dlopen("liblogic.dylib", RTLD_LAZY);
+    if (!handle) {
+        std::cerr << "Cannot open library: " << dlerror() << std::endl;
+        return 1;
+    }
+
+    // Load the symbols
+    create_world_t create_world = (create_world_t) dlsym(handle, "create_world");
+    destroy_world_t destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
+    run_logic_t run_logic = (run_logic_t) dlsym(handle, "run_logic");
+    build_render_commands_t build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
+    const char* dlsym_error = dlerror();
+    if (dlsym_error) {
+        std::cerr << "Cannot load symbol: " << dlsym_error << std::endl;
+        dlclose(handle);
+        return 1;
+    }
+
     // glfw: initialize and configure
     // ------------------------------
     if (!glfwInit()) {
@@ -106,7 +138,7 @@ int main() {
 
         // Rustのフレーム毎ロジックを呼び出し、シーンの状態を更新
         // ----------------------------------------------------
-        world->run_logic();
+        run_logic(world);
 
         // render
         // ------
@@ -119,7 +151,9 @@ int main() {
 
         // Rustからコマンドバッファを取得し、描画コマンドを実行
         // ---------------------------------------------------------
-        for (const auto& command : world->build_render_commands()) {
+        RenderCommands render_commands = build_render_commands(world);
+        for (size_t i = 0; i < render_commands.count; ++i) {
+            const auto& command = render_commands.commands[i];
             // uniformに変形情報を送る
             glUniform3f(translationLoc, command.transform.position.x, command.transform.position.y, command.transform.position.z);
             // 三角形を描画
@@ -137,6 +171,12 @@ int main() {
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(shaderProgram);
+
+    // Destroy the world
+    destroy_world(world);
+
+    // Close the library
+    dlclose(handle);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------

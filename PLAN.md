@@ -18,7 +18,7 @@
   - 同じコンポーネント構成を持つエンティティ群をメモリ上に連続配置し、キャッシュ効率を最大化する。
 - [x] **High: Command Buffer**
   - 毎フレーム、RustがC++へ送信する「描画命令（Mesh, Transform, Material等）」のキューイング機構を実装する。
-- [ ] **Med: Hot-Reloadable Logic**
+- [...] **Med: Hot-Reloadable Logic**
   - Rustのロジックを動的ライブラリ（dylib）として切り出し、実行中に再コンパイル＆リロードする基盤を設計する。
 - [ ] **Med: Text/UI Layer**
   - 2Dの会話劇を想定し、Rust側で文字列と演出タイミングを定義し、C++で高精細に描画するアーキテクチャを構築する。

@@ -33,18 +33,17 @@ mod ffi {
     // Rust側の`World`オブジェクトへのOpaqueなハンドル
     extern "Rust" {
         type World;
-
-        // Worldのメソッド
-        fn build_render_commands(&self) -> Vec<DrawTriangleCommand>;
-        fn run_logic(&mut self);
-
-        // Worldを生成してC++に所有権を渡す
-        fn create_world() -> Box<World>;
     }
 }
 
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
+
+#[repr(C)]
+pub struct RenderCommands {
+    pub commands: *const ffi::DrawTriangleCommand,
+    pub count: usize,
+}
 
 impl Component for ffi::Transform {}
 impl Component for ffi::Velocity {}
@@ -82,6 +81,7 @@ pub struct World {
     entities: HashMap<Entity, (usize, usize)>, // Map Entity -> (archetype_idx, entity_idx_in_archetype)
     archetypes: Vec<Archetype>,
     next_entity: u64,
+    render_commands: Vec<ffi::DrawTriangleCommand>,
 }
 
 // --- ComponentBundle Trait ---
@@ -130,6 +130,7 @@ impl World {
             entities: HashMap::new(),
             archetypes: Vec::new(),
             next_entity: 0,
+            render_commands: Vec::new(),
         }
     }
     
@@ -171,18 +172,17 @@ impl World {
         entity
     }
 
-    pub fn build_render_commands(&self) -> Vec<ffi::DrawTriangleCommand> {
-        let mut commands = Vec::new();
+    pub fn build_render_commands(&mut self) {
+        self.render_commands.clear();
         for archetype in &self.archetypes {
             if let Some(storage) = archetype.storage.get(&TypeId::of::<ffi::Transform>()) {
                 if let Some(transforms) = storage.downcast_ref::<Vec<ffi::Transform>>() {
                     for transform in transforms {
-                        commands.push(ffi::DrawTriangleCommand { transform: *transform });
+                        self.render_commands.push(ffi::DrawTriangleCommand { transform: *transform });
                     }
                 }
             }
         }
-        commands
     }
     
     pub fn run_logic(&mut self) {
@@ -212,7 +212,8 @@ impl World {
 }
 
 // C++側から呼び出される、Worldを生成する関数
-fn create_world() -> Box<World> {
+#[no_mangle]
+pub extern "C" fn create_world() -> *mut World {
     let mut world = World::new();
 
     // 初期オブジェクトをワールドに追加
@@ -233,6 +234,29 @@ fn create_world() -> Box<World> {
         ffi::Velocity { x: -0.1, y: 0.0, z: 0.0 },
     ));
 
-    Box::new(world)
+    Box::into_raw(Box::new(world))
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_world(world: *mut World) {
+    if !world.is_null() {
+        unsafe { drop(Box::from_raw(world)); };
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn run_logic(world: *mut World) {
+    let world = unsafe { &mut *world };
+    world.run_logic();
+}
+
+#[no_mangle]
+pub extern "C" fn build_render_commands(world: *mut World) -> RenderCommands {
+    let world = unsafe { &mut *world };
+    world.build_render_commands();
+    RenderCommands {
+        commands: world.render_commands.as_ptr(),
+        count: world.render_commands.len(),
+    }
 }
 
