@@ -58,7 +58,7 @@ pub struct Entity(u64);
 type ComponentVec = Box<dyn Any>;
 
 // An Archetype is a collection of entities that all have the same set of component types.
-struct Archetype {
+pub struct Archetype {
     // The set of component types that define this archetype.
     types: HashSet<TypeId>,
     // A map from a component's TypeId to its storage. The storage is a Box<dyn Any>
@@ -84,12 +84,11 @@ pub struct World {
     next_entity: u64,
 }
 
-
 // --- ComponentBundle Trait ---
 // This allows us to pass different combinations of components to the spawn function.
 pub trait ComponentBundle {
     fn get_type_ids() -> HashSet<TypeId> where Self: Sized;
-    fn add_to_storage(self, world: &mut World);
+    fn push_to_storage(self, archetype: &mut Archetype);
 }
 
 impl<T: Component> ComponentBundle for (T,) {
@@ -99,11 +98,7 @@ impl<T: Component> ComponentBundle for (T,) {
         types
     }
 
-    fn add_to_storage(self, world: &mut World) {
-        let types = Self::get_type_ids();
-        let archetype_idx = world.get_or_create_archetype(types);
-        let archetype = &mut world.archetypes[archetype_idx];
-        
+    fn push_to_storage(self, archetype: &mut Archetype) {
         let vec = archetype.storage.get_mut(&TypeId::of::<T>()).unwrap().downcast_mut::<Vec<T>>().unwrap();
         vec.push(self.0);
     }
@@ -117,11 +112,7 @@ impl<T: Component, U: Component> ComponentBundle for (T, U) {
         types
     }
 
-    fn add_to_storage(self, world: &mut World) {
-        let types = Self::get_type_ids();
-        let archetype_idx = world.get_or_create_archetype(types);
-        let archetype = &mut world.archetypes[archetype_idx];
-
+    fn push_to_storage(self, archetype: &mut Archetype) {
         // Add first component
         let vec_t = archetype.storage.get_mut(&TypeId::of::<T>()).unwrap().downcast_mut::<Vec<T>>().unwrap();
         vec_t.push(self.0);
@@ -149,8 +140,7 @@ impl World {
 
         // Create a new archetype
         let mut archetype = Archetype::new(types.clone());
-        // This is where we need to initialize the Vec<T> for each component type.
-        // We'll manually handle Transform and Velocity for now.
+        // Initialize the Vec<T> for each component type.
         if types.contains(&TypeId::of::<ffi::Transform>()) {
             archetype.storage.insert(TypeId::of::<ffi::Transform>(), Box::new(Vec::<ffi::Transform>::new()));
         }
@@ -163,14 +153,21 @@ impl World {
     }
 
     pub fn spawn<B: ComponentBundle>(&mut self, bundle: B) -> Entity {
+        let types = B::get_type_ids();
+        let archetype_idx = self.get_or_create_archetype(types);
+        let archetype = &mut self.archetypes[archetype_idx];
+
+        // Add components to storage using the trait
+        bundle.push_to_storage(archetype);
+
+        let entity_idx_in_archetype = archetype.entity_count;
+        archetype.entity_count += 1;
+
         let entity = Entity(self.next_entity);
         self.next_entity += 1;
         
-        bundle.add_to_storage(self);
-        
-        // TODO: For simplicity, we're not yet mapping the entity to its location.
-        // This will be needed for component removal or modification.
-        
+        self.entities.insert(entity, (archetype_idx, entity_idx_in_archetype));
+
         entity
     }
 
@@ -196,9 +193,6 @@ impl World {
             let has_velocity = archetype.types.contains(&TypeId::of::<ffi::Velocity>());
 
             if has_transform && has_velocity {
-                // We need to borrow storage mutably and immutably, which is tricky.
-                // A safe way is to get pointers and use unsafe, or to split borrows.
-                // Let's do a safe but slightly less efficient borrow split.
                 let mut trans_storage = archetype.storage.remove(&TypeId::of::<ffi::Transform>()).unwrap();
                 let transforms = trans_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
 
@@ -211,7 +205,6 @@ impl World {
                     transform.position.z += velocity.z * dt;
                 }
                 
-                // Put the storage back
                 archetype.storage.insert(TypeId::of::<ffi::Transform>(), trans_storage);
             }
         }
