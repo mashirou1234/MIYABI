@@ -12,3 +12,4 @@ build/
 *.dylib
 .DS_Store
 .vscode/
+miyabi.log

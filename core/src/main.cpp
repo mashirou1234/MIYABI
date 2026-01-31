@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <dlfcn.h>
+#include <thread>
+#include <atomic>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -28,11 +30,23 @@ using destroy_world_t = void (*)(World*);
 using run_logic_t = void (*)(World*);
 using build_render_commands_t = RenderCommands (*)(World*);
 
+// Global flag to signal library reload
+std::atomic<bool> g_reload_library(false);
+
+void watch_for_changes() {
+    // Run fswatch and wait for it to exit (which it does after the first change)
+    system("fswatch -r -1 logic");
+    g_reload_library = true;
+}
+
 // Settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 int main() {
+    // Start the file watcher thread
+    std::thread watcher_thread(watch_for_changes);
+
     // Load the Rust library
     void* handle = dlopen("liblogic.dylib", RTLD_LAZY);
     if (!handle) {
@@ -132,6 +146,43 @@ int main() {
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window)) {
+        // Check for library reload
+        if (g_reload_library) {
+            g_reload_library = false;
+            std::cout << "Reloading library..." << std::endl;
+
+            // Rebuild the library
+            system("cmake --build build");
+
+            // Unload the old library
+            dlclose(handle);
+
+            // Load the new library
+            handle = dlopen("liblogic.dylib", RTLD_LAZY);
+            if (!handle) {
+                std::cerr << "Cannot open library: " << dlerror() << std::endl;
+            } else {
+                // Load the new symbols
+                create_world = (create_world_t) dlsym(handle, "create_world");
+                destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
+                run_logic = (run_logic_t) dlsym(handle, "run_logic");
+                build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
+                dlsym_error = dlerror();
+                if (dlsym_error) {
+                    std::cerr << "Cannot load symbol: " << dlsym_error << std::endl;
+                    dlclose(handle);
+                }
+            }
+
+            // Recreate the world
+            destroy_world(world);
+            world = create_world();
+
+            // Restart the file watcher
+            watcher_thread.join();
+            watcher_thread = std::thread(watch_for_changes);
+        }
+
         // input
         // -----
         processInput(window);
@@ -177,6 +228,9 @@ int main() {
 
     // Close the library
     dlclose(handle);
+
+    // Wait for the watcher thread to finish
+    watcher_thread.join();
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
