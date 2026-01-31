@@ -24,12 +24,18 @@ mod ffi {
         pub z: f32,
     }
 
+    // A simple command for the renderer. For now, it only supports drawing a triangle.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct DrawTriangleCommand {
+        pub transform: Transform,
+    }
+
     // Rust側の`World`オブジェクトへのOpaqueなハンドル
     extern "Rust" {
         type World;
 
         // Worldのメソッド
-        fn get_transforms(&self) -> Vec<Transform>;
+        fn build_render_commands(&self) -> Vec<DrawTriangleCommand>;
         fn run_logic(&mut self);
 
         // Worldを生成してC++に所有権を渡す
@@ -168,16 +174,18 @@ impl World {
         entity
     }
 
-    pub fn get_transforms(&self) -> Vec<ffi::Transform> {
-        let mut all_transforms = Vec::new();
+    pub fn build_render_commands(&self) -> Vec<ffi::DrawTriangleCommand> {
+        let mut commands = Vec::new();
         for archetype in &self.archetypes {
             if let Some(storage) = archetype.storage.get(&TypeId::of::<ffi::Transform>()) {
                 if let Some(transforms) = storage.downcast_ref::<Vec<ffi::Transform>>() {
-                    all_transforms.extend_from_slice(transforms);
+                    for transform in transforms {
+                        commands.push(ffi::DrawTriangleCommand { transform: *transform });
+                    }
                 }
             }
         }
-        all_transforms
+        commands
     }
     
     pub fn run_logic(&mut self) {

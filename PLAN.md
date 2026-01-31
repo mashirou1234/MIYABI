@@ -14,7 +14,7 @@
 
 ### フェーズ1: 基盤構築
 
-- [ ] **High: Archetype ECS**
+- [x] **High: Archetype ECS**
   - 同じコンポーネント構成を持つエンティティ群をメモリ上に連続配置し、キャッシュ効率を最大化する。
 - [ ] **High: Command Buffer**
   - 毎フレーム、RustがC++へ送信する「描画命令（Mesh, Transform, Material等）」のキューイング機構を実装する。

@@ -117,11 +117,11 @@ int main() {
         glUseProgram(shaderProgram);
         glBindVertexArray(VAO);
 
-        // RustからTransformのスライス（ゼロコピー）を取得し、オブジェクトを描画
-        // ---------------------------------------------------------------
-        for (const auto& transform : world->get_transforms()) {
+        // Rustからコマンドバッファを取得し、描画コマンドを実行
+        // ---------------------------------------------------------
+        for (const auto& command : world->build_render_commands()) {
             // uniformに変形情報を送る
-            glUniform3f(translationLoc, transform.position.x, transform.position.y, transform.position.z);
+            glUniform3f(translationLoc, command.transform.position.x, command.transform.position.y, command.transform.position.z);
             // 三角形を描画
             glDrawArrays(GL_TRIANGLES, 0, 3);
         }
