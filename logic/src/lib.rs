@@ -1,10 +1,17 @@
 use serde::{Serialize, Deserialize};
-use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 use std::os::raw::c_char;
 use std::ffi::CString;
 
-pub trait Component: 'static + serde::Serialize + for<'de> serde::Deserialize<'de> {}
+pub trait Component: 'static + serde::Serialize + for<'de> serde::Deserialize<'de> {
+    const COMPONENT_TYPE: ComponentType;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ComponentType {
+    Transform,
+    Velocity,
+}
 
 
 #[cxx::bridge]
@@ -20,7 +27,7 @@ mod ffi {
     #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
     pub struct Transform {
         pub position: Vec3,
-        pub rotation: Vec3, // 一旦オイラー角で
+        pub rotation: Vec3, // 一旦オイラー角で?
         pub scale: Vec3,
     }
 
@@ -44,8 +51,12 @@ mod ffi {
 }
 
 use std::any::{Any};
-impl Component for ffi::Transform {}
-impl Component for ffi::Velocity {}
+impl Component for ffi::Transform {
+    const COMPONENT_TYPE: ComponentType = ComponentType::Transform;
+}
+impl Component for ffi::Velocity {
+    const COMPONENT_TYPE: ComponentType = ComponentType::Velocity;
+}
 
 // Rust内でのみ使用するデータ構造
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -56,17 +67,19 @@ pub struct Entity(u64);
 type ComponentVec = Box<dyn Any + 'static>;
 
 // An Archetype is a collection of entities that all have the same set of component types.
+#[derive(Serialize, Deserialize)]
 pub struct Archetype {
     // The set of component types that define this archetype.
-    types: HashSet<TypeId>,
+    types: HashSet<ComponentType>,
     // A map from a component's TypeId to its storage. The storage is a Box<dyn Any>
     // that holds a Vec<T> for the component type T.
-    storage: HashMap<TypeId, ComponentVec>,
+    #[serde(skip)]
+    storage: HashMap<ComponentType, ComponentVec>,
     entity_count: usize,
 }
 
 impl Archetype {
-    fn new(types: HashSet<TypeId>) -> Self {
+    fn new(types: HashSet<ComponentType>) -> Self {
         Self {
             types,
             storage: HashMap::new(),
@@ -89,38 +102,38 @@ pub struct World {
 // --- ComponentBundle Trait ---
 // This allows us to pass different combinations of components to the spawn function.
 pub trait ComponentBundle {
-    fn get_type_ids() -> HashSet<TypeId> where Self: Sized;
+    fn get_component_types() -> HashSet<ComponentType> where Self: Sized;
     fn push_to_storage(self, archetype: &mut Archetype);
 }
 
 impl<T: Component> ComponentBundle for (T,) {
-    fn get_type_ids() -> HashSet<TypeId> {
+    fn get_component_types() -> HashSet<ComponentType> {
         let mut types = HashSet::new();
-        types.insert(TypeId::of::<T>());
+        types.insert(T::COMPONENT_TYPE);
         types
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        let vec = archetype.storage.get_mut(&TypeId::of::<T>()).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
         vec.push(self.0);
     }
 }
 
 impl<T: Component, U: Component> ComponentBundle for (T, U) {
-    fn get_type_ids() -> HashSet<TypeId> {
+    fn get_component_types() -> HashSet<ComponentType> {
         let mut types = HashSet::new();
-        types.insert(TypeId::of::<T>());
-        types.insert(TypeId::of::<U>());
+        types.insert(T::COMPONENT_TYPE);
+        types.insert(U::COMPONENT_TYPE);
         types
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
         // Add first component
-        let vec_t = archetype.storage.get_mut(&TypeId::of::<T>()).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
         vec_t.push(self.0);
 
         // Add second component
-        let vec_u = archetype.storage.get_mut(&TypeId::of::<U>()).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
         vec_u.push(self.1);
     }
 }
@@ -136,7 +149,7 @@ impl World {
         }
     }
     
-    fn get_or_create_archetype(&mut self, types: HashSet<TypeId>) -> usize {
+    fn get_or_create_archetype(&mut self, types: HashSet<ComponentType>) -> usize {
         if let Some(idx) = self.archetypes.iter().position(|arch| arch.types == types) {
             return idx;
         }
@@ -144,11 +157,11 @@ impl World {
         // Create a new archetype
         let mut archetype = Archetype::new(types.clone());
         // Initialize the Vec<T> for each component type.
-        if types.contains(&TypeId::of::<ffi::Transform>()) {
-            archetype.storage.insert(TypeId::of::<ffi::Transform>(), Box::new(Vec::<ffi::Transform>::new()));
+        if types.contains(&ComponentType::Transform) {
+            archetype.storage.insert(ComponentType::Transform, Box::new(Vec::<ffi::Transform>::new()));
         }
-        if types.contains(&TypeId::of::<ffi::Velocity>()) {
-            archetype.storage.insert(TypeId::of::<ffi::Velocity>(), Box::new(Vec::<ffi::Velocity>::new()));
+        if types.contains(&ComponentType::Velocity) {
+            archetype.storage.insert(ComponentType::Velocity, Box::new(Vec::<ffi::Velocity>::new()));
         }
 
         self.archetypes.push(archetype);
@@ -156,7 +169,7 @@ impl World {
     }
 
     pub fn spawn<B: ComponentBundle>(&mut self, bundle: B) -> Entity {
-        let types = B::get_type_ids();
+        let types = B::get_component_types();
         let archetype_idx = self.get_or_create_archetype(types);
         let archetype = &mut self.archetypes[archetype_idx];
 
@@ -177,7 +190,7 @@ impl World {
     pub fn build_render_commands(&mut self) {
         self.render_commands.clear();
         for archetype in &self.archetypes {
-            if let Some(storage) = archetype.storage.get(&TypeId::of::<ffi::Transform>()) {
+            if let Some(storage) = archetype.storage.get(&ComponentType::Transform) {
                 if let Some(transforms) = storage.downcast_ref::<Vec<ffi::Transform>>() {
                     for transform in transforms {
                         self.render_commands.push(ffi::DrawTriangleCommand { transform: *transform });
@@ -191,14 +204,14 @@ impl World {
         let dt = 0.016; // 60FPS相当の固定ステップ
 
         for archetype in &mut self.archetypes {
-            let has_transform = archetype.types.contains(&TypeId::of::<ffi::Transform>());
-            let has_velocity = archetype.types.contains(&TypeId::of::<ffi::Velocity>());
+            let has_transform = archetype.types.contains(&ComponentType::Transform);
+            let has_velocity = archetype.types.contains(&ComponentType::Velocity);
 
             if has_transform && has_velocity {
-                let mut trans_storage = archetype.storage.remove(&TypeId::of::<ffi::Transform>()).unwrap();
+                let mut trans_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
                 let transforms = trans_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
 
-                let vel_storage = archetype.storage.get(&TypeId::of::<ffi::Velocity>()).unwrap();
+                let vel_storage = archetype.storage.get(&ComponentType::Velocity).unwrap();
                 let velocities = vel_storage.downcast_ref::<Vec<ffi::Velocity>>().unwrap();
 
                 for (transform, velocity) in transforms.iter_mut().zip(velocities.iter()) {
@@ -207,7 +220,7 @@ impl World {
                     transform.position.z += velocity.z * dt;
                 }
                 
-                archetype.storage.insert(TypeId::of::<ffi::Transform>(), trans_storage);
+                archetype.storage.insert(ComponentType::Transform, trans_storage);
             }
         }
     }
@@ -225,7 +238,7 @@ pub extern "C" fn create_world() -> *mut World {
             rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
             scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
         },
-        ffi::Velocity { x: 0.1, y: 0.0, z: 0.0 },
+        ffi::Velocity { x: 0.0, y: 0.0, z: 0.0 },
     ));
     world.spawn((
         ffi::Transform {
@@ -284,11 +297,11 @@ pub extern "C" fn deserialize_world(json: *const c_char) -> *mut World {
     world.render_commands = Vec::new();
     for archetype in &mut world.archetypes {
         archetype.storage = HashMap::new();
-        if archetype.types.contains(&TypeId::of::<ffi::Transform>()) {
-            archetype.storage.insert(TypeId::of::<ffi::Transform>(), Box::new(Vec::<ffi::Transform>::new()));
+        if archetype.types.contains(&ComponentType::Transform) {
+            archetype.storage.insert(ComponentType::Transform, Box::new(Vec::<ffi::Transform>::new()));
         }
-        if archetype.types.contains(&TypeId::of::<ffi::Velocity>()) {
-            archetype.storage.insert(TypeId::of::<ffi::Velocity>(), Box::new(Vec::<ffi::Velocity>::new()));
+        if archetype.types.contains(&ComponentType::Velocity) {
+            archetype.storage.insert(ComponentType::Velocity, Box::new(Vec::<ffi::Velocity>::new()));
         }
     }
     Box::into_raw(Box::new(world))
@@ -300,7 +313,7 @@ pub extern "C" fn free_serialized_string(s: *mut c_char) {
         if s.is_null() {
             return;
         }
-        CString::from_raw(s)
+        drop(CString::from_raw(s));
     };
 }
 

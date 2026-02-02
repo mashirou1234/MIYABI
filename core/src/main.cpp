@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 #include <thread>
 #include <atomic>
+#include <cstdio>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -18,10 +19,7 @@ struct RenderCommands {
     size_t count;
 };
 
-struct SerializedWorld {
-    const uint8_t* data;
-    size_t len;
-};
+
 
 // Function prototypes
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -34,18 +32,43 @@ using create_world_t = World* (*)();
 using destroy_world_t = void (*)(World*);
 using run_logic_t = void (*)(World*);
 using build_render_commands_t = RenderCommands (*)(World*);
-using serialize_world_t = SerializedWorld (*)(const World*);
-using deserialize_world_t = World* (*)(const uint8_t*, size_t);
-using free_serialized_world_t = void (*)(SerializedWorld);
+using serialize_world_t = const char* (*)(const World*);
+using deserialize_world_t = World* (*)(const char*);
+using free_serialized_string_t = void (*)(char*);
 
 
 // Global flag to signal library reload
 std::atomic<bool> g_reload_library(false);
 
 void watch_for_changes() {
-    // Run fswatch and wait for it to exit (which it does after the first change)
-    system("fswatch -r -1 logic");
-    g_reload_library = true;
+    std::cout << "Watcher thread started." << std::endl;
+
+    // The -1 flag tells fswatch to exit after the first set of events is detected.
+    // This will cause the popen stream to close, fgets will return NULL, and the loop will terminate.
+    FILE* pipe = popen("fswatch -1 -r -l 0.1 logic/src", "r");
+    if (!pipe) {
+        std::cerr << "popen() failed!" << std::endl;
+        return;
+    }
+
+    char buffer[128];
+    // This will block until fswatch detects a change and prints the path.
+    if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        std::cout << "fswatch detected a change in: " << buffer;
+        g_reload_library = true;
+    }
+
+    // Close the stream and terminate the fswatch process if it's still running.
+    int status = pclose(pipe);
+    if (status == -1) {
+        std::cerr << "pclose() failed!" << std::endl;
+    } else {
+        // Here you could check WIFEXITED, WEXITSTATUS, etc. on status
+    }
+
+    if (!g_reload_library) {
+        std::cout << "Watcher thread finished without detecting changes (pclose status: " << status << ")." << std::endl;
+    }
 }
 
 // Settings
@@ -70,7 +93,7 @@ int main() {
     build_render_commands_t build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
     serialize_world_t serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
     deserialize_world_t deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
-    free_serialized_world_t free_serialized_world = (free_serialized_world_t) dlsym(handle, "free_serialized_world");
+    free_serialized_string_t free_serialized_string = (free_serialized_string_t) dlsym(handle, "free_serialized_string");
 
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
@@ -159,17 +182,16 @@ int main() {
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window)) {
-        // Check for library reload
         if (g_reload_library) {
             g_reload_library = false;
             std::cout << "Reloading library..." << std::endl;
 
             // Serialize the world
             std::cout << "Serializing world..." << std::endl;
-            SerializedWorld serialized_world = serialize_world(world);
+            const char* serialized_world = serialize_world(world);
             std::cout << "World serialized." << std::endl;
             
-            // Rebuild the library
+            // Rebuild the library - this assumes a specific project setup
             std::cout << "Rebuilding library..." << std::endl;
             system("cmake --build build");
             std::cout << "Library rebuilt." << std::endl;
@@ -194,7 +216,7 @@ int main() {
                 build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
                 serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
                 deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
-                free_serialized_world = (free_serialized_world_t) dlsym(handle, "free_serialized_world");
+                free_serialized_string = (free_serialized_string_t) dlsym(handle, "free_serialized_string");
                 dlsym_error = dlerror();
                 if (dlsym_error) {
                     std::cerr << "Cannot load symbol: " << dlsym_error << std::endl;
@@ -206,8 +228,8 @@ int main() {
             // Recreate the world
             std::cout << "Recreating world..." << std::endl;
             destroy_world(world);
-            world = deserialize_world(serialized_world.data, serialized_world.len);
-            free_serialized_world(serialized_world);
+            world = deserialize_world(serialized_world);
+            free_serialized_string((char*)serialized_world);
             std::cout << "World recreated." << std::endl;
 
 
