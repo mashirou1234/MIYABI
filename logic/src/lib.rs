@@ -266,18 +266,18 @@ pub extern "C" fn run_logic(world: *mut World) {
 }
 
 #[repr(C)]
-pub struct RenderCommands {
-    pub commands: *const ffi::DrawTriangleCommand,
-    pub count: usize,
+pub struct RenderCommandSlice {
+    pub ptr: *const ffi::DrawTriangleCommand,
+    pub len: usize,
 }
 
 #[no_mangle]
-pub extern "C" fn build_render_commands(world: *mut World) -> RenderCommands {
+pub extern "C" fn get_render_command_slice(world: *mut World) -> RenderCommandSlice {
     let world = unsafe { &mut *world };
     world.build_render_commands();
-    RenderCommands {
-        commands: world.render_commands.as_ptr(),
-        count: world.render_commands.len(),
+    RenderCommandSlice {
+        ptr: world.render_commands.as_ptr(),
+        len: world.render_commands.len(),
     }
 }
 

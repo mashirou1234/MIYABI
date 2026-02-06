@@ -13,10 +13,14 @@
 
 #include "miyabi_cxxbridge/lib.h" // cxxが生成したヘッダー
 
-// Define the struct to hold render commands from Rust
-struct RenderCommands {
-    const DrawTriangleCommand* commands;
-    size_t count;
+// A slice-like struct to hold a view over render commands from Rust.
+// It includes begin() and end() to support C++ range-based for loops.
+struct RenderCommandSlice {
+    const DrawTriangleCommand* ptr;
+    size_t len;
+
+    const DrawTriangleCommand* begin() const { return ptr; }
+    const DrawTriangleCommand* end() const { return ptr + len; }
 };
 
 
@@ -31,7 +35,7 @@ std::string read_shader_file(const char* file_path);
 using create_world_t = World* (*)();
 using destroy_world_t = void (*)(World*);
 using run_logic_t = void (*)(World*);
-using build_render_commands_t = RenderCommands (*)(World*);
+using get_render_command_slice_t = RenderCommandSlice (*)(World*);
 using serialize_world_t = const char* (*)(const World*);
 using deserialize_world_t = World* (*)(const char*);
 using free_serialized_string_t = void (*)(char*);
@@ -90,7 +94,7 @@ int main() {
     create_world_t create_world = (create_world_t) dlsym(handle, "create_world");
     destroy_world_t destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
     run_logic_t run_logic = (run_logic_t) dlsym(handle, "run_logic");
-    build_render_commands_t build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
+    get_render_command_slice_t get_render_command_slice = (get_render_command_slice_t) dlsym(handle, "get_render_command_slice");
     serialize_world_t serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
     deserialize_world_t deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
     free_serialized_string_t free_serialized_string = (free_serialized_string_t) dlsym(handle, "free_serialized_string");
@@ -213,7 +217,7 @@ int main() {
                 create_world = (create_world_t) dlsym(handle, "create_world");
                 destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
                 run_logic = (run_logic_t) dlsym(handle, "run_logic");
-                build_render_commands = (build_render_commands_t) dlsym(handle, "build_render_commands");
+                get_render_command_slice = (get_render_command_slice_t) dlsym(handle, "get_render_command_slice");
                 serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
                 deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
                 free_serialized_string = (free_serialized_string_t) dlsym(handle, "free_serialized_string");
@@ -259,9 +263,8 @@ int main() {
 
         // Rustからコマンドバッファを取得し、描画コマンドを実行
         // ---------------------------------------------------------
-        RenderCommands render_commands = build_render_commands(world);
-        for (size_t i = 0; i < render_commands.count; ++i) {
-            const auto& command = render_commands.commands[i];
+        RenderCommandSlice render_commands = get_render_command_slice(world);
+        for (const auto& command : render_commands) {
             // uniformに変形情報を送る
             glUniform3f(translationLoc, command.transform.position.x, command.transform.position.y, command.transform.position.z);
             // 三角形を描画
