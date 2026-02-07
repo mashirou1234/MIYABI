@@ -169,9 +169,8 @@ int main() {
             g_vtable.free_cstring((char*)c_path);
 
             uint32_t loaded_texture_id = texture_manager.load_texture(path);
-            // For now, we assume the first loaded texture is for the main material
             if (loaded_texture_id != 0) {
-                 material_manager.set_texture(textured_material_id, loaded_texture_id);
+                g_vtable.notify_asset_loaded(world, command.request_id, loaded_texture_id);
             }
         }
     }
@@ -195,9 +194,10 @@ int main() {
                 std::string path(c_path);
                 g_vtable.free_cstring((char*)c_path);
 
-                texture_manager.load_texture(path);
-                // Note: Here we would need a more robust system to map the resulting
-                // texture ID back to the Rust-side logic or materials.
+                uint32_t loaded_texture_id = texture_manager.load_texture(path);
+                 if (loaded_texture_id != 0) {
+                    g_vtable.notify_asset_loaded(world, command.request_id, loaded_texture_id);
+                }
             }
         }
         if (asset_commands.len > 0) {
@@ -209,42 +209,49 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         // --- New Rendering Logic ---
-        RenderableObjectSlice renderables = g_vtable.get_renderables(world);
+        RenderableObjectSlice renderables_slice = g_vtable.get_renderables(world);
+        std::vector<RenderableObject> renderables(renderables_slice.ptr, renderables_slice.ptr + renderables_slice.len);
+
+        // Group renderables by texture
+        std::unordered_map<uint32_t, std::vector<RenderableObject>> textured_batches;
+        for (const auto& obj : renderables) {
+            textured_batches[obj.texture_id].push_back(obj);
+        }
         
-        // For now, we only have one material and one mesh, so we can treat everything
-        // as a single batch.
-        if (renderables.len > 0) {
+        // For now, we only have one material and one mesh
+        Material* material = material_manager.get_material(textured_material_id);
+        shader_manager.use_shader(material->shader_id);
+        uint32_t program_id = shader_manager.get_program_id(material->shader_id);
+
+        // Set uniforms that are the same for all batches
+        Mat4 projection, view; // Keep as identity for now
+        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, projection.data);
+        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, view.data);
+        glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
+
+        mesh_manager.bind_mesh(quad_mesh_id);
+
+        for (auto const& [texture_id, batch] : textured_batches) {
+            if (batch.empty()) continue;
+
             std::vector<Mat4> model_matrices;
-            model_matrices.reserve(renderables.len);
-            for (const auto& obj : renderables) {
-                // NOTE: A full transform would include rotation and scale.
-                // For now, only translation is implemented.
+            model_matrices.reserve(batch.size());
+            for (const auto& obj : batch) {
                 model_matrices.push_back(Mat4::translation(obj.transform.position.x, obj.transform.position.y, obj.transform.position.z));
             }
 
             // Update instance VBO
             glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-            glBufferData(GL_ARRAY_BUFFER, renderables.len * sizeof(Mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, batch.size() * sizeof(Mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
             
-            // Get material and shader info
-            Material* material = material_manager.get_material(textured_material_id); // Assuming all objects use this
-            shader_manager.use_shader(material->shader_id);
-            uint32_t program_id = shader_manager.get_program_id(material->shader_id);
+            // Bind texture for this batch
+            texture_manager.bind_texture(texture_id, GL_TEXTURE0);
 
-            // Set uniforms
-            Mat4 projection, view; // Keep as identity for now
-            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, projection.data);
-            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, view.data);
-            glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
-
-            // Bind texture
-            texture_manager.bind_texture(material->texture_id, GL_TEXTURE0);
-
-            // Bind mesh and draw instanced
-            mesh_manager.bind_mesh(quad_mesh_id);
-            glDrawElementsInstanced(GL_TRIANGLES, quad_mesh->element_count, GL_UNSIGNED_INT, 0, renderables.len);
-            glBindVertexArray(0);
+            // Draw instanced
+            glDrawElementsInstanced(GL_TRIANGLES, quad_mesh->element_count, GL_UNSIGNED_INT, 0, batch.size());
         }
+        
+        glBindVertexArray(0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
