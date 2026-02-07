@@ -44,7 +44,7 @@ const unsigned int SCR_HEIGHT = 600;
 
 // --- Function Prototypes ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow *window);
+void processInput(GLFWwindow *window, InputState& input_state);
 bool load_vtable(void* handle);
 
 
@@ -177,13 +177,16 @@ int main() {
     g_vtable.clear_asset_commands(world);
 
 
+    InputState input_state;
+
     // --- Render Loop ---
     while (!glfwWindowShouldClose(window)) {
         if (g_reload_library) {
             // ... hot reloading logic ...
         }
 
-        processInput(window);
+        processInput(window, input_state);
+        g_vtable.update_input_state(world, input_state);
         g_vtable.run_logic_systems(world);
 
         // Process asset commands from Rust
@@ -269,9 +272,14 @@ int main() {
 }
 
 // --- Utility Functions ---
-void processInput(GLFWwindow *window) {
+void processInput(GLFWwindow *window, InputState& input_state) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+    input_state.up = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
+    input_state.down = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
+    input_state.left = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
+    input_state.right = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {

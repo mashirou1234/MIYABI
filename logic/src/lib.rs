@@ -11,7 +11,8 @@ pub trait Component: 'static + serde::Serialize + for<'de> serde::Deserialize<'d
 pub enum ComponentType {
     Transform,
     Velocity,
-    Material, // Materialを追加
+    Material,
+    Player, // Player component
 }
 
 #[cxx::bridge]
@@ -36,6 +37,14 @@ mod ffi {
         pub x: f32,
         pub y: f32,
         pub z: f32,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+    pub struct InputState {
+        pub up: bool,
+        pub down: bool,
+        pub left: bool,
+        pub right: bool,
     }
 
     // New renderable object struct as per DESIGN_Renderer.md
@@ -106,6 +115,12 @@ impl AssetServer {
 
 // --- Components & Entity ---
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Player;
+impl Component for Player {
+    const COMPONENT_TYPE: ComponentType = ComponentType::Player;
+}
+
 // The actual material data, for now just a texture handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Material {
@@ -159,6 +174,8 @@ struct InternalWorld {
     asset_server: AssetServer,
     #[serde(skip)]
     texture_map: HashMap<u32, u32>, // texture_handle -> texture_id (from C++)
+    #[serde(skip)]
+    input_state: ffi::InputState,
 
     #[serde(skip)]
     renderables: Vec<ffi::RenderableObject>,
@@ -219,6 +236,28 @@ impl<T: Component, U: Component, V: Component> ComponentBundle for (T, U, V) {
     }
 }
 
+impl<T: Component, U: Component, V: Component, W: Component> ComponentBundle for (T, U, V, W) {
+    fn get_component_types() -> HashSet<ComponentType> {
+        let mut types = HashSet::new();
+        types.insert(T::COMPONENT_TYPE);
+        types.insert(U::COMPONENT_TYPE);
+        types.insert(V::COMPONENT_TYPE);
+        types.insert(W::COMPONENT_TYPE);
+        types
+    }
+
+    fn push_to_storage(self, archetype: &mut Archetype) {
+        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        vec_t.push(self.0);
+        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        vec_u.push(self.1);
+        let vec_v = archetype.storage.get_mut(&V::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<V>>().unwrap();
+        vec_v.push(self.2);
+        let vec_w = archetype.storage.get_mut(&W::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<W>>().unwrap();
+        vec_w.push(self.3);
+    }
+}
+
 
 impl InternalWorld {
     pub fn new() -> Self {
@@ -228,6 +267,7 @@ impl InternalWorld {
             next_entity: 0,
             asset_server: AssetServer::new(),
             texture_map: HashMap::new(),
+            input_state: ffi::InputState { up: false, down: false, left: false, right: false },
             renderables: Vec::new(),
             asset_commands: Vec::new(),
         }
@@ -246,6 +286,9 @@ impl InternalWorld {
         }
         if types.contains(&ComponentType::Material) {
             archetype.storage.insert(ComponentType::Material, Box::new(Vec::<Material>::new()));
+        }
+        if types.contains(&ComponentType::Player) {
+            archetype.storage.insert(ComponentType::Player, Box::new(Vec::<Player>::new()));
         }
         self.archetypes.push(archetype);
         self.archetypes.len() - 1
@@ -287,7 +330,41 @@ impl InternalWorld {
         }
     }
 
+    pub fn run_input_system(&mut self) {
+        for archetype in &mut self.archetypes {
+            if archetype.types.contains(&ComponentType::Player) {
+                if let Some(vel_storage_any) = archetype.storage.get_mut(&ComponentType::Velocity) {
+                    if let Some(velocities) = vel_storage_any.downcast_mut::<Vec<ffi::Velocity>>() {
+                        for velocity in velocities {
+                            velocity.x = 0.0;
+                            velocity.y = 0.0;
+                            let speed = 5.0;
+                            if self.input_state.up {
+                                velocity.y = speed;
+                            }
+                            if self.input_state.down {
+                                velocity.y = -speed;
+                            }
+                            if self.input_state.left {
+                                velocity.x = -speed;
+                            }
+                            if self.input_state.right {
+                                velocity.x = speed;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     pub fn run_logic_systems(&mut self) {
+        self.run_input_system();
+        self.run_movement_system();
+        self.process_asset_server();
+    }
+
+    pub fn run_movement_system(&mut self) {
         let dt = 0.016; // 60FPS
         for archetype in &mut self.archetypes {
             let has_transform = archetype.types.contains(&ComponentType::Transform);
@@ -345,6 +422,7 @@ pub struct MiyabiVTable {
     pub get_asset_commands: extern "C" fn(*mut World) -> AssetCommandSlice,
     pub clear_asset_commands: extern "C" fn(*mut World),
     pub notify_asset_loaded: extern "C" fn(*mut World, u32, u32), // request_id, asset_id
+    pub update_input_state: extern "C" fn(*mut World, &ffi::InputState),
     pub get_asset_command_path_cstring: extern "C" fn(&ffi::AssetCommand) -> *const c_char,
     pub free_cstring: extern "C" fn(*mut c_char),
 }
@@ -362,12 +440,19 @@ pub extern "C" fn get_miyabi_vtable() -> MiyabiVTable {
         get_asset_commands: rust_get_asset_commands,
         clear_asset_commands: rust_clear_asset_commands,
         notify_asset_loaded: rust_notify_asset_loaded,
+        update_input_state: rust_update_input_state,
         get_asset_command_path_cstring: rust_get_asset_command_path_cstring,
         free_cstring: rust_free_cstring,
     }
 }
 
 // --- VTable Function Implementations ---
+
+#[no_mangle]
+extern "C" fn rust_update_input_state(world: *mut World, input_state: &ffi::InputState) {
+    let world = unsafe { &mut *(world as *mut InternalWorld) };
+    world.input_state = *input_state;
+}
 
 #[no_mangle]
 extern "C" fn rust_notify_asset_loaded(world: *mut World, request_id: u32, asset_id: u32) {
@@ -389,67 +474,38 @@ extern "C" fn rust_get_asset_command_path_cstring(command: &ffi::AssetCommand) -
 #[no_mangle]
 extern "C" fn rust_free_cstring(s: *mut c_char) {
     if !s.is_null() {
-        unsafe { CString::from_raw(s) };
+        unsafe { let _ = CString::from_raw(s); };
     }
 }
 
-
-// --- Scene Macro ---
-#[macro_export]
-macro_rules! define_scene {
-    (
-        entities: [
-            $(
-                {
-                    transform: $transform:expr,
-                    velocity: $velocity:expr,
-                    material: { texture: $texture_path:expr }
-                }
-            ),*
-        ]
-    ) => {
-        {
-            let mut world = InternalWorld::new();
-            $(
-                {
-                    let texture_handle = world.asset_server.load_texture($texture_path);
-                    world.spawn((
-                        $transform,
-                        $velocity,
-                        Material { texture_handle },
-                    ));
-                }
-            )*
-            world
-        }
-    };
-}
-
-
 #[no_mangle]
 extern "C" fn rust_create_world() -> *mut World {
-    let mut world = define_scene! {
-        entities: [
-            {
-                transform: ffi::Transform {
-                    position: ffi::Vec3 { x: -0.5, y: 0.0, z: 0.0 },
-                    rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                    scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
-                },
-                velocity: ffi::Velocity { x: 0.1, y: 0.0, z: 0.0 },
-                material: { texture: "assets/test.png" }
-            },
-            {
-                transform: ffi::Transform {
-                    position: ffi::Vec3 { x: 0.5, y: 0.0, z: 0.0 },
-                    rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                    scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
-                },
-                velocity: ffi::Velocity { x: -0.1, y: 0.0, z: 0.0 },
-                material: { texture: "assets/test.png" }
-            }
-        ]
-    };
+    let mut world = InternalWorld::new();
+
+    // Player
+    let player_texture_handle = world.asset_server.load_texture("assets/player.png");
+    world.spawn((
+        ffi::Transform {
+            position: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+            rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+            scale: ffi::Vec3 { x: 0.2, y: 0.2, z: 0.2 },
+        },
+        ffi::Velocity { x: 0.0, y: 0.0, z: 0.0 },
+        Material { texture_handle: player_texture_handle },
+        Player,
+    ));
+
+    // Other entity
+    let test_texture_handle = world.asset_server.load_texture("assets/test.png");
+    world.spawn((
+        ffi::Transform {
+            position: ffi::Vec3 { x: 0.5, y: 0.5, z: 0.0 },
+            rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+            scale: ffi::Vec3 { x: 0.2, y: 0.2, z: 0.2 },
+        },
+        ffi::Velocity { x: -0.1, y: -0.1, z: 0.0 },
+        Material { texture_handle: test_texture_handle },
+    ));
 
     // After spawning, process the asset server to generate commands
     world.process_asset_server();
