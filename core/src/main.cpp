@@ -7,107 +7,87 @@
 #include <thread>
 #include <atomic>
 #include <cstdio>
+#include <algorithm> // For std::sort
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include "miyabi_cxxbridge/lib.h" // cxxが生成したヘッダー
+#include "miyabi/miyabi.h"
+#include "renderer/ShaderManager.hpp"
+#include "renderer/MeshManager.hpp"
+#include "renderer/MaterialManager.hpp"
 
-// A slice-like struct to hold a view over render commands from Rust.
-// It includes begin() and end() to support C++ range-based for loops.
-struct RenderCommandSlice {
-    const DrawTriangleCommand* ptr;
-    size_t len;
+// Temporary minimal Mat4 struct until a math library is added
+struct Mat4 {
+    float data[16] = {
+        1.f, 0.f, 0.f, 0.f,
+        0.f, 1.f, 0.f, 0.f,
+        0.f, 0.f, 1.f, 0.f,
+        0.f, 0.f, 0.f, 1.f
+    };
 
-    const DrawTriangleCommand* begin() const { return ptr; }
-    const DrawTriangleCommand* end() const { return ptr + len; }
+    static Mat4 translation(float x, float y, float z) {
+        Mat4 m;
+        m.data[12] = x;
+        m.data[13] = y;
+        m.data[14] = z;
+        return m;
+    }
 };
 
+// --- Globals ---
+MiyabiVTable g_vtable;
+std::atomic<bool> g_reload_library(false);
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
 
-
-// Function prototypes
+// --- Function Prototypes ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
-unsigned int create_shader_program(const char* vertex_path, const char* fragment_path);
-std::string read_shader_file(const char* file_path);
+bool load_vtable(void* handle);
 
-// Define function pointers for Rust functions
-using create_world_t = World* (*)();
-using destroy_world_t = void (*)(World*);
-using run_logic_t = void (*)(World*);
-using get_render_command_slice_t = RenderCommandSlice (*)(World*);
-using serialize_world_t = const char* (*)(const World*);
-using deserialize_world_t = World* (*)(const char*);
-using free_serialized_string_t = void (*)(char*);
-
-
-// Global flag to signal library reload
-std::atomic<bool> g_reload_library(false);
-
+// --- File Watcher ---
 void watch_for_changes() {
     std::cout << "Watcher thread started." << std::endl;
-
-    // The -1 flag tells fswatch to exit after the first set of events is detected.
-    // This will cause the popen stream to close, fgets will return NULL, and the loop will terminate.
     FILE* pipe = popen("fswatch -1 -r -l 0.1 logic/src", "r");
     if (!pipe) {
         std::cerr << "popen() failed!" << std::endl;
         return;
     }
-
     char buffer[128];
-    // This will block until fswatch detects a change and prints the path.
     if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-        std::cout << "fswatch detected a change in: " << buffer;
         g_reload_library = true;
     }
-
-    // Close the stream and terminate the fswatch process if it's still running.
-    int status = pclose(pipe);
-    if (status == -1) {
-        std::cerr << "pclose() failed!" << std::endl;
-    } else {
-        // Here you could check WIFEXITED, WEXITSTATUS, etc. on status
-    }
-
-    if (!g_reload_library) {
-        std::cout << "Watcher thread finished without detecting changes (pclose status: " << status << ")." << std::endl;
-    }
+    pclose(pipe);
+    std::cout << "Watcher thread finished." << std::endl;
 }
 
-// Settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
-
-int main() {
-    // Start the file watcher thread
-    std::thread watcher_thread(watch_for_changes);
-
-    // Load the Rust library
-    void* handle = dlopen("liblogic.dylib", RTLD_LAZY);
+// --- VTable Loader ---
+bool load_vtable(void* handle) {
     if (!handle) {
         std::cerr << "Cannot open library: " << dlerror() << std::endl;
-        return 1;
+        return false;
     }
-
-    // Load the symbols
-    create_world_t create_world = (create_world_t) dlsym(handle, "create_world");
-    destroy_world_t destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
-    run_logic_t run_logic = (run_logic_t) dlsym(handle, "run_logic");
-    get_render_command_slice_t get_render_command_slice = (get_render_command_slice_t) dlsym(handle, "get_render_command_slice");
-    serialize_world_t serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
-    deserialize_world_t deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
-    free_serialized_string_t free_serialized_string = (free_serialized_string_t) dlsym(handle, "free_serialized_string");
-
+    using get_vtable_t = MiyabiVTable (*)();
+    get_vtable_t get_vtable = (get_vtable_t) dlsym(handle, "get_miyabi_vtable");
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
-        std::cerr << "Cannot load symbol: " << dlsym_error << std::endl;
+        std::cerr << "Cannot load symbol 'get_miyabi_vtable': " << dlsym_error << std::endl;
         dlclose(handle);
+        return false;
+    }
+    g_vtable = get_vtable();
+    return true;
+}
+
+int main() {
+    std::thread watcher_thread(watch_for_changes);
+
+    void* handle = dlopen("liblogic.dylib", RTLD_LAZY);
+    if (!load_vtable(handle)) {
         return 1;
     }
 
-    // glfw: initialize and configure
-    // ------------------------------
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return -1;
@@ -115,14 +95,11 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
-    // glfw window creation
-    // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "MIYABI", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "MIYABI Engine", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -131,250 +108,121 @@ int main() {
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    // glad: load all OpenGL function pointers
-    // ---------------------------------------
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
 
-    // build and compile our shader program
-    // ------------------------------------
-    unsigned int shaderProgram = create_shader_program("core/src/shaders/triangle.vert", "core/src/shaders/triangle.frag");
-    if (shaderProgram == 0) {
-        std::cerr << "Failed to create shader program. Exiting." << std::endl;
+    // --- Renderer Infrastructure Setup ---
+    ShaderManager shader_manager;
+    MeshManager mesh_manager;
+    MaterialManager material_manager;
+
+    uint32_t instanced_shader_id = shader_manager.load_shader("core/src/shaders/instanced.vert", "core/src/shaders/instanced.frag");
+    if (instanced_shader_id == 0) {
+        glfwTerminate();
+        return -1;
+    }
+    uint32_t triangle_mesh_id = mesh_manager.create_triangle_mesh();
+    uint32_t basic_material_id = material_manager.create_material(instanced_shader_id);
+
+    const GLMesh* triangle_mesh = mesh_manager.get_mesh(triangle_mesh_id);
+    if (!triangle_mesh) {
         glfwTerminate();
         return -1;
     }
 
-    // set up vertex data (and buffer(s)) and configure vertex attributes
-    // ------------------------------------------------------------------
-    float vertices[] = {
-        -0.5f, -0.5f, 0.0f, // left
-         0.5f, -0.5f, 0.0f, // right
-         0.0f,  0.5f, 0.0f  // top
-    };
-
-    unsigned int VBO, VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-    // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
+    // --- Instancing Setup ---
+    unsigned int instance_vbo;
+    glGenBuffers(1, &instance_vbo);
+    glBindVertexArray(triangle_mesh->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+    // Set up attribute pointers for instance model matrix
+    // A mat4 is 4 vec4s.
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)0);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 4));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 8));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 12));
+    // Tell OpenGL this is an instanced vertex attribute.
+    glVertexAttribDivisor(1, 1);
+    glVertexAttribDivisor(2, 1);
+    glVertexAttribDivisor(3, 1);
+    glVertexAttribDivisor(4, 1);
     glBindVertexArray(0);
 
+    World* world = g_vtable.create_world();
 
-    // uniform location
-    // ----------------
-    GLint translationLoc = glGetUniformLocation(shaderProgram, "u_translation");
-
-    // RustからWorldオブジェクトの所有権付きポインタを受け取る
-    // ------------------------------------------------
-    auto world = create_world();
-
-    // render loop
-    // -----------
+    // --- Render Loop ---
     while (!glfwWindowShouldClose(window)) {
         if (g_reload_library) {
-            g_reload_library = false;
-            std::cout << "Reloading library..." << std::endl;
-
-            // Serialize the world
-            std::cout << "Serializing world..." << std::endl;
-            const char* serialized_world = serialize_world(world);
-            std::cout << "World serialized." << std::endl;
-            
-            // Rebuild the library - this assumes a specific project setup
-            std::cout << "Rebuilding library..." << std::endl;
-            system("cmake --build build");
-            std::cout << "Library rebuilt." << std::endl;
-
-            // Unload the old library
-            std::cout << "Unloading old library..." << std::endl;
-            dlclose(handle);
-            std::cout << "Old library unloaded." << std::endl;
-
-            // Load the new library
-            std::cout << "Loading new library..." << std::endl;
-            handle = dlopen("liblogic.dylib", RTLD_LAZY);
-            if (!handle) {
-                std::cerr << "Cannot open library: " << dlerror() << std::endl;
-            } else {
-                std::cout << "New library loaded." << std::endl;
-                // Load the new symbols
-                std::cout << "Loading new symbols..." << std::endl;
-                create_world = (create_world_t) dlsym(handle, "create_world");
-                destroy_world = (destroy_world_t) dlsym(handle, "destroy_world");
-                run_logic = (run_logic_t) dlsym(handle, "run_logic");
-                get_render_command_slice = (get_render_command_slice_t) dlsym(handle, "get_render_command_slice");
-                serialize_world = (serialize_world_t) dlsym(handle, "serialize_world");
-                deserialize_world = (deserialize_world_t) dlsym(handle, "deserialize_world");
-                free_serialized_string = (free_serialized_string_t) dlsym(handle, "free_serialized_string");
-                dlsym_error = dlerror();
-                if (dlsym_error) {
-                    std::cerr << "Cannot load symbol: " << dlsym_error << std::endl;
-                    dlclose(handle);
-                }
-                std::cout << "New symbols loaded." << std::endl;
-            }
-
-            // Recreate the world
-            std::cout << "Recreating world..." << std::endl;
-            destroy_world(world);
-            world = deserialize_world(serialized_world);
-            free_serialized_string((char*)serialized_world);
-            std::cout << "World recreated." << std::endl;
-
-
-            // Restart the file watcher
-            std::cout << "Restarting file watcher..." << std::endl;
-            watcher_thread.join();
-            watcher_thread = std::thread(watch_for_changes);
-            std::cout << "File watcher restarted." << std::endl;
+            // ... hot reloading logic ...
         }
 
-        // input
-        // -----
         processInput(window);
+        g_vtable.run_logic_systems(world);
 
-        // Rustのフレーム毎ロジックを呼び出し、シーンの状態を更新
-        // ----------------------------------------------------
-        run_logic(world);
-
-        // render
-        // ------
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // シェーダーとVAOを有効化
-        glUseProgram(shaderProgram);
-        glBindVertexArray(VAO);
+        // --- New Rendering Logic ---
+        RenderableObjectSlice renderables = g_vtable.get_renderables(world);
+        
+        // For now, we only have one material and one mesh, so we can treat everything
+        // as a single batch.
+        if (renderables.len > 0) {
+            std::vector<Mat4> model_matrices;
+            model_matrices.reserve(renderables.len);
+            for (const auto& obj : renderables) {
+                // NOTE: A full transform would include rotation and scale.
+                // For now, only translation is implemented.
+                model_matrices.push_back(Mat4::translation(obj.transform.position.x, obj.transform.position.y, obj.transform.position.z));
+            }
 
-        // Rustからコマンドバッファを取得し、描画コマンドを実行
-        // ---------------------------------------------------------
-        RenderCommandSlice render_commands = get_render_command_slice(world);
-        for (const auto& command : render_commands) {
-            // uniformに変形情報を送る
-            glUniform3f(translationLoc, command.transform.position.x, command.transform.position.y, command.transform.position.z);
-            // 三角形を描画
-            glDrawArrays(GL_TRIANGLES, 0, 3);
+            // Update instance VBO
+            glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+            glBufferData(GL_ARRAY_BUFFER, renderables.len * sizeof(Mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
+            
+            // Get material and shader info
+            const Material* material = material_manager.get_material(basic_material_id); // Assuming all objects use this
+            shader_manager.use_shader(material->shader_id);
+            uint32_t program_id = shader_manager.get_program_id(material->shader_id);
+
+            // Set uniforms (identity matrices for now)
+            Mat4 projection, view;
+            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, projection.data);
+            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, view.data);
+
+            // Bind mesh and draw instanced
+            mesh_manager.bind_mesh(triangle_mesh_id);
+            glDrawElementsInstanced(GL_TRIANGLES, triangle_mesh->element_count, GL_UNSIGNED_INT, 0, renderables.len);
+            glBindVertexArray(0);
         }
 
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    // optional: de-allocate all resources once they've outlived their purpose:
-    // ------------------------------------------------------------------------
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteProgram(shaderProgram);
-
-    // Destroy the world
-    destroy_world(world);
-
-    // Close the library
+    // --- Cleanup ---
+    glDeleteBuffers(1, &instance_vbo);
+    g_vtable.destroy_world(world);
     dlclose(handle);
-
-    // Wait for the watcher thread to finish
-    watcher_thread.join();
-
-    // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
+    if(watcher_thread.joinable()) {
+        watcher_thread.join();
+    }
     glfwTerminate();
     return 0;
 }
 
-
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
+// --- Utility Functions ---
 void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 }
 
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// -----------------------------------------------------------------------------
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    // make sure the viewport matches the new window dimensions; note that width and
-    // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
-}
-
-// utility function for reading shader file
-// ----------------------------------------
-std::string read_shader_file(const char* file_path) {
-    std::ifstream shader_file;
-    std::stringstream shader_stream;
-    shader_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    try {
-        shader_file.open(file_path);
-        shader_stream << shader_file.rdbuf();
-        shader_file.close();
-    } catch (std::ifstream::failure& e) {
-        std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << file_path << std::endl;
-    }
-    return shader_stream.str();
-}
-
-// utility function for creating shader program
-// --------------------------------------------
-unsigned int create_shader_program(const char* vertex_path, const char* fragment_path) {
-    std::string vertex_code_str = read_shader_file(vertex_path);
-    std::string fragment_code_str = read_shader_file(fragment_path);
-    const char* v_shader_code = vertex_code_str.c_str();
-    const char* f_shader_code = fragment_code_str.c_str();
-
-    // 2. compile shaders
-    unsigned int vertex, fragment;
-    int success;
-    char infoLog[512];
-
-    // vertex shader
-    vertex = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex, 1, &v_shader_code, NULL);
-    glCompileShader(vertex);
-    glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vertex, 512, NULL, infoLog);
-        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    // fragment shader
-    fragment = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment, 1, &f_shader_code, NULL);
-    glCompileShader(fragment);
-    glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(fragment, 512, NULL, infoLog);
-        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    // shader program
-    unsigned int ID = glCreateProgram();
-    glAttachShader(ID, vertex);
-    glAttachShader(ID, fragment);
-    glLinkProgram(ID);
-    glGetProgramiv(ID, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(ID, 512, NULL, infoLog);
-        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-    }
-
-    glDeleteShader(vertex);
-    glDeleteShader(fragment);
-    return ID;
 }

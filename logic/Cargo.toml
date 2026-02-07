@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
+# This is ESSENTIAL. It tells cargo to produce a C-compatible dynamic
+# library (.dylib on macOS, .so on Linux, .dll on Windows).
 crate-type = ["cdylib"]
 
 [dependencies]
-bincode = "=2.0.0-rc.3"
 cxx = "1.0"
-once_cell = "1.18.0"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [build-dependencies]
-
+# cxx-build is required to run the CXX code generator.
 cxx-build = "1.0"

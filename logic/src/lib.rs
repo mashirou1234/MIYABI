@@ -13,7 +13,6 @@ pub enum ComponentType {
     Velocity,
 }
 
-
 #[cxx::bridge]
 mod ffi {
     // C++と共有するデータ構造
@@ -38,17 +37,17 @@ mod ffi {
         pub z: f32,
     }
 
-    // A simple command for the renderer. For now, it only supports drawing a triangle.
+    // New renderable object struct as per DESIGN_Renderer.md
     #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-    pub struct DrawTriangleCommand {
+    pub struct RenderableObject {
+        pub mesh_id: u32,
+        pub material_id: u32,
         pub transform: Transform,
     }
-
-    // Rust側の`World`オブジェクトへのOpaqueなハンドル
-    extern "Rust" {
-        type World;
-    }
 }
+
+// Opaque pointer to the World. C++ should not know its layout.
+pub struct World;
 
 use std::any::{Any};
 impl Component for ffi::Transform {
@@ -62,17 +61,11 @@ impl Component for ffi::Velocity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Entity(u64);
 
-// The actual storage for components of a given type. Stored as a Box<dyn Any>
-// so we can have a collection of these of different underlying types.
 type ComponentVec = Box<dyn Any + 'static>;
 
-// An Archetype is a collection of entities that all have the same set of component types.
 #[derive(Serialize, Deserialize)]
 pub struct Archetype {
-    // The set of component types that define this archetype.
     types: HashSet<ComponentType>,
-    // A map from a component's TypeId to its storage. The storage is a Box<dyn Any>
-    // that holds a Vec<T> for the component type T.
     #[serde(skip)]
     storage: HashMap<ComponentType, ComponentVec>,
     entity_count: usize,
@@ -88,19 +81,16 @@ impl Archetype {
     }
 }
 
-// C++に公開するWorld構造体
+// Internal World struct. The `World` type alias is the opaque type.
 #[derive(Serialize, Deserialize)]
-pub struct World {
+struct InternalWorld {
     entities: HashMap<Entity, (usize, usize)>, // Map Entity -> (archetype_idx, entity_idx_in_archetype)
     archetypes: Vec<Archetype>,
     next_entity: u64,
     #[serde(skip)]
-    render_commands: Vec<ffi::DrawTriangleCommand>,
+    renderables: Vec<ffi::RenderableObject>,
 }
 
-
-// --- ComponentBundle Trait ---
-// This allows us to pass different combinations of components to the spawn function.
 pub trait ComponentBundle {
     fn get_component_types() -> HashSet<ComponentType> where Self: Sized;
     fn push_to_storage(self, archetype: &mut Archetype);
@@ -128,42 +118,34 @@ impl<T: Component, U: Component> ComponentBundle for (T, U) {
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        // Add first component
         let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
         vec_t.push(self.0);
-
-        // Add second component
         let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
         vec_u.push(self.1);
     }
 }
 
-
-impl World {
+impl InternalWorld {
     pub fn new() -> Self {
-        World {
+        InternalWorld {
             entities: HashMap::new(),
             archetypes: Vec::new(),
             next_entity: 0,
-            render_commands: Vec::new(),
+            renderables: Vec::new(),
         }
     }
-    
+
     fn get_or_create_archetype(&mut self, types: HashSet<ComponentType>) -> usize {
         if let Some(idx) = self.archetypes.iter().position(|arch| arch.types == types) {
             return idx;
         }
-
-        // Create a new archetype
         let mut archetype = Archetype::new(types.clone());
-        // Initialize the Vec<T> for each component type.
         if types.contains(&ComponentType::Transform) {
             archetype.storage.insert(ComponentType::Transform, Box::new(Vec::<ffi::Transform>::new()));
         }
         if types.contains(&ComponentType::Velocity) {
             archetype.storage.insert(ComponentType::Velocity, Box::new(Vec::<ffi::Velocity>::new()));
         }
-
         self.archetypes.push(archetype);
         self.archetypes.len() - 1
     }
@@ -172,73 +154,97 @@ impl World {
         let types = B::get_component_types();
         let archetype_idx = self.get_or_create_archetype(types);
         let archetype = &mut self.archetypes[archetype_idx];
-
-        // Add components to storage using the trait
         bundle.push_to_storage(archetype);
-
         let entity_idx_in_archetype = archetype.entity_count;
         archetype.entity_count += 1;
-
         let entity = Entity(self.next_entity);
         self.next_entity += 1;
-        
         self.entities.insert(entity, (archetype_idx, entity_idx_in_archetype));
-
         entity
     }
 
-    pub fn build_render_commands(&mut self) {
-        self.render_commands.clear();
+    pub fn build_renderables(&mut self) {
+        self.renderables.clear();
         for archetype in &self.archetypes {
             if let Some(storage) = archetype.storage.get(&ComponentType::Transform) {
                 if let Some(transforms) = storage.downcast_ref::<Vec<ffi::Transform>>() {
                     for transform in transforms {
-                        self.render_commands.push(ffi::DrawTriangleCommand { transform: *transform });
+                        self.renderables.push(ffi::RenderableObject {
+                            transform: *transform,
+                            mesh_id: 0,     // Hardcoded for now
+                            material_id: 0, // Hardcoded for now
+                        });
                     }
                 }
             }
         }
     }
-    
-    pub fn run_logic(&mut self) {
-        let dt = 0.016; // 60FPS相当の固定ステップ
 
+    pub fn run_logic_systems(&mut self) {
+        let dt = 0.016; // 60FPS
         for archetype in &mut self.archetypes {
             let has_transform = archetype.types.contains(&ComponentType::Transform);
             let has_velocity = archetype.types.contains(&ComponentType::Velocity);
-
             if has_transform && has_velocity {
                 let mut trans_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
                 let transforms = trans_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
-
                 let vel_storage = archetype.storage.get(&ComponentType::Velocity).unwrap();
                 let velocities = vel_storage.downcast_ref::<Vec<ffi::Velocity>>().unwrap();
-
                 for (transform, velocity) in transforms.iter_mut().zip(velocities.iter()) {
                     transform.position.x += velocity.x * dt;
                     transform.position.y += velocity.y * dt;
                     transform.position.z += velocity.z * dt;
                 }
-                
                 archetype.storage.insert(ComponentType::Transform, trans_storage);
             }
         }
     }
 }
 
-// C++側から呼び出される、Worldを生成する関数
-#[no_mangle]
-pub extern "C" fn create_world() -> *mut World {
-    let mut world = World::new();
+// --- FFI VTable Implementation ---
 
-    // 初期オブジェクトをワールドに追加
+#[repr(C)]
+pub struct RenderableObjectSlice {
+    pub ptr: *const ffi::RenderableObject,
+    pub len: usize,
+}
+
+#[repr(C)]
+pub struct MiyabiVTable {
+    pub create_world: extern "C" fn() -> *mut World,
+    pub destroy_world: extern "C" fn(*mut World),
+    pub serialize_world: extern "C" fn(*const World) -> *const c_char,
+    pub deserialize_world: extern "C" fn(*const c_char) -> *mut World,
+    pub free_serialized_string: extern "C" fn(*mut c_char),
+    pub run_logic_systems: extern "C" fn(*mut World),
+    pub get_renderables: extern "C" fn(*mut World) -> RenderableObjectSlice,
+}
+
+#[no_mangle]
+pub extern "C" fn get_miyabi_vtable() -> MiyabiVTable {
+    MiyabiVTable {
+        create_world: rust_create_world,
+        destroy_world: rust_destroy_world,
+        serialize_world: rust_serialize_world,
+        deserialize_world: rust_deserialize_world,
+        free_serialized_string: rust_free_serialized_string,
+        run_logic_systems: rust_run_logic_systems,
+        get_renderables: rust_get_renderables,
+    }
+}
+
+// --- VTable Function Implementations ---
+
+#[no_mangle]
+extern "C" fn rust_create_world() -> *mut World {
+    let mut world = InternalWorld::new();
     world.spawn((
         ffi::Transform {
             position: ffi::Vec3 { x: -0.5, y: 0.0, z: 0.0 },
             rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
             scale: ffi::Vec3 { x: 1.0, y: 1.0, z: 1.0 },
         },
-        ffi::Velocity { x: 0.0, y: 0.0, z: 0.0 },
+        ffi::Velocity { x: 0.1, y: 0.0, z: 0.0 },
     ));
     world.spawn((
         ffi::Transform {
@@ -248,53 +254,45 @@ pub extern "C" fn create_world() -> *mut World {
         },
         ffi::Velocity { x: -0.1, y: 0.0, z: 0.0 },
     ));
-
-    Box::into_raw(Box::new(world))
+    Box::into_raw(Box::new(world)) as *mut World
 }
 
 #[no_mangle]
-pub extern "C" fn destroy_world(world: *mut World) {
+extern "C" fn rust_destroy_world(world: *mut World) {
     if !world.is_null() {
-        unsafe { drop(Box::from_raw(world)); };
+        unsafe { drop(Box::from_raw(world as *mut InternalWorld)); };
     }
 }
 
 #[no_mangle]
-pub extern "C" fn run_logic(world: *mut World) {
-    let world = unsafe { &mut *world };
-    world.run_logic();
-}
-
-#[repr(C)]
-pub struct RenderCommandSlice {
-    pub ptr: *const ffi::DrawTriangleCommand,
-    pub len: usize,
+extern "C" fn rust_run_logic_systems(world: *mut World) {
+    let world = unsafe { &mut *(world as *mut InternalWorld) };
+    world.run_logic_systems();
 }
 
 #[no_mangle]
-pub extern "C" fn get_render_command_slice(world: *mut World) -> RenderCommandSlice {
-    let world = unsafe { &mut *world };
-    world.build_render_commands();
-    RenderCommandSlice {
-        ptr: world.render_commands.as_ptr(),
-        len: world.render_commands.len(),
+extern "C" fn rust_get_renderables(world: *mut World) -> RenderableObjectSlice {
+    let world = unsafe { &mut *(world as *mut InternalWorld) };
+    world.build_renderables();
+    RenderableObjectSlice {
+        ptr: world.renderables.as_ptr(),
+        len: world.renderables.len(),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn serialize_world(world: *const World) -> *const c_char {
-    let world = unsafe { &*world };
+extern "C" fn rust_serialize_world(world: *const World) -> *const c_char {
+    let world = unsafe { &*(world as *const InternalWorld) };
     let serialized = serde_json::to_string(world).unwrap();
     CString::new(serialized).unwrap().into_raw()
 }
 
 #[no_mangle]
-pub extern "C" fn deserialize_world(json: *const c_char) -> *mut World {
+extern "C" fn rust_deserialize_world(json: *const c_char) -> *mut World {
     let c_str = unsafe { std::ffi::CStr::from_ptr(json) };
     let json_str = c_str.to_str().unwrap();
-    let mut world: World = serde_json::from_str(json_str).unwrap();
-    // Re-initialize non-serialized fields
-    world.render_commands = Vec::new();
+    let mut world: InternalWorld = serde_json::from_str(json_str).unwrap();
+    world.renderables = Vec::new();
     for archetype in &mut world.archetypes {
         archetype.storage = HashMap::new();
         if archetype.types.contains(&ComponentType::Transform) {
@@ -304,16 +302,15 @@ pub extern "C" fn deserialize_world(json: *const c_char) -> *mut World {
             archetype.storage.insert(ComponentType::Velocity, Box::new(Vec::<ffi::Velocity>::new()));
         }
     }
-    Box::into_raw(Box::new(world))
+    Box::into_raw(Box::new(world)) as *mut World
 }
 
 #[no_mangle]
-pub extern "C" fn free_serialized_string(s: *mut c_char) {
+extern "C" fn rust_free_serialized_string(s: *mut c_char) {
     unsafe {
         if s.is_null() {
-            return;
+            drop(CString::from_raw(s));
         }
-        drop(CString::from_raw(s));
     };
 }
 

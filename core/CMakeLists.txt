@@ -17,15 +17,20 @@ corrosion_add_cxxbridge(miyabi_cxxbridge
 add_executable(miyabi
     src/main.cpp
     src/glad.c
+    src/renderer/ShaderManager.cpp
+    src/renderer/MeshManager.cpp
+    src/renderer/MaterialManager.cpp
 )
 
 target_include_directories(miyabi PUBLIC 
     include
+    src # For renderer headers
     $<TARGET_PROPERTY:miyabi_cxxbridge,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 # Link against the cxxbridge target, which brings in both the headers and the static library
 target_link_libraries(miyabi PRIVATE 
+    miyabi_cxxbridge
     glfw
     OpenGL::GL
 )
