@@ -16,6 +16,7 @@
 #include "renderer/ShaderManager.hpp"
 #include "renderer/MeshManager.hpp"
 #include "renderer/MaterialManager.hpp"
+#include "renderer/TextureManager.hpp"
 
 // Temporary minimal Mat4 struct until a math library is added
 struct Mat4 {
@@ -45,6 +46,7 @@ const unsigned int SCR_HEIGHT = 600;
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 bool load_vtable(void* handle);
+
 
 // --- File Watcher ---
 void watch_for_changes() {
@@ -117,17 +119,19 @@ int main() {
     ShaderManager shader_manager;
     MeshManager mesh_manager;
     MaterialManager material_manager;
+    TextureManager texture_manager;
 
-    uint32_t instanced_shader_id = shader_manager.load_shader("core/src/shaders/instanced.vert", "core/src/shaders/instanced.frag");
-    if (instanced_shader_id == 0) {
+    uint32_t textured_shader_id = shader_manager.load_shader("core/src/shaders/textured.vert", "core/src/shaders/textured.frag");
+    if (textured_shader_id == 0) {
         glfwTerminate();
         return -1;
     }
-    uint32_t triangle_mesh_id = mesh_manager.create_triangle_mesh();
-    uint32_t basic_material_id = material_manager.create_material(instanced_shader_id);
+    uint32_t quad_mesh_id = mesh_manager.create_quad_mesh();
+    
+    uint32_t textured_material_id = material_manager.create_material(textured_shader_id);
 
-    const GLMesh* triangle_mesh = mesh_manager.get_mesh(triangle_mesh_id);
-    if (!triangle_mesh) {
+    const GLMesh* quad_mesh = mesh_manager.get_mesh(quad_mesh_id);
+    if (!quad_mesh) {
         glfwTerminate();
         return -1;
     }
@@ -135,26 +139,44 @@ int main() {
     // --- Instancing Setup ---
     unsigned int instance_vbo;
     glGenBuffers(1, &instance_vbo);
-    glBindVertexArray(triangle_mesh->vao);
+    glBindVertexArray(quad_mesh->vao);
     glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-    // Set up attribute pointers for instance model matrix
-    // A mat4 is 4 vec4s.
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)0);
+    // Set up attribute pointers for instance model matrix (a_modelMatrix)
+    // It's at location 2 because pos=0, texcoord=1. A mat4 is 4 vec4s.
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 4));
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)0);
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 8));
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 4));
     glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 12));
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 8));
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 12));
     // Tell OpenGL this is an instanced vertex attribute.
-    glVertexAttribDivisor(1, 1);
     glVertexAttribDivisor(2, 1);
     glVertexAttribDivisor(3, 1);
     glVertexAttribDivisor(4, 1);
+    glVertexAttribDivisor(5, 1);
     glBindVertexArray(0);
 
     World* world = g_vtable.create_world();
+
+    // Process any initial asset load commands
+    AssetCommandSlice asset_commands = g_vtable.get_asset_commands(world);
+    for (const auto& command : asset_commands) {
+        if (command.type_ == AssetCommandType::LoadTexture) {
+            const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
+            std::string path(c_path);
+            g_vtable.free_cstring((char*)c_path);
+
+            uint32_t loaded_texture_id = texture_manager.load_texture(path);
+            // For now, we assume the first loaded texture is for the main material
+            if (loaded_texture_id != 0) {
+                 material_manager.set_texture(textured_material_id, loaded_texture_id);
+            }
+        }
+    }
+    g_vtable.clear_asset_commands(world);
+
 
     // --- Render Loop ---
     while (!glfwWindowShouldClose(window)) {
@@ -164,6 +186,24 @@ int main() {
 
         processInput(window);
         g_vtable.run_logic_systems(world);
+
+        // Process asset commands from Rust
+        asset_commands = g_vtable.get_asset_commands(world);
+        for (const auto& command : asset_commands) {
+            if (command.type_ == AssetCommandType::LoadTexture) {
+                const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
+                std::string path(c_path);
+                g_vtable.free_cstring((char*)c_path);
+
+                texture_manager.load_texture(path);
+                // Note: Here we would need a more robust system to map the resulting
+                // texture ID back to the Rust-side logic or materials.
+            }
+        }
+        if (asset_commands.len > 0) {
+            g_vtable.clear_asset_commands(world);
+        }
+
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -187,18 +227,22 @@ int main() {
             glBufferData(GL_ARRAY_BUFFER, renderables.len * sizeof(Mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
             
             // Get material and shader info
-            const Material* material = material_manager.get_material(basic_material_id); // Assuming all objects use this
+            Material* material = material_manager.get_material(textured_material_id); // Assuming all objects use this
             shader_manager.use_shader(material->shader_id);
             uint32_t program_id = shader_manager.get_program_id(material->shader_id);
 
-            // Set uniforms (identity matrices for now)
-            Mat4 projection, view;
+            // Set uniforms
+            Mat4 projection, view; // Keep as identity for now
             glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, projection.data);
             glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, view.data);
+            glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
+
+            // Bind texture
+            texture_manager.bind_texture(material->texture_id, GL_TEXTURE0);
 
             // Bind mesh and draw instanced
-            mesh_manager.bind_mesh(triangle_mesh_id);
-            glDrawElementsInstanced(GL_TRIANGLES, triangle_mesh->element_count, GL_UNSIGNED_INT, 0, renderables.len);
+            mesh_manager.bind_mesh(quad_mesh_id);
+            glDrawElementsInstanced(GL_TRIANGLES, quad_mesh->element_count, GL_UNSIGNED_INT, 0, renderables.len);
             glBindVertexArray(0);
         }
 

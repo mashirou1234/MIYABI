@@ -16,8 +16,8 @@ public:
     MeshManager();
     ~MeshManager();
 
-    // Creates a simple triangle mesh and returns its ID.
-    uint32_t create_triangle_mesh();
+    // Creates a quad mesh with texture coordinates and returns its ID.
+    uint32_t create_quad_mesh();
 
     // Binds the VAO for the given mesh ID for drawing.
     void bind_mesh(uint32_t mesh_id) const;

@@ -44,6 +44,18 @@ mod ffi {
         pub material_id: u32,
         pub transform: Transform,
     }
+
+    // Commands for asset loading
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub enum AssetCommandType {
+        LoadTexture,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub struct AssetCommand {
+        pub type_: AssetCommandType,
+        pub path: String,
+    }
 }
 
 // Opaque pointer to the World. C++ should not know its layout.
@@ -89,6 +101,8 @@ struct InternalWorld {
     next_entity: u64,
     #[serde(skip)]
     renderables: Vec<ffi::RenderableObject>,
+    #[serde(skip)]
+    asset_commands: Vec<ffi::AssetCommand>,
 }
 
 pub trait ComponentBundle {
@@ -132,6 +146,7 @@ impl InternalWorld {
             archetypes: Vec::new(),
             next_entity: 0,
             renderables: Vec::new(),
+            asset_commands: Vec::new(),
         }
     }
 
@@ -171,8 +186,8 @@ impl InternalWorld {
                     for transform in transforms {
                         self.renderables.push(ffi::RenderableObject {
                             transform: *transform,
-                            mesh_id: 0,     // Hardcoded for now
-                            material_id: 0, // Hardcoded for now
+                            mesh_id: 1,     // Hardcoded for now
+                            material_id: 1, // Hardcoded for now
                         });
                     }
                 }
@@ -210,6 +225,12 @@ pub struct RenderableObjectSlice {
 }
 
 #[repr(C)]
+pub struct AssetCommandSlice {
+    pub ptr: *const ffi::AssetCommand,
+    pub len: usize,
+}
+
+#[repr(C)]
 pub struct MiyabiVTable {
     pub create_world: extern "C" fn() -> *mut World,
     pub destroy_world: extern "C" fn(*mut World),
@@ -218,6 +239,11 @@ pub struct MiyabiVTable {
     pub free_serialized_string: extern "C" fn(*mut c_char),
     pub run_logic_systems: extern "C" fn(*mut World),
     pub get_renderables: extern "C" fn(*mut World) -> RenderableObjectSlice,
+    pub get_asset_commands: extern "C" fn(*mut World) -> AssetCommandSlice,
+    pub clear_asset_commands: extern "C" fn(*mut World),
+    // New function to get path as C string
+    pub get_asset_command_path_cstring: extern "C" fn(&ffi::AssetCommand) -> *const c_char,
+    pub free_cstring: extern "C" fn(*mut c_char),
 }
 
 #[no_mangle]
@@ -230,14 +256,38 @@ pub extern "C" fn get_miyabi_vtable() -> MiyabiVTable {
         free_serialized_string: rust_free_serialized_string,
         run_logic_systems: rust_run_logic_systems,
         get_renderables: rust_get_renderables,
+        get_asset_commands: rust_get_asset_commands,
+        clear_asset_commands: rust_clear_asset_commands,
+        get_asset_command_path_cstring: rust_get_asset_command_path_cstring,
+        free_cstring: rust_free_cstring,
     }
 }
 
 // --- VTable Function Implementations ---
 
 #[no_mangle]
+extern "C" fn rust_get_asset_command_path_cstring(command: &ffi::AssetCommand) -> *const c_char {
+    CString::new(command.path.as_str()).unwrap().into_raw()
+}
+
+#[no_mangle]
+extern "C" fn rust_free_cstring(s: *mut c_char) {
+    if !s.is_null() {
+        unsafe { CString::from_raw(s) };
+    }
+}
+
+
+#[no_mangle]
 extern "C" fn rust_create_world() -> *mut World {
     let mut world = InternalWorld::new();
+
+    // Request loading a texture
+    world.asset_commands.push(ffi::AssetCommand {
+        type_: ffi::AssetCommandType::LoadTexture,
+        path: "assets/test.png".to_string(),
+    });
+
     world.spawn((
         ffi::Transform {
             position: ffi::Vec3 { x: -0.5, y: 0.0, z: 0.0 },
@@ -281,6 +331,22 @@ extern "C" fn rust_get_renderables(world: *mut World) -> RenderableObjectSlice {
 }
 
 #[no_mangle]
+extern "C" fn rust_get_asset_commands(world: *mut World) -> AssetCommandSlice {
+    let world = unsafe { &mut *(world as *mut InternalWorld) };
+    AssetCommandSlice {
+        ptr: world.asset_commands.as_ptr(),
+        len: world.asset_commands.len(),
+    }
+}
+
+#[no_mangle]
+extern "C" fn rust_clear_asset_commands(world: *mut World) {
+    let world = unsafe { &mut *(world as *mut InternalWorld) };
+    world.asset_commands.clear();
+}
+
+
+#[no_mangle]
 extern "C" fn rust_serialize_world(world: *const World) -> *const c_char {
     let world = unsafe { &*(world as *const InternalWorld) };
     let serialized = serde_json::to_string(world).unwrap();
@@ -293,6 +359,7 @@ extern "C" fn rust_deserialize_world(json: *const c_char) -> *mut World {
     let json_str = c_str.to_str().unwrap();
     let mut world: InternalWorld = serde_json::from_str(json_str).unwrap();
     world.renderables = Vec::new();
+    world.asset_commands = Vec::new();
     for archetype in &mut world.archetypes {
         archetype.storage = HashMap::new();
         if archetype.types.contains(&ComponentType::Transform) {

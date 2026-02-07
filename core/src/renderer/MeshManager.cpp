@@ -15,18 +15,20 @@ MeshManager::~MeshManager() {
     }
 }
 
-uint32_t MeshManager::create_triangle_mesh() {
-    // For now, hardcode a simple triangle
+uint32_t MeshManager::create_quad_mesh() {
+    // A quad made of 2 triangles, with positions and texture coordinates.
+    // FORMAT: X, Y, Z, U, V
     float vertices[] = {
-        -0.5f, -0.5f, 0.0f,
-         0.5f, -0.5f, 0.0f,
-         0.0f,  0.5f, 0.0f
+        // Position           // TexCoords
+         0.5f,  0.5f, 0.0f,   1.0f, 1.0f, // Top Right
+         0.5f, -0.5f, 0.0f,   1.0f, 0.0f, // Bottom Right
+        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, // Bottom Left
+        -0.5f,  0.5f, 0.0f,   0.0f, 1.0f  // Top Left 
     };
 
-    // No indices needed for a single triangle drawn with glDrawArrays
-    // but we'll use indices for good practice with glDrawElements
     unsigned int indices[] = {
-        0, 1, 2
+        0, 1, 3, // First Triangle
+        1, 2, 3  // Second Triangle
     };
 
     GLMesh mesh{};
@@ -42,13 +44,20 @@ uint32_t MeshManager::create_triangle_mesh() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // Stride is now 5 floats (3 for position, 2 for tex coords)
+    GLsizei stride = 5 * sizeof(float);
+
+    // Position attribute (location = 0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
     glEnableVertexAttribArray(0);
+
+    // Texture coordinate attribute (location = 1)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     glBindVertexArray(0); // Unbind VAO
 
-    mesh.element_count = 3;
+    mesh.element_count = 6; // We now have 6 indices to draw a quad
 
     uint32_t mesh_id = m_next_mesh_id++;
     m_meshes[mesh_id] = mesh;

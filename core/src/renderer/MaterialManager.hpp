@@ -5,7 +5,7 @@
 
 struct Material {
     uint32_t shader_id;
-    // In the future, this could hold texture IDs, colors, etc.
+    uint32_t texture_id = 0; // 0 means no texture
 };
 
 class MaterialManager {
@@ -16,7 +16,11 @@ public:
     // Creates a material for a given shader and returns its ID.
     uint32_t create_material(uint32_t shader_id);
 
-    const Material* get_material(uint32_t material_id) const;
+    // Sets the texture for a given material.
+    void set_texture(uint32_t material_id, uint32_t texture_id);
+
+    // Returns a pointer to the material, allowing modification.
+    Material* get_material(uint32_t material_id);
 
 private:
     uint32_t m_next_material_id;
