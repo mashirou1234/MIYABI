@@ -4,17 +4,14 @@ target/
 cargo/
 **/debug/
 core/CMakeFiles/
-build/
 *.o
 *.obj
 *.exe
 *.dll
 *.dylib
+*.zip
 .DS_Store
 .vscode/
 miyabi.log
-
-# Test artifacts
-dummy_file.txt
-test_fswatch
+sdk/
 logic_dylib/
