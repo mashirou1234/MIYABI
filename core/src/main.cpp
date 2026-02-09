@@ -17,6 +17,10 @@
 #include "renderer/MeshManager.hpp"
 #include "renderer/MaterialManager.hpp"
 #include "renderer/TextureManager.hpp"
+#include "renderer/FontManager.hpp"
+#include "renderer/TextRenderer.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 // Temporary minimal Mat4 struct until a math library is added
 struct Mat4 {
@@ -115,11 +119,19 @@ int main() {
         return -1;
     }
 
+    // Enable alpha blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     // --- Renderer Infrastructure Setup ---
     ShaderManager shader_manager;
     MeshManager mesh_manager;
     MaterialManager material_manager;
     TextureManager texture_manager;
+    FontManager font_manager;
+    font_manager.load_font("assets/MPLUS1p-Regular.ttf", 48);
+    TextRenderer text_renderer(&shader_manager, &font_manager);
+
 
     uint32_t textured_shader_id = shader_manager.load_shader("core/src/shaders/textured.vert", "core/src/shaders/textured.frag");
     if (textured_shader_id == 0) {
@@ -227,9 +239,10 @@ int main() {
         uint32_t program_id = shader_manager.get_program_id(material->shader_id);
 
         // Set uniforms that are the same for all batches
-        Mat4 projection, view; // Keep as identity for now
-        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, projection.data);
-        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, view.data);
+        glm::mat4 projection = glm::mat4(1.0f); // Keep as identity for now
+        glm::mat4 view = glm::mat4(1.0f); // Keep as identity for now
+        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, &view[0][0]);
         glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
 
         mesh_manager.bind_mesh(quad_mesh_id);
@@ -255,6 +268,24 @@ int main() {
         }
         
         glBindVertexArray(0);
+
+        // Render text from commands
+        TextCommandSlice text_commands_slice = g_vtable.get_text_commands(world);
+        for (const auto& command : text_commands_slice) {
+            const char* c_text = g_vtable.get_text_command_text_cstring(&command);
+            std::string text(c_text);
+            g_vtable.free_cstring((char*)c_text);
+
+            float scale = command.font_size / 48.0f; // Font atlas was loaded with size 48
+
+            text_renderer.render_text(
+                text,
+                command.position.x,
+                command.position.y,
+                scale,
+                glm::vec3(command.color.x, command.color.y, command.color.z)
+            );
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();

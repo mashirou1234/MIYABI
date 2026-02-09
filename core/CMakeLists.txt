@@ -1,9 +1,24 @@
 cmake_minimum_required(VERSION 3.15)
 project(miyabi_core)
 
+# Fetch GLM for math
+include(FetchContent)
+set(GLM_TEST_ENABLE OFF CACHE BOOL "Disable GLM tests")
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.0
+)
+FetchContent_MakeAvailable(glm)
+FetchContent_GetProperties(glm
+    SOURCE_DIR glm_SOURCE_DIR
+)
+include_directories(SYSTEM ${glm_SOURCE_DIR})
+
 # Find necessary packages
 find_package(glfw3 3.3 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(Freetype REQUIRED)
 
 # Import the Rust library so Corrosion is aware of it
 corrosion_import_crate(MANIFEST_PATH ../logic/Cargo.toml)
@@ -21,18 +36,23 @@ add_executable(miyabi
     src/renderer/MeshManager.cpp
     src/renderer/MaterialManager.cpp
     src/renderer/TextureManager.cpp
+    src/renderer/FontManager.cpp
+    src/renderer/TextRenderer.cpp
 )
 
 target_include_directories(miyabi PUBLIC 
     include
     src # For renderer headers
     $<TARGET_PROPERTY:miyabi_cxxbridge,INTERFACE_INCLUDE_DIRECTORIES>
+    ${FREETYPE_INCLUDE_DIRS}
+    ${glm_SOURCE_DIR}
 )
 
 # Link against the cxxbridge target, which brings in both the headers and the static library
 target_link_libraries(miyabi PRIVATE 
     glfw
     OpenGL::GL
+    Freetype::Freetype
 )
 
 

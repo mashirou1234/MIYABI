@@ -68,6 +68,28 @@ mod ffi {
         pub type_: AssetCommandType,
         pub path: String,
     }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+    pub struct Vec2 {
+        pub x: f32,
+        pub y: f32,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+    pub struct Vec4 {
+        pub x: f32,
+        pub y: f32,
+        pub z: f32,
+        pub w: f32,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct TextCommand {
+        pub text: String,
+        pub position: Vec2,
+        pub font_size: f32,
+        pub color: Vec4,
+    }
 }
 
 // Opaque pointer to the World. C++ should not know its layout.
@@ -181,6 +203,8 @@ struct InternalWorld {
     renderables: Vec<ffi::RenderableObject>,
     #[serde(skip)]
     asset_commands: Vec<ffi::AssetCommand>,
+    #[serde(skip)]
+    text_commands: Vec<ffi::TextCommand>,
 }
 
 pub trait ComponentBundle {
@@ -270,6 +294,7 @@ impl InternalWorld {
             input_state: ffi::InputState { up: false, down: false, left: false, right: false },
             renderables: Vec::new(),
             asset_commands: Vec::new(),
+            text_commands: Vec::new(),
         }
     }
 
@@ -362,6 +387,17 @@ impl InternalWorld {
         self.run_input_system();
         self.run_movement_system();
         self.process_asset_server();
+        self.run_ui_system();
+    }
+
+    pub fn run_ui_system(&mut self) {
+        self.text_commands.clear();
+        self.text_commands.push(ffi::TextCommand {
+            text: "Hello from Rust!".to_string(),
+            position: ffi::Vec2 { x: 100.0, y: 100.0 },
+            font_size: 32.0,
+            color: ffi::Vec4 { x: 1.0, y: 1.0, z: 1.0, w: 1.0 },
+        });
     }
 
     pub fn run_movement_system(&mut self) {
@@ -411,6 +447,12 @@ pub struct AssetCommandSlice {
 }
 
 #[repr(C)]
+pub struct TextCommandSlice {
+    pub ptr: *const ffi::TextCommand,
+    pub len: usize,
+}
+
+#[repr(C)]
 pub struct MiyabiVTable {
     pub create_world: extern "C" fn() -> *mut World,
     pub destroy_world: extern "C" fn(*mut World),
@@ -424,6 +466,8 @@ pub struct MiyabiVTable {
     pub notify_asset_loaded: extern "C" fn(*mut World, u32, u32), // request_id, asset_id
     pub update_input_state: extern "C" fn(*mut World, &ffi::InputState),
     pub get_asset_command_path_cstring: extern "C" fn(&ffi::AssetCommand) -> *const c_char,
+    pub get_text_commands: extern "C" fn(*mut World) -> TextCommandSlice,
+    pub get_text_command_text_cstring: extern "C" fn(&ffi::TextCommand) -> *const c_char,
     pub free_cstring: extern "C" fn(*mut c_char),
 }
 
@@ -442,6 +486,8 @@ pub extern "C" fn get_miyabi_vtable() -> MiyabiVTable {
         notify_asset_loaded: rust_notify_asset_loaded,
         update_input_state: rust_update_input_state,
         get_asset_command_path_cstring: rust_get_asset_command_path_cstring,
+        get_text_commands: rust_get_text_commands,
+        get_text_command_text_cstring: rust_get_text_command_text_cstring,
         free_cstring: rust_free_cstring,
     }
 }
@@ -469,6 +515,20 @@ extern "C" fn rust_notify_asset_loaded(world: *mut World, request_id: u32, asset
 #[no_mangle]
 extern "C" fn rust_get_asset_command_path_cstring(command: &ffi::AssetCommand) -> *const c_char {
     CString::new(command.path.as_str()).unwrap().into_raw()
+}
+
+#[no_mangle]
+extern "C" fn rust_get_text_commands(world: *mut World) -> TextCommandSlice {
+    let world = unsafe { &mut *(world as *mut InternalWorld) };
+    TextCommandSlice {
+        ptr: world.text_commands.as_ptr(),
+        len: world.text_commands.len(),
+    }
+}
+
+#[no_mangle]
+extern "C" fn rust_get_text_command_text_cstring(command: &ffi::TextCommand) -> *const c_char {
+    CString::new(command.text.as_str()).unwrap().into_raw()
 }
 
 #[no_mangle]
@@ -571,6 +631,7 @@ extern "C" fn rust_deserialize_world(json: *const c_char) -> *mut World {
     world.texture_map = HashMap::new();
     world.renderables = Vec::new();
     world.asset_commands = Vec::new();
+    world.text_commands = Vec::new();
     
     for archetype in &mut world.archetypes {
         archetype.storage = HashMap::new();

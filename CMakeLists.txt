@@ -1,5 +1,24 @@
 cmake_minimum_required(VERSION 3.15)
-project(MIYABI)
+
+# 【変更点1】 project() よりも前に定義を配置し、拡張機能(gnu++17など)をOFFにする
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+project(MIYABI LANGUAGES CXX C)
+
+# 【変更点2】 GLMライブラリに対して「C++17を使ってビルドせよ」と明示的に指示するマクロ
+# これがないと、コンパイラ設定が正しくてもGLM内部でC++98判定されることがあります
+add_compile_definitions(GLM_FORCE_CXX17)
+add_compile_options(-Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-poison-system-directories)
+
+# 【変更点3】 Windows (MSVC) を使用している場合の特効薬
+# MSVCは標準では __cplusplus マクロが 199711L (C++98相当) を返し続ける仕様があるため、それを修正します
+if(MSVC)
+    add_compile_options(/Zc:__cplusplus)
+endif()
 
 # Fetch Corrosion, a tool for integrating Rust into CMake projects.
 include(FetchContent)

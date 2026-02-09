@@ -21,63 +21,41 @@ struct RenderableObjectSlice {
 // Defines a non-owning slice of asset commands.
 
 struct AssetCommandSlice {
-
     const AssetCommand* ptr;
-
     size_t len;
 
-
-
     const AssetCommand* begin() const { return ptr; }
-
     const AssetCommand* end() const { return ptr + len; }
-
 };
+
+// Defines a non-owning slice of text commands.
+struct TextCommandSlice {
+    const TextCommand* ptr;
+    size_t len;
+
+    const TextCommand* begin() const { return ptr; }
+    const TextCommand* end() const { return ptr + len; }
+};
+
 
 
 
 // The complete API provided by the Rust dynamic library, exposed as a C-style VTable.
 
 struct MiyabiVTable {
-
-    // --- Lifecycle ---
-
     World* (*create_world)();
-
     void (*destroy_world)(World* world);
-
-
-
-    // --- Hot-Reloading ---
-
     const char* (*serialize_world)(const World* world);
-
     World* (*deserialize_world)(const char* json);
-
     void (*free_serialized_string)(char* s);
-
-
-
-    // --- Per-Frame ---
-
     void (*run_logic_systems)(World* world);
-
     RenderableObjectSlice (*get_renderables)(World* world);
-
     AssetCommandSlice (*get_asset_commands)(World* world);
-
     void (*clear_asset_commands)(World* world);
-
     void (*notify_asset_loaded)(World* world, uint32_t request_id, uint32_t asset_id);
-
-    const char* (*get_asset_command_path_cstring)(const AssetCommand* command);
-
-    void (*free_cstring)(char* s);
-
-
-
-    // --- Input ---
-
     void (*update_input_state)(World* world, const InputState& input);
-
+    const char* (*get_asset_command_path_cstring)(const AssetCommand* command);
+    TextCommandSlice (*get_text_commands)(World* world);
+    const char* (*get_text_command_text_cstring)(const TextCommand* command);
+    void (*free_cstring)(char* s);
 };
