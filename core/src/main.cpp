@@ -3,11 +3,12 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <dlfcn.h>
 #include <thread>
 #include <atomic>
 #include <cstdio>
 #include <algorithm> // For std::sort
+
+#include "vendor/miniaudio.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -40,59 +41,28 @@ struct Mat4 {
     }
 };
 
+// Enum to mirror Rust's GameState
+enum GameState {
+    MainMenu,
+    InGame,
+};
+
 // --- Globals ---
 MiyabiVTable g_vtable;
-std::atomic<bool> g_reload_library(false);
+extern ma_engine g_engine;
+bool g_mouse_released = true;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 // --- Function Prototypes ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window, InputState& input_state);
-bool load_vtable(void* handle);
 
-
-// --- File Watcher ---
-void watch_for_changes() {
-    std::cout << "Watcher thread started." << std::endl;
-    FILE* pipe = popen("fswatch -1 -r -l 0.1 logic/src", "r");
-    if (!pipe) {
-        std::cerr << "popen() failed!" << std::endl;
-        return;
-    }
-    char buffer[128];
-    if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-        g_reload_library = true;
-    }
-    pclose(pipe);
-    std::cout << "Watcher thread finished." << std::endl;
-}
-
-// --- VTable Loader ---
-bool load_vtable(void* handle) {
-    if (!handle) {
-        std::cerr << "Cannot open library: " << dlerror() << std::endl;
-        return false;
-    }
-    using get_vtable_t = MiyabiVTable (*)();
-    get_vtable_t get_vtable = (get_vtable_t) dlsym(handle, "get_miyabi_vtable");
-    const char* dlsym_error = dlerror();
-    if (dlsym_error) {
-        std::cerr << "Cannot load symbol 'get_miyabi_vtable': " << dlsym_error << std::endl;
-        dlclose(handle);
-        return false;
-    }
-    g_vtable = get_vtable();
-    return true;
-}
+// VTable is now linked statically, we just need to get it.
+extern "C" MiyabiVTable get_miyabi_vtable();
 
 int main() {
-    std::thread watcher_thread(watch_for_changes);
-
-    void* handle = dlopen("liblogic.dylib", RTLD_LAZY);
-    if (!load_vtable(handle)) {
-        return 1;
-    }
+    g_vtable = get_miyabi_vtable();
 
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -119,6 +89,13 @@ int main() {
         return -1;
     }
 
+    // --- Audio Engine Setup ---
+    ma_result result = ma_engine_init(NULL, &g_engine);
+    if (result != MA_SUCCESS) {
+        printf("Failed to initialize audio engine.\n");
+        // We won't exit, just continue without audio
+    }
+
     // Enable alpha blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -131,7 +108,6 @@ int main() {
     FontManager font_manager;
     font_manager.load_font("assets/MPLUS1p-Regular.ttf", 48);
     TextRenderer text_renderer(&shader_manager, &font_manager);
-
 
     uint32_t textured_shader_id = shader_manager.load_shader("core/src/shaders/textured.vert", "core/src/shaders/textured.frag");
     if (textured_shader_id == 0) {
@@ -170,10 +146,10 @@ int main() {
     glVertexAttribDivisor(5, 1);
     glBindVertexArray(0);
 
-    World* world = g_vtable.create_world();
+    Game* miyabi_game = g_vtable.create_game();
 
     // Process any initial asset load commands
-    AssetCommandSlice asset_commands = g_vtable.get_asset_commands(world);
+    AssetCommandSlice asset_commands = g_vtable.get_asset_commands(miyabi_game);
     for (const auto& command : asset_commands) {
         if (command.type_ == AssetCommandType::LoadTexture) {
             const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
@@ -182,27 +158,24 @@ int main() {
 
             uint32_t loaded_texture_id = texture_manager.load_texture(path);
             if (loaded_texture_id != 0) {
-                g_vtable.notify_asset_loaded(world, command.request_id, loaded_texture_id);
+                g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
             }
         }
     }
-    g_vtable.clear_asset_commands(world);
-
+    g_vtable.clear_asset_commands(miyabi_game);
 
     InputState input_state;
 
     // --- Render Loop ---
     while (!glfwWindowShouldClose(window)) {
-        if (g_reload_library) {
-            // ... hot reloading logic ...
-        }
-
         processInput(window, input_state);
-        g_vtable.update_input_state(world, input_state);
-        g_vtable.run_logic_systems(world);
+        g_vtable.update_input_state(miyabi_game, input_state);
+        
+        // This single call now handles all game logic and state transitions internally
+        g_vtable.update_game(miyabi_game);
 
         // Process asset commands from Rust
-        asset_commands = g_vtable.get_asset_commands(world);
+        asset_commands = g_vtable.get_asset_commands(miyabi_game);
         for (const auto& command : asset_commands) {
             if (command.type_ == AssetCommandType::LoadTexture) {
                 const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
@@ -211,12 +184,12 @@ int main() {
 
                 uint32_t loaded_texture_id = texture_manager.load_texture(path);
                  if (loaded_texture_id != 0) {
-                    g_vtable.notify_asset_loaded(world, command.request_id, loaded_texture_id);
+                    g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
                 }
             }
         }
         if (asset_commands.len > 0) {
-            g_vtable.clear_asset_commands(world);
+            g_vtable.clear_asset_commands(miyabi_game);
         }
 
 
@@ -224,7 +197,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         // --- New Rendering Logic ---
-        RenderableObjectSlice renderables_slice = g_vtable.get_renderables(world);
+        RenderableObjectSlice renderables_slice = g_vtable.get_renderables(miyabi_game);
         std::vector<RenderableObject> renderables(renderables_slice.ptr, renderables_slice.ptr + renderables_slice.len);
 
         // Group renderables by texture
@@ -239,8 +212,8 @@ int main() {
         uint32_t program_id = shader_manager.get_program_id(material->shader_id);
 
         // Set uniforms that are the same for all batches
-        glm::mat4 projection = glm::mat4(1.0f); // Keep as identity for now
-        glm::mat4 view = glm::mat4(1.0f); // Keep as identity for now
+        glm::mat4 projection = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
+        glm::mat4 view = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, &projection[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, &view[0][0]);
         glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
@@ -250,15 +223,19 @@ int main() {
         for (auto const& [texture_id, batch] : textured_batches) {
             if (batch.empty()) continue;
 
-            std::vector<Mat4> model_matrices;
+            std::vector<glm::mat4> model_matrices;
             model_matrices.reserve(batch.size());
             for (const auto& obj : batch) {
-                model_matrices.push_back(Mat4::translation(obj.transform.position.x, obj.transform.position.y, obj.transform.position.z));
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(obj.transform.position.x, obj.transform.position.y, obj.transform.position.z));
+                // Add rotation and scale later
+                model = glm::scale(model, glm::vec3(obj.transform.scale.x, obj.transform.scale.y, obj.transform.scale.z));
+                model_matrices.push_back(model);
             }
 
             // Update instance VBO
             glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-            glBufferData(GL_ARRAY_BUFFER, batch.size() * sizeof(Mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, batch.size() * sizeof(glm::mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
             
             // Bind texture for this batch
             texture_manager.bind_texture(texture_id, GL_TEXTURE0);
@@ -270,7 +247,7 @@ int main() {
         glBindVertexArray(0);
 
         // Render text from commands
-        TextCommandSlice text_commands_slice = g_vtable.get_text_commands(world);
+        TextCommandSlice text_commands_slice = g_vtable.get_text_commands(miyabi_game);
         for (const auto& command : text_commands_slice) {
             const char* c_text = g_vtable.get_text_command_text_cstring(&command);
             std::string text(c_text);
@@ -292,12 +269,10 @@ int main() {
     }
 
     // --- Cleanup ---
+    ma_engine_uninit(&g_engine);
     glDeleteBuffers(1, &instance_vbo);
-    g_vtable.destroy_world(world);
-    dlclose(handle);
-    if(watcher_thread.joinable()) {
-        watcher_thread.join();
-    }
+    g_vtable.destroy_game(miyabi_game);
+
     glfwTerminate();
     return 0;
 }
@@ -311,6 +286,27 @@ void processInput(GLFWwindow *window, InputState& input_state) {
     input_state.down = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
     input_state.left = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
     input_state.right = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
+
+    // Mouse position
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+    input_state.mouse_pos.x = (float)xpos;
+    input_state.mouse_pos.y = (float)ypos;
+
+    // Mouse click (handle state to register only on click, not hold)
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        input_state.mouse_clicked = false;
+        g_mouse_released = false;
+    } else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE) {
+        if (!g_mouse_released) {
+            input_state.mouse_clicked = true;
+            g_mouse_released = true;
+        } else {
+            input_state.mouse_clicked = false;
+        }
+    } else {
+        input_state.mouse_clicked = false;
+    }
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.22)
 
 # 【変更点1】 project() よりも前に定義を配置し、拡張機能(gnu++17など)をOFFにする
 set(CMAKE_C_STANDARD 11)
