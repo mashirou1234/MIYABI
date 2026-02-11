@@ -4,7 +4,7 @@ use std::any::{Any};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
-use crate::ui::{Button, Rect, ButtonAction};
+use crate::ui::{Button, Rect};
 
 pub mod ui;
 
@@ -78,6 +78,7 @@ pub enum ComponentType {
     Material,
     Player,
     Button,
+    Collider,
 }
 
 #[cxx::bridge]
@@ -212,6 +213,20 @@ pub struct Material {
     pub texture_handle: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Collider {
+    pub rect: Rect,
+}
+impl Component for Collider {
+    const COMPONENT_TYPE: ComponentType = ComponentType::Collider;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CollisionEvent {
+    pub entity_a: Entity,
+    pub entity_b: Entity,
+}
+
 impl Component for ffi::Transform {
     const COMPONENT_TYPE: ComponentType = ComponentType::Transform;
 }
@@ -288,6 +303,9 @@ impl InternalWorld {
         if types.contains(&ComponentType::Button) {
             archetype.storage.insert(ComponentType::Button, Box::new(Vec::<Button>::new()));
         }
+        if types.contains(&ComponentType::Collider) {
+            archetype.storage.insert(ComponentType::Collider, Box::new(Vec::<Collider>::new()));
+        }
         self.archetypes.push(archetype);
         self.archetypes.len() - 1
     }
@@ -339,6 +357,7 @@ impl InternalWorld {
                     else if let Some(vec) = storage.downcast_mut::<Vec<Material>>() { vec.clear(); }
                     else if let Some(vec) = storage.downcast_mut::<Vec<Player>>() { vec.clear(); }
                     else if let Some(vec) = storage.downcast_mut::<Vec<Button>>() { vec.clear(); }
+                    else if let Some(vec) = storage.downcast_mut::<Vec<Collider>>() { vec.clear(); }
                 }
             }
         }
@@ -421,6 +440,31 @@ impl<T: Component, U: Component, V: Component, W: Component> ComponentBundle for
     }
 }
 
+impl<T: Component, U: Component, V: Component, W: Component, X: Component> ComponentBundle for (T, U, V, W, X) {
+    fn get_component_types() -> HashSet<ComponentType> {
+        let mut types = HashSet::new();
+        types.insert(T::COMPONENT_TYPE);
+        types.insert(U::COMPONENT_TYPE);
+        types.insert(V::COMPONENT_TYPE);
+        types.insert(W::COMPONENT_TYPE);
+        types.insert(X::COMPONENT_TYPE);
+        types
+    }
+
+    fn push_to_storage(self, archetype: &mut Archetype) {
+        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        vec_t.push(self.0);
+        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        vec_u.push(self.1);
+        let vec_v = archetype.storage.get_mut(&V::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<V>>().unwrap();
+        vec_v.push(self.2);
+        let vec_w = archetype.storage.get_mut(&W::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<W>>().unwrap();
+        vec_w.push(self.3);
+        let vec_x = archetype.storage.get_mut(&X::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<X>>().unwrap();
+        vec_x.push(self.4);
+    }
+}
+
 // The main game object
 #[derive(Serialize, Deserialize)]
 pub struct Game {
@@ -440,6 +484,8 @@ pub struct Game {
     pub asset_commands: Vec<ffi::AssetCommand>,
     #[serde(skip)]
     pub text_commands: Vec<ffi::TextCommand>,
+    #[serde(skip)]
+    pub collision_events: Vec<CollisionEvent>,
 }
 
 // Temporary alias for backward compatibility with sample_game
@@ -463,6 +509,7 @@ impl Game {
             renderables: Vec::new(),
             asset_commands: Vec::new(),
             text_commands: Vec::new(),
+            collision_events: Vec::new(),
         };
         // Setup the initial state
         game.setup_main_menu();
@@ -496,6 +543,7 @@ impl Game {
             ffi::Velocity { x: 0.0, y: 0.0, z: 0.0 },
             Material { texture_handle: player_texture_handle },
             Player,
+            Collider { rect: Rect { x: 0.0, y: 0.0, width: 100.0, height: 100.0 } },
         ));
     
         // Other entity
@@ -508,6 +556,7 @@ impl Game {
             },
             ffi::Velocity { x: -10.0, y: -10.0, z: 0.0 },
             Material { texture_handle: test_texture_handle },
+            Collider { rect: Rect { x: 0.0, y: 0.0, width: 100.0, height: 100.0 } },
         ));
     }
 
@@ -543,8 +592,13 @@ impl Game {
         self.text_commands.clear();
         self.run_input_system();
         self.run_movement_system();
+        self.run_physics_system();
         self.process_asset_server();
         self.build_renderables();
+
+        for event in &self.collision_events {
+            println!("Collision detected between {:?} and {:?}", event.entity_a, event.entity_b);
+        }
     }
 
 
@@ -598,6 +652,48 @@ impl Game {
                     transform.position.z += velocity.z * dt;
                 }
                 archetype.storage.insert(ComponentType::Transform, trans_storage);
+            }
+        }
+    }
+
+    fn run_physics_system(&mut self) {
+        self.collision_events.clear();
+        
+        let mut collidables = Vec::new();
+        for (entity, (archetype_idx, entity_idx)) in &self.world.entities {
+            let archetype = &self.world.archetypes[*archetype_idx];
+            if archetype.types.contains(&ComponentType::Collider) && archetype.types.contains(&ComponentType::Transform) {
+                let transforms = archetype.storage.get(&ComponentType::Transform).unwrap().downcast_ref::<Vec<ffi::Transform>>().unwrap();
+                let colliders = archetype.storage.get(&ComponentType::Collider).unwrap().downcast_ref::<Vec<Collider>>().unwrap();
+                collidables.push((*entity, transforms[*entity_idx], colliders[*entity_idx]));
+            }
+        }
+
+        for i in 0..collidables.len() {
+            for j in (i + 1)..collidables.len() {
+                let (entity_a, transform_a, collider_a) = collidables[i];
+                let (entity_b, transform_b, collider_b) = collidables[j];
+
+                let rect_a = Rect {
+                    x: transform_a.position.x - collider_a.rect.width / 2.0,
+                    y: transform_a.position.y - collider_a.rect.height / 2.0,
+                    width: collider_a.rect.width,
+                    height: collider_a.rect.height,
+                };
+
+                let rect_b = Rect {
+                    x: transform_b.position.x - collider_b.rect.width / 2.0,
+                    y: transform_b.position.y - collider_b.rect.height / 2.0,
+                    width: collider_b.rect.width,
+                    height: collider_b.rect.height,
+                };
+
+                if rect_a.x < rect_b.x + rect_b.width &&
+                   rect_a.x + rect_a.width > rect_b.x &&
+                   rect_a.y < rect_b.y + rect_b.height &&
+                   rect_a.y + rect_a.height > rect_b.y {
+                    self.collision_events.push(CollisionEvent { entity_a, entity_b });
+                }
             }
         }
     }

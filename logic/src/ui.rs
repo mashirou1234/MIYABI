@@ -8,7 +8,7 @@ use crate::{Game, GameState}; // We'll need access to the main Game object
 // 1. Define the Button Component
 // =============================
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
