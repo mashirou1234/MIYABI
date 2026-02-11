@@ -591,11 +591,12 @@ impl Game {
     fn update_in_game(&mut self) {
         self.text_commands.clear();
         self.run_input_system();
-        self.run_movement_system();
-        self.run_physics_system();
+        self.run_physics_system(); // Physics first
+        self.run_movement_system(); // Then movement
         self.process_asset_server();
         self.build_renderables();
 
+        // We can still print them for debugging if we want
         for event in &self.collision_events {
             println!("Collision detected between {:?} and {:?}", event.entity_a, event.entity_b);
         }
@@ -638,20 +639,48 @@ impl Game {
 
     pub fn run_movement_system(&mut self) {
         let dt = 0.016; // 60FPS
-        for archetype in &mut self.world.archetypes {
-            let has_transform = archetype.types.contains(&ComponentType::Transform);
-            let has_velocity = archetype.types.contains(&ComponentType::Velocity);
-            if has_transform && has_velocity {
-                let mut trans_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
-                let transforms = trans_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
-                let vel_storage = archetype.storage.get(&ComponentType::Velocity).unwrap();
-                let velocities = vel_storage.downcast_ref::<Vec<ffi::Velocity>>().unwrap();
-                for (transform, velocity) in transforms.iter_mut().zip(velocities.iter()) {
-                    transform.position.x += velocity.x * dt;
-                    transform.position.y += velocity.y * dt;
-                    transform.position.z += velocity.z * dt;
+
+        // A temporary set of entities that have collided in this frame.
+        let mut colliding_entities = HashSet::new();
+        for event in &self.collision_events {
+            colliding_entities.insert(event.entity_a);
+            colliding_entities.insert(event.entity_b);
+        }
+
+        // To work around the borrow checker, we can't iterate over entities and archetypes at the same time.
+        // We have to do this in two steps. It's not the most efficient, but it's safe.
+
+        // Step 1: Set velocity to zero for colliding entities
+        for (entity, (archetype_idx, entity_idx_in_archetype)) in &self.world.entities {
+            if colliding_entities.contains(entity) {
+                let archetype = &mut self.world.archetypes[*archetype_idx];
+                if let Some(velocities_any) = archetype.storage.get_mut(&ComponentType::Velocity) {
+                    if let Some(velocities) = velocities_any.downcast_mut::<Vec<ffi::Velocity>>() {
+                        velocities[*entity_idx_in_archetype].x = 0.0;
+                        velocities[*entity_idx_in_archetype].y = 0.0;
+                        velocities[*entity_idx_in_archetype].z = 0.0;
+                    }
                 }
-                archetype.storage.insert(ComponentType::Transform, trans_storage);
+            }
+        }
+
+        // Step 2: Apply movement based on (potentially modified) velocity
+        for archetype in &mut self.world.archetypes {
+            if archetype.types.contains(&ComponentType::Transform) && archetype.types.contains(&ComponentType::Velocity) {
+                // This is a classic borrow-checker dance. We take the storages out, work on them, then put them back.
+                let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
+                let velocity_storage = archetype.storage.get(&ComponentType::Velocity).unwrap();
+                
+                let transforms = transform_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
+                let velocities = velocity_storage.downcast_ref::<Vec<ffi::Velocity>>().unwrap();
+
+                for i in 0..archetype.entity_count {
+                    transforms[i].position.x += velocities[i].x * dt;
+                    transforms[i].position.y += velocities[i].y * dt;
+                    transforms[i].position.z += velocities[i].z * dt;
+                }
+                
+                archetype.storage.insert(ComponentType::Transform, transform_storage);
             }
         }
     }
