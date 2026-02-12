@@ -16,38 +16,96 @@ FetchContent_GetProperties(glm
 include_directories(SYSTEM ${glm_SOURCE_DIR})
 
 # Find necessary packages
+
 find_package(glfw3 3.3 REQUIRED)
+
 find_package(OpenGL REQUIRED)
+
 find_package(Freetype REQUIRED)
 
-# Import the logic crate to generate the C++ headers from its cxx bridge.
-corrosion_import_crate(MANIFEST_PATH ../logic/Cargo.toml)
-corrosion_add_cxxbridge(miyabi_cxxbridge
-    CRATE miyabi_logic
-    FILES lib.rs
-)
 
-target_include_directories(miyabi_cxxbridge PUBLIC include)
+
+# Import the logic crate. Corrosion will set up the miyabi_logic target.
+
+
+
+corrosion_import_crate(MANIFEST_PATH ../logic/Cargo.toml)
+
+
+
+
+
+
+
+# Debugging Corrosion include paths
+
+
+
+get_property(TARGETS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
+
+
+
+message(STATUS "Targets in this directory: ${TARGETS}")
+
+
+
+get_target_property(MIYABI_LOGIC_INCLUDES miyabi_logic INTERFACE_INCLUDE_DIRECTORIES)
+
+
+
+message(STATUS "Includes for miyabi_logic: ${MIYABI_LOGIC_INCLUDES}")
+
+
+
+
+
+
+
+
+
+
 
 add_executable(miyabi
+
     src/main.cpp
+
     src/glad.c
+
     src/miyabi_bridge.cpp
+
     src/renderer/ShaderManager.cpp
+
     src/renderer/MeshManager.cpp
+
     src/renderer/MaterialManager.cpp
+
     src/renderer/TextureManager.cpp
+
     src/renderer/FontManager.cpp
+
     src/renderer/TextRenderer.cpp
+
+    src/physics/PhysicsManager.cpp
+
 )
 
+
+
 target_include_directories(miyabi PUBLIC 
+
     include
+
     src # For renderer headers
-    $<TARGET_PROPERTY:miyabi_cxxbridge,INTERFACE_INCLUDE_DIRECTORIES>
+
+    $<TARGET_PROPERTY:miyabi_logic,INTERFACE_INCLUDE_DIRECTORIES>
+
     ${FREETYPE_INCLUDE_DIRS}
+
     ${glm_SOURCE_DIR}
+
 )
+
+
 
 # Link against the miyabi_logic crate and other system libraries.
 target_link_libraries(miyabi PRIVATE 
@@ -55,6 +113,7 @@ target_link_libraries(miyabi PRIVATE
     glfw
     OpenGL::GL
     Freetype::Freetype
+    box2d
 )
 
 # Set the rpath for the executable

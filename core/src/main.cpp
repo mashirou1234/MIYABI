@@ -8,12 +8,11 @@
 #include <cstdio>
 #include <algorithm> // For std::sort
 
-#include "vendor/miniaudio.h"
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #include "miyabi/miyabi.h"
+#include "miyabi/bridge.h"
 #include "renderer/ShaderManager.hpp"
 #include "renderer/MeshManager.hpp"
 #include "renderer/MaterialManager.hpp"
@@ -49,7 +48,6 @@ enum GameState {
 
 // --- Globals ---
 MiyabiVTable g_vtable;
-extern ma_engine g_engine;
 bool g_mouse_released = true;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
@@ -89,12 +87,8 @@ int main() {
         return -1;
     }
 
-    // --- Audio Engine Setup ---
-    ma_result result = ma_engine_init(NULL, &g_engine);
-    if (result != MA_SUCCESS) {
-        printf("Failed to initialize audio engine.\n");
-        // We won't exit, just continue without audio
-    }
+    // --- Engine Systems Setup (Audio, Physics, etc.) ---
+    init_engine_systems();
 
     // Enable alpha blending
     glEnable(GL_BLEND);
@@ -168,6 +162,9 @@ int main() {
 
     // --- Render Loop ---
     while (!glfwWindowShouldClose(window)) {
+        // Step all engine systems (physics, etc.)
+        step_engine_systems();
+
         processInput(window, input_state);
         g_vtable.update_input_state(miyabi_game, input_state);
         
@@ -269,7 +266,6 @@ int main() {
     }
 
     // --- Cleanup ---
-    ma_engine_uninit(&g_engine);
     glDeleteBuffers(1, &instance_vbo);
     g_vtable.destroy_game(miyabi_game);
 

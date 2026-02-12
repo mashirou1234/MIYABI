@@ -1,10 +1,11 @@
+mod paths;
 use serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet};
 use std::any::{Any};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
-use crate::ui::{Button, Rect};
+use crate::ui::{Button};
 
 pub mod ui;
 
@@ -78,7 +79,7 @@ pub enum ComponentType {
     Material,
     Player,
     Button,
-    Collider,
+    Physics,
 }
 
 #[cxx::bridge]
@@ -157,9 +158,23 @@ pub mod ffi {
         pub color: Vec4,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub struct CollisionEvent {
+        pub bodyA: u64,
+        pub bodyB: u64,
+    }
+
     unsafe extern "C++" {
         include!("miyabi/bridge.h");
+
+        // Audio
         fn play_sound(path: &str);
+
+        // Physics
+        fn create_dynamic_box_body(x: f32, y: f32, width: f32, height: f32) -> u64;
+        fn create_static_box_body(x: f32, y: f32, width: f32, height: f32) -> u64;
+        fn get_body_position(id: u64) -> Vec2;
+        fn get_collision_events() -> &'static [CollisionEvent];
     }
 }
 
@@ -213,20 +228,6 @@ pub struct Material {
     pub texture_handle: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Collider {
-    pub rect: Rect,
-}
-impl Component for Collider {
-    const COMPONENT_TYPE: ComponentType = ComponentType::Collider;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CollisionEvent {
-    pub entity_a: Entity,
-    pub entity_b: Entity,
-}
-
 impl Component for ffi::Transform {
     const COMPONENT_TYPE: ComponentType = ComponentType::Transform;
 }
@@ -241,6 +242,14 @@ impl Component for Material {
 pub struct Player;
 impl Component for Player {
     const COMPONENT_TYPE: ComponentType = ComponentType::Player;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PhysicsBody {
+    pub id: u64,
+}
+impl Component for PhysicsBody {
+    const COMPONENT_TYPE: ComponentType = ComponentType::Physics;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -303,8 +312,8 @@ impl InternalWorld {
         if types.contains(&ComponentType::Button) {
             archetype.storage.insert(ComponentType::Button, Box::new(Vec::<Button>::new()));
         }
-        if types.contains(&ComponentType::Collider) {
-            archetype.storage.insert(ComponentType::Collider, Box::new(Vec::<Collider>::new()));
+        if types.contains(&ComponentType::Physics) {
+            archetype.storage.insert(ComponentType::Physics, Box::new(Vec::<PhysicsBody>::new()));
         }
         self.archetypes.push(archetype);
         self.archetypes.len() - 1
@@ -357,7 +366,7 @@ impl InternalWorld {
                     else if let Some(vec) = storage.downcast_mut::<Vec<Material>>() { vec.clear(); }
                     else if let Some(vec) = storage.downcast_mut::<Vec<Player>>() { vec.clear(); }
                     else if let Some(vec) = storage.downcast_mut::<Vec<Button>>() { vec.clear(); }
-                    else if let Some(vec) = storage.downcast_mut::<Vec<Collider>>() { vec.clear(); }
+                    else if let Some(vec) = storage.downcast_mut::<Vec<PhysicsBody>>() { vec.clear(); }
                 }
             }
         }
@@ -465,6 +474,35 @@ impl<T: Component, U: Component, V: Component, W: Component, X: Component> Compo
     }
 }
 
+impl<T: Component, U: Component, V: Component, W: Component, X: Component, Y: Component> ComponentBundle for (T, U, V, W, X, Y) {
+    fn get_component_types() -> HashSet<ComponentType> {
+        let mut types = HashSet::new();
+        types.insert(T::COMPONENT_TYPE);
+        types.insert(U::COMPONENT_TYPE);
+        types.insert(V::COMPONENT_TYPE);
+        types.insert(W::COMPONENT_TYPE);
+        types.insert(X::COMPONENT_TYPE);
+        types.insert(Y::COMPONENT_TYPE);
+        types
+    }
+
+    fn push_to_storage(self, archetype: &mut Archetype) {
+        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        vec_t.push(self.0);
+        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        vec_u.push(self.1);
+        let vec_v = archetype.storage.get_mut(&V::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<V>>().unwrap();
+        vec_v.push(self.2);
+        let vec_w = archetype.storage.get_mut(&W::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<W>>().unwrap();
+        vec_w.push(self.3);
+        let vec_x = archetype.storage.get_mut(&X::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<X>>().unwrap();
+        vec_x.push(self.4);
+        let vec_y = archetype.storage.get_mut(&Y::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<Y>>().unwrap();
+        vec_y.push(self.5);
+    }
+}
+
+
 // The main game object
 #[derive(Serialize, Deserialize)]
 pub struct Game {
@@ -485,7 +523,7 @@ pub struct Game {
     #[serde(skip)]
     pub text_commands: Vec<ffi::TextCommand>,
     #[serde(skip)]
-    pub collision_events: Vec<CollisionEvent>,
+    pub collision_events: Vec<ffi::CollisionEvent>,
 }
 
 // Temporary alias for backward compatibility with sample_game
@@ -532,76 +570,98 @@ impl Game {
     }
 
     fn setup_in_game(&mut self) {
-        // Player
-        let player_texture_handle = self.asset_server.load_texture("assets/player.png");
+        const PPM: f32 = 50.0; // Pixels Per Meter
+
+        // Create a static ground body
+        let ground_width = 800.0;
+        let ground_height = 50.0;
+        let ground_x = 400.0;
+        let ground_y = 25.0;
+        let ground_body_id = ffi::create_static_box_body(
+            ground_x / PPM,
+            ground_y / PPM,
+            ground_width / PPM,
+            ground_height / PPM,
+        );
+
         self.world.spawn((
             ffi::Transform {
-                position: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                position: ffi::Vec3 { x: ground_x, y: ground_y, z: 0.0 },
                 rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                scale: ffi::Vec3 { x: 100.0, y: 100.0, z: 1.0 },
+                scale: ffi::Vec3 { x: ground_width, y: ground_height, z: 1.0 },
             },
-            ffi::Velocity { x: 0.0, y: 0.0, z: 0.0 },
-            Material { texture_handle: player_texture_handle },
-            Player,
-            Collider { rect: Rect { x: 0.0, y: 0.0, width: 100.0, height: 100.0 } },
+            PhysicsBody { id: ground_body_id },
+            Material { texture_handle: self.asset_server.load_texture("assets/test.png") },
         ));
-    
-        // Other entity
-        let test_texture_handle = self.asset_server.load_texture("assets/test.png");
+
+        // Create a dynamic falling box
+        let box_width = 50.0;
+        let box_height = 50.0;
+        let box_x = 400.0;
+        let box_y = 500.0;
+        let box_body_id = ffi::create_dynamic_box_body(
+            box_x / PPM,
+            box_y / PPM,
+            box_width / PPM,
+            box_height / PPM,
+        );
+
         self.world.spawn((
             ffi::Transform {
-                position: ffi::Vec3 { x: 200.0, y: 200.0, z: 0.0 },
+                position: ffi::Vec3 { x: box_x, y: box_y, z: 0.0 },
                 rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                scale: ffi::Vec3 { x: 100.0, y: 100.0, z: 1.0 },
+                scale: ffi::Vec3 { x: box_width, y: box_height, z: 1.0 },
             },
-            ffi::Velocity { x: -10.0, y: -10.0, z: 0.0 },
-            Material { texture_handle: test_texture_handle },
-            Collider { rect: Rect { x: 0.0, y: 0.0, width: 100.0, height: 100.0 } },
+            PhysicsBody { id: box_body_id },
+            Material { texture_handle: self.asset_server.load_texture("assets/player.png") },
         ));
     }
 
     fn run_input_system(&mut self) {
-        for archetype in &mut self.world.archetypes {
-            if archetype.types.contains(&ComponentType::Player) {
-                if let Some(vel_storage_any) = archetype.storage.get_mut(&ComponentType::Velocity) {
-                    if let Some(velocities) = vel_storage_any.downcast_mut::<Vec<ffi::Velocity>>() {
-                        for velocity in velocities {
-                            velocity.x = 0.0;
-                            velocity.y = 0.0;
-                            let speed = 5.0;
-                            if self.input_state.up {
-                                velocity.y = speed;
-                            }
-                            if self.input_state.down {
-                                velocity.y = -speed;
-                            }
-                            if self.input_state.left {
-                                velocity.x = -speed;
-                            }
-                            if self.input_state.right {
-                                velocity.x = speed;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // For now, we disable player input to observe physics
+    }
+
+    fn poll_physics_events(&mut self) {
+        self.collision_events.clear();
+        let events = ffi::get_collision_events();
+        self.collision_events.extend_from_slice(events);
     }
 
     fn update_in_game(&mut self) {
         self.text_commands.clear();
         self.run_input_system();
-        self.run_physics_system(); // Physics first
-        self.run_movement_system(); // Then movement
+        self.poll_physics_events();
+        self.sync_physics_to_render(); // New physics system
+        // self.run_movement_system(); // Old movement system is not needed for now
         self.process_asset_server();
         self.build_renderables();
-
-        // We can still print them for debugging if we want
-        for event in &self.collision_events {
-            println!("Collision detected between {:?} and {:?}", event.entity_a, event.entity_b);
-        }
     }
 
+    fn sync_physics_to_render(&mut self) {
+        const PPM: f32 = 50.0; // Pixels Per Meter
+        
+        for archetype in &mut self.world.archetypes {
+            if archetype.types.contains(&ComponentType::Physics) && archetype.types.contains(&ComponentType::Transform) {
+                let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
+                let physics_storage = archetype.storage.get(&ComponentType::Physics).unwrap();
+                
+                let transforms = transform_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
+                let physics_bodies = physics_storage.downcast_ref::<Vec<PhysicsBody>>().unwrap();
+
+                for i in 0..archetype.entity_count {
+                    let body_id = physics_bodies[i].id;
+                    let new_pos_meters = ffi::get_body_position(body_id);
+                    
+                    transforms[i].position.x = new_pos_meters.x * PPM;
+                    transforms[i].position.y = new_pos_meters.y * PPM;
+                }
+                
+                archetype.storage.insert(ComponentType::Transform, transform_storage);
+            }
+        }
+    }
+    
+    // --- Old systems to be removed or refactored ---
 
     fn setup_main_menu(&mut self) {
         self.world.spawn((
@@ -632,96 +692,6 @@ impl Game {
                         material_id: 1,
                         texture_id,
                     });
-                }
-            }
-        }
-    }
-
-    pub fn run_movement_system(&mut self) {
-        let dt = 0.016; // 60FPS
-
-        // A temporary set of entities that have collided in this frame.
-        let mut colliding_entities = HashSet::new();
-        for event in &self.collision_events {
-            colliding_entities.insert(event.entity_a);
-            colliding_entities.insert(event.entity_b);
-        }
-
-        // To work around the borrow checker, we can't iterate over entities and archetypes at the same time.
-        // We have to do this in two steps. It's not the most efficient, but it's safe.
-
-        // Step 1: Set velocity to zero for colliding entities
-        for (entity, (archetype_idx, entity_idx_in_archetype)) in &self.world.entities {
-            if colliding_entities.contains(entity) {
-                let archetype = &mut self.world.archetypes[*archetype_idx];
-                if let Some(velocities_any) = archetype.storage.get_mut(&ComponentType::Velocity) {
-                    if let Some(velocities) = velocities_any.downcast_mut::<Vec<ffi::Velocity>>() {
-                        velocities[*entity_idx_in_archetype].x = 0.0;
-                        velocities[*entity_idx_in_archetype].y = 0.0;
-                        velocities[*entity_idx_in_archetype].z = 0.0;
-                    }
-                }
-            }
-        }
-
-        // Step 2: Apply movement based on (potentially modified) velocity
-        for archetype in &mut self.world.archetypes {
-            if archetype.types.contains(&ComponentType::Transform) && archetype.types.contains(&ComponentType::Velocity) {
-                // This is a classic borrow-checker dance. We take the storages out, work on them, then put them back.
-                let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
-                let velocity_storage = archetype.storage.get(&ComponentType::Velocity).unwrap();
-                
-                let transforms = transform_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
-                let velocities = velocity_storage.downcast_ref::<Vec<ffi::Velocity>>().unwrap();
-
-                for i in 0..archetype.entity_count {
-                    transforms[i].position.x += velocities[i].x * dt;
-                    transforms[i].position.y += velocities[i].y * dt;
-                    transforms[i].position.z += velocities[i].z * dt;
-                }
-                
-                archetype.storage.insert(ComponentType::Transform, transform_storage);
-            }
-        }
-    }
-
-    fn run_physics_system(&mut self) {
-        self.collision_events.clear();
-        
-        let mut collidables = Vec::new();
-        for (entity, (archetype_idx, entity_idx)) in &self.world.entities {
-            let archetype = &self.world.archetypes[*archetype_idx];
-            if archetype.types.contains(&ComponentType::Collider) && archetype.types.contains(&ComponentType::Transform) {
-                let transforms = archetype.storage.get(&ComponentType::Transform).unwrap().downcast_ref::<Vec<ffi::Transform>>().unwrap();
-                let colliders = archetype.storage.get(&ComponentType::Collider).unwrap().downcast_ref::<Vec<Collider>>().unwrap();
-                collidables.push((*entity, transforms[*entity_idx], colliders[*entity_idx]));
-            }
-        }
-
-        for i in 0..collidables.len() {
-            for j in (i + 1)..collidables.len() {
-                let (entity_a, transform_a, collider_a) = collidables[i];
-                let (entity_b, transform_b, collider_b) = collidables[j];
-
-                let rect_a = Rect {
-                    x: transform_a.position.x - collider_a.rect.width / 2.0,
-                    y: transform_a.position.y - collider_a.rect.height / 2.0,
-                    width: collider_a.rect.width,
-                    height: collider_a.rect.height,
-                };
-
-                let rect_b = Rect {
-                    x: transform_b.position.x - collider_b.rect.width / 2.0,
-                    y: transform_b.position.y - collider_b.rect.height / 2.0,
-                    width: collider_b.rect.width,
-                    height: collider_b.rect.height,
-                };
-
-                if rect_a.x < rect_b.x + rect_b.width &&
-                   rect_a.x + rect_a.width > rect_b.x &&
-                   rect_a.y < rect_b.y + rect_b.height &&
-                   rect_a.y + rect_a.height > rect_b.y {
-                    self.collision_events.push(CollisionEvent { entity_a, entity_b });
                 }
             }
         }

@@ -29,4 +29,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Corrosion)
 
+FetchContent_Declare(
+    box2d
+    GIT_REPOSITORY https://github.com/erincatto/box2d.git
+    GIT_TAG v2.4.1
+)
+set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "Disable Box2D unit tests")
+set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "Disable Box2D testbed")
+FetchContent_MakeAvailable(box2d)
+FetchContent_GetProperties(box2d
+    SOURCE_DIR box2d_SOURCE_DIR
+)
+set(BOX2D_INCLUDE_DIR ${box2d_SOURCE_DIR}/include)
+configure_file(logic/src/paths.rs.in ${CMAKE_CURRENT_SOURCE_DIR}/logic/src/paths.rs @ONLY)
+
 add_subdirectory(core)

@@ -98,9 +98,9 @@
 
 ゲームのインタラクションを豊かにするための物理演算の基礎を実装します。
 
--   [ ] **タスク8.1: 2D当たり判定システムの実装**
-    -   [ ] エンティティの領域を示す `Collider` コンポーネント（例: AABB矩形）をRustで定義する。
-    -   [ ] `Collider` 同士の衝突を検知し、衝突イベント（`CollisionEvent`）を発生させる `PhysicsSystem` を実装する。
+-   [x] **タスク8.1: 2D当たり判定システムの実装**
+    -   [x] エンティティの領域を示す `Collider` コンポーネント（例: AABB矩形）をRustで定義する。
+    -   [x] `Collider` 同士の衝突を検知し、衝突イベント（`CollisionEvent`）を発生させる `PhysicsSystem` を実装する。
 
 ## 長期的な展望 (Beyond Phase 8)
 
