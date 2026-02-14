@@ -2,13 +2,7 @@
 
 // Includes the CXX-generated header for shared data types.
 // This path is configured in CMake.
-#include "miyabi_cxxbridge/lib.h"
-
-#pragma once
-
-// Includes the CXX-generated header for shared data types.
-// This path is configured in CMake.
-#include "miyabi_cxxbridge/lib.h"
+#include "miyabi_logic_cxx_bridge/lib.h"
 
 // Forward-declare the opaque pointer to the Rust Game.
 // C++ must NEVER know its internal layout.
@@ -25,7 +19,6 @@ struct RenderableObjectSlice {
 };
 
 // Defines a non-owning slice of asset commands.
-
 struct AssetCommandSlice {
     const AssetCommand* ptr;
     size_t len;

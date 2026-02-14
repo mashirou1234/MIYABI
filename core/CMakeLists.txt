@@ -25,91 +25,42 @@ find_package(Freetype REQUIRED)
 
 
 
-# Import the logic crate. Corrosion will set up the miyabi_logic target.
-
-
-
 corrosion_import_crate(MANIFEST_PATH ../logic/Cargo.toml)
 
-
-
-
-
-
-
-# Debugging Corrosion include paths
-
-
-
-get_property(TARGETS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
-
-
-
-message(STATUS "Targets in this directory: ${TARGETS}")
-
-
-
-get_target_property(MIYABI_LOGIC_INCLUDES miyabi_logic INTERFACE_INCLUDE_DIRECTORIES)
-
-
-
-message(STATUS "Includes for miyabi_logic: ${MIYABI_LOGIC_INCLUDES}")
-
-
-
-
-
-
-
-
-
-
+# Use corrosion's experimental cxx bridge helper.
+# This creates a static library target `miyabi_logic_cxx_bridge` which contains the
+# generated C++ sources from the bridge. It automatically handles include paths.
+corrosion_add_cxxbridge(miyabi_logic_cxx_bridge
+    CRATE miyabi_logic
+    REGEN_TARGET miyabi_logic_cxx_regen # Optional but good practice
+    FILES lib.rs
+)
+target_include_directories(miyabi_logic_cxx_bridge PUBLIC include)
 
 add_executable(miyabi
-
     src/main.cpp
-
     src/glad.c
-
     src/miyabi_bridge.cpp
-
     src/renderer/ShaderManager.cpp
-
     src/renderer/MeshManager.cpp
-
     src/renderer/MaterialManager.cpp
-
     src/renderer/TextureManager.cpp
-
     src/renderer/FontManager.cpp
-
     src/renderer/TextRenderer.cpp
-
     src/physics/PhysicsManager.cpp
-
 )
-
-
 
 target_include_directories(miyabi PUBLIC 
-
     include
-
     src # For renderer headers
-
-    $<TARGET_PROPERTY:miyabi_logic,INTERFACE_INCLUDE_DIRECTORIES>
-
     ${FREETYPE_INCLUDE_DIRS}
-
     ${glm_SOURCE_DIR}
-
 )
-
-
 
 # Link against the miyabi_logic crate and other system libraries.
 target_link_libraries(miyabi PRIVATE 
     miyabi_logic # This is the target for the static library from the logic crate
+    miyabi_logic_cxx_bridge # Add the generated bridge code
     glfw
     OpenGL::GL
     Freetype::Freetype

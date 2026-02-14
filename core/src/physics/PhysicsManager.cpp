@@ -1,12 +1,12 @@
 #include "physics/PhysicsManager.hpp"
-#include "logic/src/lib.rs.h" // For Vec2 and CollisionEvent definition
+#include "miyabi_logic_cxx_bridge/lib.h" // For Vec2 and CollisionEvent definition
 #include <iostream>
 
 namespace miyabi {
 namespace physics {
 
 // --- MyContactListener Implementation ---
-MyContactListener::MyContactListener(std::vector<ffi::CollisionEvent>& events)
+MyContactListener::MyContactListener(std::vector<CollisionEvent>& events)
     : m_events(events) {}
 
 void MyContactListener::BeginContact(b2Contact* contact)
@@ -20,8 +20,8 @@ void MyContactListener::BeginContact(b2Contact* contact)
     // Ensure we have valid IDs before pushing an event
     if (body_a_id_ptr && body_b_id_ptr) {
         m_events.push_back({
-            static_cast<BodyId>(body_a_id_ptr),
-            static_cast<BodyId>(body_b_id_ptr)
+            static_cast<PhysicsManager::BodyId>(body_a_id_ptr),
+            static_cast<PhysicsManager::BodyId>(body_b_id_ptr)
         });
     }
 }
@@ -109,7 +109,7 @@ Vec2 PhysicsManager::get_body_position(BodyId id)
     return {-1.0f, -1.0f};
 }
 
-const std::vector<ffi::CollisionEvent>& PhysicsManager::get_collision_events() const
+const std::vector<CollisionEvent>& PhysicsManager::get_collision_events() const
 {
     return m_collision_events;
 }

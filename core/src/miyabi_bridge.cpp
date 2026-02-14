@@ -1,6 +1,6 @@
 // This file is used by cxx to bridge C++ and Rust.
 #include "miyabi/bridge.h"
-#include "logic/src/lib.rs.h" // For definitions of shared types like Vec2
+#include "miyabi_logic_cxx_bridge/lib.h" // For definitions of shared types like Vec2
 #include "physics/PhysicsManager.hpp"
 
 // The miniaudio implementation must be in exactly one C++ file.
@@ -23,22 +23,22 @@ void play_sound(rust::Str path) {
 }
 
 // Physics
-miyabi::physics::BodyId create_dynamic_box_body(float x, float y, float width, float height) {
+miyabi::physics::PhysicsManager::BodyId create_dynamic_box_body(float x, float y, float width, float height) {
     return g_physics_manager.create_dynamic_box(x, y, width, height);
 }
 
-miyabi::physics::BodyId create_static_box_body(float x, float y, float width, float height) {
+miyabi::physics::PhysicsManager::BodyId create_static_box_body(float x, float y, float width, float height) {
     return g_physics_manager.create_static_box(x, y, width, height);
 }
 
-Vec2 get_body_position(miyabi::physics::BodyId id) {
+Vec2 get_body_position(miyabi::physics::PhysicsManager::BodyId id) {
     return g_physics_manager.get_body_position(id);
 }
 
-rust::Slice<const ffi::CollisionEvent> get_collision_events() {
+rust::Slice<const CollisionEvent> get_collision_events() {
     const auto& events = g_physics_manager.get_collision_events();
-    return rust::Slice<const ffi::CollisionEvent>(
-        reinterpret_cast<const ffi::CollisionEvent*>(events.data()),
+    return rust::Slice<const CollisionEvent>(
+        reinterpret_cast<const CollisionEvent*>(events.data()),
         events.size()
     );
 }

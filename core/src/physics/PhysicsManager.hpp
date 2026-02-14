@@ -16,11 +16,11 @@ namespace physics {
 class MyContactListener : public b2ContactListener
 {
 public:
-    MyContactListener(std::vector<ffi::CollisionEvent>& events);
+    MyContactListener(std::vector<CollisionEvent>& events);
     void BeginContact(b2Contact* contact) override;
 
 private:
-    std::vector<ffi::CollisionEvent>& m_events;
+    std::vector<CollisionEvent>& m_events;
 };
 
 class PhysicsManager
@@ -37,14 +37,14 @@ public:
     BodyId create_dynamic_box(float x, float y, float width, float height);
     BodyId create_static_box(float x, float y, float width, float height);
     Vec2 get_body_position(BodyId id);
-    const std::vector<ffi::CollisionEvent>& get_collision_events() const;
+    const std::vector<CollisionEvent>& get_collision_events() const;
 
 
 private:
     std::unique_ptr<b2World> m_world;
     std::unique_ptr<MyContactListener> m_contact_listener;
     std::unordered_map<BodyId, b2Body*> m_bodies;
-    std::vector<ffi::CollisionEvent> m_collision_events;
+    std::vector<CollisionEvent> m_collision_events;
     BodyId m_next_body_id = 1;
 
     const float m_timeStep = 1.0f / 60.0f;

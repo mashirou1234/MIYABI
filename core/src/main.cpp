@@ -21,6 +21,7 @@
 #include "renderer/TextRenderer.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "profiler/Profiler.hpp"
 
 // Temporary minimal Mat4 struct until a math library is added
 struct Mat4 {
@@ -160,105 +161,137 @@ int main() {
 
     InputState input_state;
 
+#ifdef MIYABI_PROFILE
+    // Variables for performance monitoring
+    double lastTime = glfwGetTime();
+    int nbFrames = 0;
+#endif
+
     // --- Render Loop ---
     while (!glfwWindowShouldClose(window)) {
-        // Step all engine systems (physics, etc.)
-        step_engine_systems();
+        MIYABI_PROFILE_SCOPE("Frame");
+#ifdef MIYABI_PROFILE
+        // Measure time
+        double currentTime = glfwGetTime();
+        nbFrames++;
+        if (currentTime - lastTime >= 1.0) { // If last print was more than 1 sec ago
+            double msPerFrame = 1000.0 / double(nbFrames);
+            std::string title = "MIYABI Engine - " + std::to_string(nbFrames) + " FPS (" + std::to_string(msPerFrame) + " ms/frame)";
+            glfwSetWindowTitle(window, title.c_str());
 
-        processInput(window, input_state);
-        g_vtable.update_input_state(miyabi_game, input_state);
+            nbFrames = 0;
+            lastTime += 1.0;
+        }
+#endif
+        {
+            MIYABI_PROFILE_SCOPE("PhysicsStep");
+            step_engine_systems();
+        }
+
+        {
+            MIYABI_PROFILE_SCOPE("InputProcessing");
+            processInput(window, input_state);
+            g_vtable.update_input_state(miyabi_game, input_state);
+        }
         
-        // This single call now handles all game logic and state transitions internally
-        g_vtable.update_game(miyabi_game);
+        {
+            MIYABI_PROFILE_SCOPE("RustLogicUpdate");
+            g_vtable.update_game(miyabi_game);
+        }
 
-        // Process asset commands from Rust
-        asset_commands = g_vtable.get_asset_commands(miyabi_game);
-        for (const auto& command : asset_commands) {
-            if (command.type_ == AssetCommandType::LoadTexture) {
-                const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
-                std::string path(c_path);
-                g_vtable.free_cstring((char*)c_path);
+        {
+            MIYABI_PROFILE_SCOPE("AssetProcessing");
+            // Process asset commands from Rust
+            asset_commands = g_vtable.get_asset_commands(miyabi_game);
+            for (const auto& command : asset_commands) {
+                if (command.type_ == AssetCommandType::LoadTexture) {
+                    const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
+                    std::string path(c_path);
+                    g_vtable.free_cstring((char*)c_path);
 
-                uint32_t loaded_texture_id = texture_manager.load_texture(path);
-                 if (loaded_texture_id != 0) {
-                    g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
+                    uint32_t loaded_texture_id = texture_manager.load_texture(path);
+                     if (loaded_texture_id != 0) {
+                        g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
+                    }
                 }
             }
-        }
-        if (asset_commands.len > 0) {
-            g_vtable.clear_asset_commands(miyabi_game);
-        }
-
-
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // --- New Rendering Logic ---
-        RenderableObjectSlice renderables_slice = g_vtable.get_renderables(miyabi_game);
-        std::vector<RenderableObject> renderables(renderables_slice.ptr, renderables_slice.ptr + renderables_slice.len);
-
-        // Group renderables by texture
-        std::unordered_map<uint32_t, std::vector<RenderableObject>> textured_batches;
-        for (const auto& obj : renderables) {
-            textured_batches[obj.texture_id].push_back(obj);
-        }
-        
-        // For now, we only have one material and one mesh
-        Material* material = material_manager.get_material(textured_material_id);
-        shader_manager.use_shader(material->shader_id);
-        uint32_t program_id = shader_manager.get_program_id(material->shader_id);
-
-        // Set uniforms that are the same for all batches
-        glm::mat4 projection = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
-        glm::mat4 view = glm::mat4(1.0f);
-        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, &projection[0][0]);
-        glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, &view[0][0]);
-        glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
-
-        mesh_manager.bind_mesh(quad_mesh_id);
-
-        for (auto const& [texture_id, batch] : textured_batches) {
-            if (batch.empty()) continue;
-
-            std::vector<glm::mat4> model_matrices;
-            model_matrices.reserve(batch.size());
-            for (const auto& obj : batch) {
-                glm::mat4 model = glm::mat4(1.0f);
-                model = glm::translate(model, glm::vec3(obj.transform.position.x, obj.transform.position.y, obj.transform.position.z));
-                // Add rotation and scale later
-                model = glm::scale(model, glm::vec3(obj.transform.scale.x, obj.transform.scale.y, obj.transform.scale.z));
-                model_matrices.push_back(model);
+            if (asset_commands.len > 0) {
+                g_vtable.clear_asset_commands(miyabi_game);
             }
-
-            // Update instance VBO
-            glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-            glBufferData(GL_ARRAY_BUFFER, batch.size() * sizeof(glm::mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
-            
-            // Bind texture for this batch
-            texture_manager.bind_texture(texture_id, GL_TEXTURE0);
-
-            // Draw instanced
-            glDrawElementsInstanced(GL_TRIANGLES, quad_mesh->element_count, GL_UNSIGNED_INT, 0, batch.size());
         }
-        
-        glBindVertexArray(0);
 
-        // Render text from commands
-        TextCommandSlice text_commands_slice = g_vtable.get_text_commands(miyabi_game);
-        for (const auto& command : text_commands_slice) {
-            const char* c_text = g_vtable.get_text_command_text_cstring(&command);
-            std::string text(c_text);
-            g_vtable.free_cstring((char*)c_text);
+        {
+            MIYABI_PROFILE_SCOPE("Render");
+            glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
 
-            float scale = command.font_size / 48.0f; // Font atlas was loaded with size 48
+            // --- New Rendering Logic ---
+            RenderableObjectSlice renderables_slice = g_vtable.get_renderables(miyabi_game);
+            std::vector<RenderableObject> renderables(renderables_slice.ptr, renderables_slice.ptr + renderables_slice.len);
 
-            text_renderer.render_text(
-                text,
-                command.position.x,
-                command.position.y,
-                scale,
-                glm::vec3(command.color.x, command.color.y, command.color.z)
-            );
+            // Group renderables by texture
+            std::unordered_map<uint32_t, std::vector<RenderableObject>> textured_batches;
+            for (const auto& obj : renderables) {
+                textured_batches[obj.texture_id].push_back(obj);
+            }
+            
+            // For now, we only have one material and one mesh
+            Material* material = material_manager.get_material(textured_material_id);
+            shader_manager.use_shader(material->shader_id);
+            uint32_t program_id = shader_manager.get_program_id(material->shader_id);
+
+            // Set uniforms that are the same for all batches
+            glm::mat4 projection = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
+            glm::mat4 view = glm::mat4(1.0f);
+            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, &projection[0][0]);
+            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, &view[0][0]);
+            glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
+
+            mesh_manager.bind_mesh(quad_mesh_id);
+
+            for (auto const& [texture_id, batch] : textured_batches) {
+                if (batch.empty()) continue;
+
+                std::vector<glm::mat4> model_matrices;
+                model_matrices.reserve(batch.size());
+                for (const auto& obj : batch) {
+                    glm::mat4 model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3(obj.transform.position.x, obj.transform.position.y, obj.transform.position.z));
+                    // Add rotation and scale later
+                    model = glm::scale(model, glm::vec3(obj.transform.scale.x, obj.transform.scale.y, obj.transform.scale.z));
+                    model_matrices.push_back(model);
+                }
+
+                // Update instance VBO
+                glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+                glBufferData(GL_ARRAY_BUFFER, batch.size() * sizeof(glm::mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
+                
+                // Bind texture for this batch
+                texture_manager.bind_texture(texture_id, GL_TEXTURE0);
+
+                // Draw instanced
+                glDrawElementsInstanced(GL_TRIANGLES, quad_mesh->element_count, GL_UNSIGNED_INT, 0, batch.size());
+            }
+            
+            glBindVertexArray(0);
+
+            // Render text from commands
+            TextCommandSlice text_commands_slice = g_vtable.get_text_commands(miyabi_game);
+            for (const auto& command : text_commands_slice) {
+                const char* c_text = g_vtable.get_text_command_text_cstring(&command);
+                std::string text(c_text);
+                g_vtable.free_cstring((char*)c_text);
+
+                float scale = command.font_size / 48.0f; // Font atlas was loaded with size 48
+
+                text_renderer.render_text(
+                    text,
+                    command.position.x,
+                    command.position.y,
+                    scale,
+                    glm::vec3(command.color.x, command.color.y, command.color.z)
+                );
+            }
         }
 
         glfwSwapBuffers(window);

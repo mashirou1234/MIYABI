@@ -9,6 +9,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 project(MIYABI LANGUAGES CXX C)
 
+# Option to enable performance profiling
+option(MIYABI_PROFILE "Enable performance profiling instrumentation" OFF)
+if(MIYABI_PROFILE)
+    message(STATUS "Performance profiling enabled.")
+    add_compile_definitions(MIYABI_PROFILE)
+endif()
+
 # 【変更点2】 GLMライブラリに対して「C++17を使ってビルドせよ」と明示的に指示するマクロ
 # これがないと、コンパイラ設定が正しくてもGLM内部でC++98判定されることがあります
 add_compile_definitions(GLM_FORCE_CXX17)
