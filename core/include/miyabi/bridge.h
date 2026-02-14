@@ -13,6 +13,10 @@ uint64_t create_static_box_body(float x, float y, float width, float height);
 Vec2 get_body_position(uint64_t id);
 rust::Slice<const CollisionEvent> get_collision_events();
 
+#if defined(MIYABI_PERFORMANCE_TEST)
+uint32_t get_performance_test_sprite_count();
+#endif
+
 // FFI functions for C++ to call (implemented in the bridge)
 void init_engine_systems();
 void step_engine_systems();

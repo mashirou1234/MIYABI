@@ -16,6 +16,13 @@ if(MIYABI_PROFILE)
     add_compile_definitions(MIYABI_PROFILE)
 endif()
 
+# Option to enable performance testing
+option(MIYABI_PERFORMANCE_TEST "Enable performance testing" OFF)
+if(MIYABI_PERFORMANCE_TEST)
+    message(STATUS "Performance testing enabled.")
+    add_compile_definitions(MIYABI_PERFORMANCE_TEST)
+endif()
+
 # 【変更点2】 GLMライブラリに対して「C++17を使ってビルドせよ」と明示的に指示するマクロ
 # これがないと、コンパイラ設定が正しくてもGLM内部でC++98判定されることがあります
 add_compile_definitions(GLM_FORCE_CXX17)
@@ -51,3 +58,4 @@ set(BOX2D_INCLUDE_DIR ${box2d_SOURCE_DIR}/include)
 configure_file(logic/src/paths.rs.in ${CMAKE_CURRENT_SOURCE_DIR}/logic/src/paths.rs @ONLY)
 
 add_subdirectory(core)
+add_subdirectory(logic)

@@ -23,20 +23,6 @@ find_package(OpenGL REQUIRED)
 
 find_package(Freetype REQUIRED)
 
-
-
-corrosion_import_crate(MANIFEST_PATH ../logic/Cargo.toml)
-
-# Use corrosion's experimental cxx bridge helper.
-# This creates a static library target `miyabi_logic_cxx_bridge` which contains the
-# generated C++ sources from the bridge. It automatically handles include paths.
-corrosion_add_cxxbridge(miyabi_logic_cxx_bridge
-    CRATE miyabi_logic
-    REGEN_TARGET miyabi_logic_cxx_regen # Optional but good practice
-    FILES lib.rs
-)
-target_include_directories(miyabi_logic_cxx_bridge PUBLIC include)
-
 add_executable(miyabi
     src/main.cpp
     src/glad.c
@@ -59,8 +45,7 @@ target_include_directories(miyabi PUBLIC
 
 # Link against the miyabi_logic crate and other system libraries.
 target_link_libraries(miyabi PRIVATE 
-    miyabi_logic # This is the target for the static library from the logic crate
-    miyabi_logic_cxx_bridge # Add the generated bridge code
+    miyabi_logic
     glfw
     OpenGL::GL
     Freetype::Freetype

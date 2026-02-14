@@ -17,3 +17,6 @@ rand = "0.8.5"
 # cxx-build is required to run the CXX code generator.
 cxx-build = "1.0"
 
+[features]
+performance_test = []
+

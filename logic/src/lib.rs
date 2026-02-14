@@ -177,8 +177,24 @@ pub mod ffi {
         fn create_static_box_body(x: f32, y: f32, width: f32, height: f32) -> u64;
         fn get_body_position(id: u64) -> Vec2;
         fn get_collision_events() -> &'static [CollisionEvent];
+
+        #[cfg(feature = "performance_test")]
+        fn get_performance_test_sprite_count() -> u32;
+    }
+
+    extern "Rust" {
+        #[cfg(feature = "performance_test")]
+        fn get_sprite_count() -> u32;
     }
 }
+
+#[cfg(feature = "performance_test")]
+fn get_sprite_count() -> u32 {
+    unsafe {
+        ffi::get_performance_test_sprite_count()
+    }
+}
+
 
 // Main game state
 #[repr(C)]
@@ -722,7 +738,12 @@ impl Game {
         let mut rng = rand::thread_rng();
         let player_texture = self.asset_server.load_texture("assets/player.png");
 
-        for _ in 0..10000 {
+        #[cfg(feature = "performance_test")]
+        let sprite_count = get_sprite_count();
+        #[cfg(not(feature = "performance_test"))]
+        let sprite_count = 10000;
+
+        for _ in 0..sprite_count {
             self.world.spawn((
                 ffi::Transform {
                     position: ffi::Vec3 {
