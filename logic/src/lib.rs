@@ -1,11 +1,12 @@
 mod paths;
-use serde::{Serialize, Deserialize};
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use std::any::Any;
 use std::collections::{HashMap, HashSet};
-use std::any::{Any};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
-use crate::ui::{Button};
+use crate::ui::Button;
 
 pub mod ui;
 
@@ -112,6 +113,7 @@ pub mod ffi {
         pub down: bool,
         pub left: bool,
         pub right: bool,
+        pub s_key: bool,
         pub mouse_pos: Vec2,
         pub mouse_clicked: bool,
     }
@@ -135,7 +137,7 @@ pub mod ffi {
         pub type_: AssetCommandType,
         pub path: String,
     }
-    
+
     #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
     pub struct Vec2 {
         pub x: f32,
@@ -184,6 +186,7 @@ pub mod ffi {
 pub enum GameState {
     MainMenu,
     InGame,
+    SpriteStressTest,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -212,13 +215,13 @@ impl AssetServer {
 
         let request_id = self.next_request_id;
         self.next_request_id += 1;
-        
+
         let handle = self.next_texture_handle;
         self.next_texture_handle += 1;
 
         self.pending_requests.insert(request_id, path.to_string());
         self.texture_handle_map.insert(path.to_string(), handle);
-        
+
         handle
     }
 }
@@ -282,7 +285,6 @@ pub struct InternalWorld {
     pub next_entity: u64,
 }
 
-
 impl InternalWorld {
     pub fn new() -> Self {
         InternalWorld {
@@ -298,22 +300,36 @@ impl InternalWorld {
         }
         let mut archetype = Archetype::new(types.clone());
         if types.contains(&ComponentType::Transform) {
-            archetype.storage.insert(ComponentType::Transform, Box::new(Vec::<ffi::Transform>::new()));
+            archetype.storage.insert(
+                ComponentType::Transform,
+                Box::new(Vec::<ffi::Transform>::new()),
+            );
         }
         if types.contains(&ComponentType::Velocity) {
-            archetype.storage.insert(ComponentType::Velocity, Box::new(Vec::<ffi::Velocity>::new()));
+            archetype.storage.insert(
+                ComponentType::Velocity,
+                Box::new(Vec::<ffi::Velocity>::new()),
+            );
         }
         if types.contains(&ComponentType::Material) {
-            archetype.storage.insert(ComponentType::Material, Box::new(Vec::<Material>::new()));
+            archetype
+                .storage
+                .insert(ComponentType::Material, Box::new(Vec::<Material>::new()));
         }
         if types.contains(&ComponentType::Player) {
-            archetype.storage.insert(ComponentType::Player, Box::new(Vec::<Player>::new()));
+            archetype
+                .storage
+                .insert(ComponentType::Player, Box::new(Vec::<Player>::new()));
         }
         if types.contains(&ComponentType::Button) {
-            archetype.storage.insert(ComponentType::Button, Box::new(Vec::<Button>::new()));
+            archetype
+                .storage
+                .insert(ComponentType::Button, Box::new(Vec::<Button>::new()));
         }
         if types.contains(&ComponentType::Physics) {
-            archetype.storage.insert(ComponentType::Physics, Box::new(Vec::<PhysicsBody>::new()));
+            archetype
+                .storage
+                .insert(ComponentType::Physics, Box::new(Vec::<PhysicsBody>::new()));
         }
         self.archetypes.push(archetype);
         self.archetypes.len() - 1
@@ -329,10 +345,11 @@ impl InternalWorld {
         archetype.entity_count += 1;
         let entity = Entity(self.next_entity);
         self.next_entity += 1;
-        self.entities.insert(entity, (archetype_idx, entity_idx_in_archetype));
+        self.entities
+            .insert(entity, (archetype_idx, entity_idx_in_archetype));
         entity
     }
-    
+
     pub fn clear_entities_of_component(&mut self, component_type: ComponentType) {
         // This is a simplified and potentially slow implementation.
         // A more robust ECS would have faster ways to do this.
@@ -340,11 +357,14 @@ impl InternalWorld {
 
         // Find all entities that have the component
         for (entity, (archetype_idx, _)) in &self.entities {
-            if self.archetypes[*archetype_idx].types.contains(&component_type) {
+            if self.archetypes[*archetype_idx]
+                .types
+                .contains(&component_type)
+            {
                 entities_to_remove.push(*entity);
             }
         }
-        
+
         for entity in entities_to_remove {
             // This is a placeholder for a proper entity removal implementation.
             // For now, we are just removing it from the map, but not cleaning up
@@ -361,21 +381,29 @@ impl InternalWorld {
                     // This is a dynamic way of clearing a vector of any type.
                     // It's a bit of a hack, but it works for now.
                     // A proper implementation would have a trait with a clear method.
-                    if let Some(vec) = storage.downcast_mut::<Vec<ffi::Transform>>() { vec.clear(); }
-                    else if let Some(vec) = storage.downcast_mut::<Vec<ffi::Velocity>>() { vec.clear(); }
-                    else if let Some(vec) = storage.downcast_mut::<Vec<Material>>() { vec.clear(); }
-                    else if let Some(vec) = storage.downcast_mut::<Vec<Player>>() { vec.clear(); }
-                    else if let Some(vec) = storage.downcast_mut::<Vec<Button>>() { vec.clear(); }
-                    else if let Some(vec) = storage.downcast_mut::<Vec<PhysicsBody>>() { vec.clear(); }
+                    if let Some(vec) = storage.downcast_mut::<Vec<ffi::Transform>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<ffi::Velocity>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<Material>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<Player>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<Button>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<PhysicsBody>>() {
+                        vec.clear();
+                    }
                 }
             }
         }
     }
 }
 
-
 pub trait ComponentBundle {
-    fn get_component_types() -> HashSet<ComponentType> where Self: Sized;
+    fn get_component_types() -> HashSet<ComponentType>
+    where
+        Self: Sized;
     fn push_to_storage(self, archetype: &mut Archetype);
 }
 
@@ -387,7 +415,12 @@ impl<T: Component> ComponentBundle for (T,) {
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        let vec = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec = archetype
+            .storage
+            .get_mut(&T::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<T>>()
+            .unwrap();
         vec.push(self.0);
     }
 }
@@ -401,9 +434,19 @@ impl<T: Component, U: Component> ComponentBundle for (T, U) {
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec_t = archetype
+            .storage
+            .get_mut(&T::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<T>>()
+            .unwrap();
         vec_t.push(self.0);
-        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        let vec_u = archetype
+            .storage
+            .get_mut(&U::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<U>>()
+            .unwrap();
         vec_u.push(self.1);
     }
 }
@@ -418,11 +461,26 @@ impl<T: Component, U: Component, V: Component> ComponentBundle for (T, U, V) {
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec_t = archetype
+            .storage
+            .get_mut(&T::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<T>>()
+            .unwrap();
         vec_t.push(self.0);
-        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        let vec_u = archetype
+            .storage
+            .get_mut(&U::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<U>>()
+            .unwrap();
         vec_u.push(self.1);
-        let vec_v = archetype.storage.get_mut(&V::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<V>>().unwrap();
+        let vec_v = archetype
+            .storage
+            .get_mut(&V::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<V>>()
+            .unwrap();
         vec_v.push(self.2);
     }
 }
@@ -438,18 +496,40 @@ impl<T: Component, U: Component, V: Component, W: Component> ComponentBundle for
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec_t = archetype
+            .storage
+            .get_mut(&T::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<T>>()
+            .unwrap();
         vec_t.push(self.0);
-        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        let vec_u = archetype
+            .storage
+            .get_mut(&U::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<U>>()
+            .unwrap();
         vec_u.push(self.1);
-        let vec_v = archetype.storage.get_mut(&V::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<V>>().unwrap();
+        let vec_v = archetype
+            .storage
+            .get_mut(&V::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<V>>()
+            .unwrap();
         vec_v.push(self.2);
-        let vec_w = archetype.storage.get_mut(&W::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<W>>().unwrap();
+        let vec_w = archetype
+            .storage
+            .get_mut(&W::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<W>>()
+            .unwrap();
         vec_w.push(self.3);
     }
 }
 
-impl<T: Component, U: Component, V: Component, W: Component, X: Component> ComponentBundle for (T, U, V, W, X) {
+impl<T: Component, U: Component, V: Component, W: Component, X: Component> ComponentBundle
+    for (T, U, V, W, X)
+{
     fn get_component_types() -> HashSet<ComponentType> {
         let mut types = HashSet::new();
         types.insert(T::COMPONENT_TYPE);
@@ -461,20 +541,47 @@ impl<T: Component, U: Component, V: Component, W: Component, X: Component> Compo
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec_t = archetype
+            .storage
+            .get_mut(&T::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<T>>()
+            .unwrap();
         vec_t.push(self.0);
-        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        let vec_u = archetype
+            .storage
+            .get_mut(&U::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<U>>()
+            .unwrap();
         vec_u.push(self.1);
-        let vec_v = archetype.storage.get_mut(&V::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<V>>().unwrap();
+        let vec_v = archetype
+            .storage
+            .get_mut(&V::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<V>>()
+            .unwrap();
         vec_v.push(self.2);
-        let vec_w = archetype.storage.get_mut(&W::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<W>>().unwrap();
+        let vec_w = archetype
+            .storage
+            .get_mut(&W::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<W>>()
+            .unwrap();
         vec_w.push(self.3);
-        let vec_x = archetype.storage.get_mut(&X::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<X>>().unwrap();
+        let vec_x = archetype
+            .storage
+            .get_mut(&X::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<X>>()
+            .unwrap();
         vec_x.push(self.4);
     }
 }
 
-impl<T: Component, U: Component, V: Component, W: Component, X: Component, Y: Component> ComponentBundle for (T, U, V, W, X, Y) {
+impl<T: Component, U: Component, V: Component, W: Component, X: Component, Y: Component>
+    ComponentBundle for (T, U, V, W, X, Y)
+{
     fn get_component_types() -> HashSet<ComponentType> {
         let mut types = HashSet::new();
         types.insert(T::COMPONENT_TYPE);
@@ -487,21 +594,50 @@ impl<T: Component, U: Component, V: Component, W: Component, X: Component, Y: Co
     }
 
     fn push_to_storage(self, archetype: &mut Archetype) {
-        let vec_t = archetype.storage.get_mut(&T::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<T>>().unwrap();
+        let vec_t = archetype
+            .storage
+            .get_mut(&T::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<T>>()
+            .unwrap();
         vec_t.push(self.0);
-        let vec_u = archetype.storage.get_mut(&U::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<U>>().unwrap();
+        let vec_u = archetype
+            .storage
+            .get_mut(&U::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<U>>()
+            .unwrap();
         vec_u.push(self.1);
-        let vec_v = archetype.storage.get_mut(&V::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<V>>().unwrap();
+        let vec_v = archetype
+            .storage
+            .get_mut(&V::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<V>>()
+            .unwrap();
         vec_v.push(self.2);
-        let vec_w = archetype.storage.get_mut(&W::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<W>>().unwrap();
+        let vec_w = archetype
+            .storage
+            .get_mut(&W::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<W>>()
+            .unwrap();
         vec_w.push(self.3);
-        let vec_x = archetype.storage.get_mut(&X::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<X>>().unwrap();
+        let vec_x = archetype
+            .storage
+            .get_mut(&X::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<X>>()
+            .unwrap();
         vec_x.push(self.4);
-        let vec_y = archetype.storage.get_mut(&Y::COMPONENT_TYPE).unwrap().downcast_mut::<Vec<Y>>().unwrap();
+        let vec_y = archetype
+            .storage
+            .get_mut(&Y::COMPONENT_TYPE)
+            .unwrap()
+            .downcast_mut::<Vec<Y>>()
+            .unwrap();
         vec_y.push(self.5);
     }
 }
-
 
 // The main game object
 #[derive(Serialize, Deserialize)]
@@ -531,7 +667,6 @@ pub type World = Game;
 
 // use sample_game::{setup_game_world, update_game_logic};
 
-
 impl Game {
     pub fn new() -> Self {
         let mut game = Game {
@@ -539,8 +674,12 @@ impl Game {
             current_state: GameState::MainMenu,
             asset_server: AssetServer::new(),
             texture_map: HashMap::new(),
-            input_state: ffi::InputState { 
-                up: false, down: false, left: false, right: false,
+            input_state: ffi::InputState {
+                up: false,
+                down: false,
+                left: false,
+                right: false,
+                s_key: false,
                 mouse_pos: ffi::Vec2 { x: 0.0, y: 0.0 },
                 mouse_clicked: false,
             },
@@ -558,15 +697,61 @@ impl Game {
         match self.current_state {
             GameState::MainMenu => self.update_main_menu(),
             GameState::InGame => self.update_in_game(),
+            GameState::SpriteStressTest => self.update_sprite_stress_test(),
         }
     }
 
     fn update_main_menu(&mut self) {
         self.text_commands.clear();
         self.renderables.clear();
-        
+
+        if self.input_state.s_key {
+            self.current_state = GameState::SpriteStressTest;
+            self.setup_sprite_stress_test();
+            return;
+        }
+
         // The UI system now handles drawing and interactions for buttons.
         ui::ui_system(self);
+    }
+
+    fn setup_sprite_stress_test(&mut self) {
+        self.world.clear_entities_of_component(ComponentType::Button);
+        self.world.clear_entities_of_component(ComponentType::Physics);
+
+        let mut rng = rand::thread_rng();
+        let player_texture = self.asset_server.load_texture("assets/player.png");
+
+        for _ in 0..10000 {
+            self.world.spawn((
+                ffi::Transform {
+                    position: ffi::Vec3 {
+                        x: rng.gen_range(0.0..800.0),
+                        y: rng.gen_range(0.0..600.0),
+                        z: 0.0,
+                    },
+                    rotation: ffi::Vec3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    scale: ffi::Vec3 {
+                        x: 10.0,
+                        y: 10.0,
+                        z: 1.0,
+                    },
+                },
+                Material {
+                    texture_handle: player_texture,
+                },
+            ));
+        }
+    }
+
+    fn update_sprite_stress_test(&mut self) {
+        self.text_commands.clear();
+        self.process_asset_server();
+        self.build_renderables();
     }
 
     fn setup_in_game(&mut self) {
@@ -586,12 +771,28 @@ impl Game {
 
         self.world.spawn((
             ffi::Transform {
-                position: ffi::Vec3 { x: ground_x, y: ground_y, z: 0.0 },
-                rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                scale: ffi::Vec3 { x: ground_width, y: ground_height, z: 1.0 },
+                position: ffi::Vec3 {
+                    x: ground_x,
+                    y: ground_y,
+                    z: 0.0,
+                },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: ground_width,
+                    y: ground_height,
+                    z: 1.0,
+                },
             },
-            PhysicsBody { id: ground_body_id },
-            Material { texture_handle: self.asset_server.load_texture("assets/test.png") },
+            PhysicsBody {
+                id: ground_body_id,
+            },
+            Material {
+                texture_handle: self.asset_server.load_texture("assets/test.png"),
+            },
         ));
 
         // Create a dynamic falling box
@@ -608,12 +809,26 @@ impl Game {
 
         self.world.spawn((
             ffi::Transform {
-                position: ffi::Vec3 { x: box_x, y: box_y, z: 0.0 },
-                rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                scale: ffi::Vec3 { x: box_width, y: box_height, z: 1.0 },
+                position: ffi::Vec3 {
+                    x: box_x,
+                    y: box_y,
+                    z: 0.0,
+                },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: box_width,
+                    y: box_height,
+                    z: 1.0,
+                },
             },
             PhysicsBody { id: box_body_id },
-            Material { texture_handle: self.asset_server.load_texture("assets/player.png") },
+            Material {
+                texture_handle: self.asset_server.load_texture("assets/player.png"),
+            },
         ));
     }
 
@@ -632,47 +847,56 @@ impl Game {
         self.run_input_system();
         self.poll_physics_events();
         self.sync_physics_to_render(); // New physics system
-        // self.run_movement_system(); // Old movement system is not needed for now
+                                      // self.run_movement_system(); // Old movement system is not needed for now
         self.process_asset_server();
         self.build_renderables();
     }
 
     fn sync_physics_to_render(&mut self) {
         const PPM: f32 = 50.0; // Pixels Per Meter
-        
+
         for archetype in &mut self.world.archetypes {
-            if archetype.types.contains(&ComponentType::Physics) && archetype.types.contains(&ComponentType::Transform) {
-                let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
+            if archetype.types.contains(&ComponentType::Physics)
+                && archetype.types.contains(&ComponentType::Transform)
+            {
+                let mut transform_storage =
+                    archetype.storage.remove(&ComponentType::Transform).unwrap();
                 let physics_storage = archetype.storage.get(&ComponentType::Physics).unwrap();
-                
-                let transforms = transform_storage.downcast_mut::<Vec<ffi::Transform>>().unwrap();
+
+                let transforms = transform_storage
+                    .downcast_mut::<Vec<ffi::Transform>>()
+                    .unwrap();
                 let physics_bodies = physics_storage.downcast_ref::<Vec<PhysicsBody>>().unwrap();
 
                 for i in 0..archetype.entity_count {
                     let body_id = physics_bodies[i].id;
                     let new_pos_meters = ffi::get_body_position(body_id);
-                    
+
                     transforms[i].position.x = new_pos_meters.x * PPM;
                     transforms[i].position.y = new_pos_meters.y * PPM;
                 }
-                
-                archetype.storage.insert(ComponentType::Transform, transform_storage);
+
+                archetype
+                    .storage
+                    .insert(ComponentType::Transform, transform_storage);
             }
         }
     }
-    
+
     // --- Old systems to be removed or refactored ---
 
     fn setup_main_menu(&mut self) {
-        self.world.spawn((
-            Button {
-                rect: ui::Rect { x: 300.0, y: 400.0, width: 200.0, height: 50.0 },
-                text: "Start Game".to_string(),
-                action: ui::ButtonAction::StartGame,
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 300.0,
+                y: 400.0,
+                width: 200.0,
+                height: 50.0,
             },
-        ));
+            text: "Start Game".to_string(),
+            action: ui::ButtonAction::StartGame,
+        },));
     }
-
 
     pub fn build_renderables(&mut self) {
         self.renderables.clear();
@@ -681,11 +905,25 @@ impl Game {
             let has_material = archetype.types.contains(&ComponentType::Material);
 
             if has_transform && has_material {
-                 let transforms = archetype.storage.get(&ComponentType::Transform).unwrap().downcast_ref::<Vec<ffi::Transform>>().unwrap();
-                 let materials = archetype.storage.get(&ComponentType::Material).unwrap().downcast_ref::<Vec<Material>>().unwrap();
-                
+                let transforms = archetype
+                    .storage
+                    .get(&ComponentType::Transform)
+                    .unwrap()
+                    .downcast_ref::<Vec<ffi::Transform>>()
+                    .unwrap();
+                let materials = archetype
+                    .storage
+                    .get(&ComponentType::Material)
+                    .unwrap()
+                    .downcast_ref::<Vec<Material>>()
+                    .unwrap();
+
                 for (transform, material) in transforms.iter().zip(materials.iter()) {
-                    let texture_id = self.texture_map.get(&material.texture_handle).cloned().unwrap_or(0);
+                    let texture_id = self
+                        .texture_map
+                        .get(&material.texture_handle)
+                        .cloned()
+                        .unwrap_or(0);
                     self.renderables.push(ffi::RenderableObject {
                         transform: *transform,
                         mesh_id: 1,
@@ -709,8 +947,6 @@ impl Game {
     }
 }
 
-
-
 // --- VTable Functions ---
 
 #[no_mangle]
@@ -721,13 +957,17 @@ pub extern "C" fn create_game() -> *mut Game {
 #[no_mangle]
 pub extern "C" fn destroy_game(game: *mut Game) {
     if !game.is_null() {
-        unsafe { Box::from_raw(game); }
+        unsafe {
+            Box::from_raw(game);
+        }
     }
 }
 
 #[no_mangle]
 pub extern "C" fn serialize_game(game: *const Game) -> *mut c_char {
-    if game.is_null() { return ptr::null_mut(); }
+    if game.is_null() {
+        return ptr::null_mut();
+    }
     let game = unsafe { &*game };
     let serialized = serde_json::to_string(game).unwrap();
     CString::new(serialized).unwrap().into_raw()
@@ -735,7 +975,9 @@ pub extern "C" fn serialize_game(game: *const Game) -> *mut c_char {
 
 #[no_mangle]
 pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
-    if json.is_null() { return ptr::null_mut(); }
+    if json.is_null() {
+        return ptr::null_mut();
+    }
     let c_str = unsafe { CStr::from_ptr(json) };
     let r_str = c_str.to_str().unwrap();
     let mut game: Game = serde_json::from_str(r_str).unwrap();
@@ -748,13 +990,17 @@ pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
 #[no_mangle]
 pub extern "C" fn free_serialized_string(s: *mut c_char) {
     if !s.is_null() {
-        unsafe { CString::from_raw(s); }
+        unsafe {
+            CString::from_raw(s);
+        }
     }
 }
 
 #[no_mangle]
 pub extern "C" fn update_game(game: *mut Game) -> GameState {
-    if game.is_null() { return GameState::MainMenu; }
+    if game.is_null() {
+        return GameState::MainMenu;
+    }
     let game = unsafe { &mut *game };
     game.update();
     game.current_state
@@ -762,7 +1008,12 @@ pub extern "C" fn update_game(game: *mut Game) -> GameState {
 
 #[no_mangle]
 pub extern "C" fn get_renderables(game: *mut Game) -> RenderableObjectSlice {
-    if game.is_null() { return RenderableObjectSlice { ptr: ptr::null(), len: 0 }; }
+    if game.is_null() {
+        return RenderableObjectSlice {
+            ptr: ptr::null(),
+            len: 0,
+        };
+    }
     let game = unsafe { &*game };
     RenderableObjectSlice {
         ptr: game.renderables.as_ptr(),
@@ -772,7 +1023,12 @@ pub extern "C" fn get_renderables(game: *mut Game) -> RenderableObjectSlice {
 
 #[no_mangle]
 pub extern "C" fn get_asset_commands(game: *mut Game) -> AssetCommandSlice {
-    if game.is_null() { return AssetCommandSlice { ptr: ptr::null(), len: 0 }; }
+    if game.is_null() {
+        return AssetCommandSlice {
+            ptr: ptr::null(),
+            len: 0,
+        };
+    }
     let game = unsafe { &*game };
     AssetCommandSlice {
         ptr: game.asset_commands.as_ptr(),
@@ -782,25 +1038,31 @@ pub extern "C" fn get_asset_commands(game: *mut Game) -> AssetCommandSlice {
 
 #[no_mangle]
 pub extern "C" fn clear_asset_commands(game: *mut Game) {
-    if game.is_null() { return; }
+    if game.is_null() {
+        return;
+    }
     let game = unsafe { &mut *game };
     game.asset_commands.clear();
 }
 
 #[no_mangle]
 pub extern "C" fn notify_asset_loaded(game: *mut Game, request_id: u32, asset_id: u32) {
-    if game.is_null() { return; }
+    if game.is_null() {
+        return;
+    }
     let game = unsafe { &mut *game };
     if let Some(path) = game.asset_server.pending_requests.remove(&request_id) {
-       if let Some(handle) = game.asset_server.texture_handle_map.get_mut(&path) {
+        if let Some(handle) = game.asset_server.texture_handle_map.get_mut(&path) {
             game.texture_map.insert(*handle, asset_id);
-       }
+        }
     }
 }
 
 #[no_mangle]
 pub extern "C" fn update_input_state(game: *mut Game, input: *const ffi::InputState) {
-    if game.is_null() || input.is_null() { return; }
+    if game.is_null() || input.is_null() {
+        return;
+    }
     let game = unsafe { &mut *game };
     let input = unsafe { &*input };
     game.input_state = *input;
@@ -808,14 +1070,21 @@ pub extern "C" fn update_input_state(game: *mut Game, input: *const ffi::InputSt
 
 #[no_mangle]
 pub extern "C" fn get_asset_command_path_cstring(command: *const ffi::AssetCommand) -> *mut c_char {
-    if command.is_null() { return ptr::null_mut(); }
+    if command.is_null() {
+        return ptr::null_mut();
+    }
     let command = unsafe { &*command };
     CString::new(command.path.as_str()).unwrap().into_raw()
 }
 
 #[no_mangle]
 pub extern "C" fn get_text_commands(game: *mut Game) -> TextCommandSlice {
-    if game.is_null() { return TextCommandSlice { ptr: ptr::null(), len: 0 }; }
+    if game.is_null() {
+        return TextCommandSlice {
+            ptr: ptr::null(),
+            len: 0,
+        };
+    }
     let game = unsafe { &*game };
     TextCommandSlice {
         ptr: game.text_commands.as_ptr(),
@@ -825,7 +1094,9 @@ pub extern "C" fn get_text_commands(game: *mut Game) -> TextCommandSlice {
 
 #[no_mangle]
 pub extern "C" fn get_text_command_text_cstring(command: *const ffi::TextCommand) -> *mut c_char {
-    if command.is_null() { return ptr::null_mut(); }
+    if command.is_null() {
+        return ptr::null_mut();
+    }
     let command = unsafe { &*command };
     CString::new(command.text.as_str()).unwrap().into_raw()
 }
@@ -833,6 +1104,8 @@ pub extern "C" fn get_text_command_text_cstring(command: *const ffi::TextCommand
 #[no_mangle]
 pub extern "C" fn free_cstring(s: *mut c_char) {
     if !s.is_null() {
-        unsafe { CString::from_raw(s); }
+        unsafe {
+            CString::from_raw(s);
+        }
     }
 }
