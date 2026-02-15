@@ -1,53 +1,62 @@
-# Performance Test Guide
+# MIYABI 性能テスト計画書 (Performance Test Plan)
 
-This document outlines how to enable and run the performance test suite for the MIYABI engine.
+## 1. 目的
 
-## 1. Purpose
+本ドキュメントは、MIYABIエンジンのパフォーマンスを客観的に測定し、継続的に改善していくための計画を定義するものです。アーキテクチャの堅牢性に加え、ゲームエンジンとしての生命線である実行性能を確保し、あらゆる変更が性能に与える影響を追跡可能にすることを目的とします。
 
-The performance test is designed to benchmark the engine's capabilities under heavy load, such as rendering a large number of sprites. This helps identify performance bottlenecks and measure the impact of optimizations.
+## 2. 基本方針
 
-It is implemented using a compile-time feature flag to ensure that the performance testing code does not interfere with regular development builds.
+「性能測定に適した構造」から「性能を常に測定できる環境」へと進化させるため、以下の3ステップアプローチを採ります。
 
-## 2. How to Enable the Performance Test
+1.  **計測器 (Instrumentation) の実装:** エンジンの動作状況を可視化するための「速度計」や「診断機」を組み込みます。
+2.  **ベンチマークシナリオ (Benchmark Scenarios) の作成:** 特定の機能に高い負荷をかけ、限界性能やボトルネックを特定するための標準的な「テストコース」を設けます。
+3.  **ベースライン (Baseline) の確立:** 各シナリオにおける初期性能を記録し、将来の性能改善・悪化を判断するための「基準タイム」とします。
 
-The performance test is enabled via the `performance_test` feature in the `miyabi_logic` crate. To enable it, you need to configure the build with a specific CMake command.
+---
 
-1.  **Clean the build directory (optional but recommended):**
-    If you have an existing build, it's best to clean it to ensure a fresh configuration.
-    ```bash
-    rm -rf build
-    ```
+## 3. 実行計画 (Action Plan)
 
-2.  **Run CMake with the feature enabled:**
-    From the project root directory, run the following commands to configure and build the project with the performance test enabled. The `-D` flag for corrosion is not directly used, but we pass the feature name to `corrosion_add_cxxbridge`. The `logic/CMakeLists.txt` is already configured to use this feature.
+### ステップ1：計測器の実装 (Instrumentation)
 
-    ```bash
-    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-    ```
-    *Note: The `logic/CMakeLists.txt` is currently hardcoded to enable the "performance_test" feature. In the future, this could be controlled by a CMake variable.*
+エンジンに以下の計測機能を実装し、性能をリアルタイムで可視化します。この計測機能全体は、コンパイル時フラグによって有効/無効を切り替えられるように設計します。
 
-## 3. How to Run
+-   [x] **タスク1.0: パフォーマンス計測用コンパイルフラグの導入**
+    -   内容: パフォーマンス計測コードを有効化/無効化するための、コンパイル時フラグ（例: `MIYABI_PROFILE`）を導入します。CMakeでこのフラグをON/OFFできるように設定します。
+    -   目的: デフォルト（OFF）の状態では、計測コードがバイナリに一切含まれなくなり、通常の開発やリリースビルドに全く影響を与えません。これにより、MIYABIのクリーンな設計思想を維持します。
 
-1.  **Build the project:**
-    ```bash
-    cmake --build build
-    ```
+-   [x] **タスク1.1: 基本的なフレームレート表示機能**
+    -   内容: ウィンドウタイトル、または画面の隅に現在のFPS（Frames Per Second）とフレームタイム（1フレームの描画に要した時間、単位: ms）を常時表示する機能を実装します。これは最も基本的かつ重要な性能指標となります。
+    -   実装箇所: `core` (C++) のメインループ内。
 
-2.  **Run the executable:**
-    ```bash
-    ./build/core/miyabi
-    ```
+-   [x] **タスク1.2: 詳細プロファイリング機能の基盤**
+    -   内容: コードの特定区間の実行時間を計測するための、シンプルなプロファイラを導入します。RAIIパターン（実行時間をコンストラクタで記録開始、デストラクタで結果を出力する手法）などが考えられます。
+    -   実装箇所:
+        -   C++側: `Renderer::draw()`, `PhysicsManager`関連処理など、主要な低レベル処理。
+        -   Rust側: ECSの各`System`の実行時間、描画コマンドバッファの生成時間など、主要なロジック処理。
+    -   目標: 「`physics_system`: 2.1ms, `render_command_generation`: 0.8ms, `renderer::draw`: 5.3ms」のような詳細な内訳を出力できるようにする。
 
-## 4. Expected Results
+### ステップ2：ベンチマークシナリオの作成
 
-When you run the application with the performance test enabled, you will see the following:
+エンジンのサブシステムに意図的に高負荷をかける、複数のテストシーンを実装します。これらのシナリオは、実行時に簡単に切り替えられるようにします。
 
-- The application window will open.
-- The window's title bar will display the current Frames Per Second (FPS).
-- A large number of sprites (e.g., 10,000) will be rendered on the screen, which is used to stress the rendering system.
+-   [ ] **タスク2.1: 描画負荷テスト (Sprite Stress Test)**
+    -   内容: 同一、または複数のテクスチャを持つスプライトを大量（例: 1,000, 10,000, 50,000個）に画面内に配置し、描画します。
+    -   目的: エンジンの描画スループット、特にインスタンスレンダリングの効率と限界性能を測定します。
 
-## 5. Implementation Details
+-   [ ] **タスク2.2: 物理演算負荷テスト (Physics Stress Test)**
+    -   内容: `Collider`コンポーネントを持つ大量のエンティティ（例: 500, 2,000個）を互いに衝突させ、物理演算ループを実行します。
+    -   目的: Rust側で実装されている当たり判定システムの処理性能を測定します。
 
-- **CMake & Corrosion:** The `logic/CMakeLists.txt` file uses `corrosion_add_cxxbridge` to build the Rust `miyabi_logic` crate with the `performance_test` feature.
-- **Rust (`lib.rs`):** When the `performance_test` feature is enabled, Rust code will call the C++ function `get_performance_test_sprite_count()` to determine how many sprites to render.
-- **C++ (`performance.cpp`):** This file contains the `get_performance_test_sprite_count()` function, which defines the number of sprites for the test. This allows easy modification of the load for performance testing.
+-   [ ] **タスク2.3: UI/テキスト描画負荷テスト (UI Stress Test)**
+    -   内容: 大量の文字列、または複雑なレイアウトのUI要素を画面上に描画します。
+    -   目的: テキストレンダリング（グリフ生成、テクスチャアトラス管理、描画）のパイプライン全体の性能を測定します。
+
+-   [ ] **タ.スク2.4: シーン構築/破棄テスト (Scene Management Stress Test)**
+    -   内容: 大量のエンティティを持つシーンの生成と破棄を短時間で繰り返します。
+    -   目的: エンティティやコンポーネントの生成・削除に伴うメモリ確保・解放のオーバーヘッドを測定し、ECS実装の効率を評価します。
+
+### ステップ3：ベースラインの確立
+
+-   [ ] **タスク3.1: ベースライン性能の記録**
+    -   内容: ステップ1, 2が完了した後、各ベンチマークシナリオを実行し、その結果（平均FPS、フレームタイムの内訳など）をこのドキュメント、または別のファイルに記録します。
+    -   目的: この記録が、今後の全ての性能評価の基準となります。機能追加やリファクタリングの前後でベンチマークを再実行し、性能が向上したか、あるいは意図せず悪化（リグレッション）していないかを確認します。
