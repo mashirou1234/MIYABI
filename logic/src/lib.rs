@@ -81,6 +81,7 @@ pub enum ComponentType {
     Player,
     Button,
     Physics,
+    Sprite,
 }
 
 #[cxx::bridge]
@@ -114,6 +115,7 @@ pub mod ffi {
         pub left: bool,
         pub right: bool,
         pub s_key: bool,
+        pub p_key: bool,
         pub mouse_pos: Vec2,
         pub mouse_clicked: bool,
     }
@@ -203,6 +205,7 @@ pub enum GameState {
     MainMenu,
     InGame,
     SpriteStressTest,
+    PhysicsStressTest,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -261,6 +264,12 @@ impl Component for Material {
 pub struct Player;
 impl Component for Player {
     const COMPONENT_TYPE: ComponentType = ComponentType::Player;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Sprite;
+impl Component for Sprite {
+    const COMPONENT_TYPE: ComponentType = ComponentType::Sprite;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -347,6 +356,11 @@ impl InternalWorld {
                 .storage
                 .insert(ComponentType::Physics, Box::new(Vec::<PhysicsBody>::new()));
         }
+        if types.contains(&ComponentType::Sprite) {
+            archetype
+                .storage
+                .insert(ComponentType::Sprite, Box::new(Vec::<Sprite>::new()));
+        }
         self.archetypes.push(archetype);
         self.archetypes.len() - 1
     }
@@ -408,6 +422,8 @@ impl InternalWorld {
                     } else if let Some(vec) = storage.downcast_mut::<Vec<Button>>() {
                         vec.clear();
                     } else if let Some(vec) = storage.downcast_mut::<Vec<PhysicsBody>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<Sprite>>() {
                         vec.clear();
                     }
                 }
@@ -714,6 +730,7 @@ impl Game {
             GameState::MainMenu => self.update_main_menu(),
             GameState::InGame => self.update_in_game(),
             GameState::SpriteStressTest => self.update_sprite_stress_test(),
+            GameState::PhysicsStressTest => self.update_physics_stress_test(),
         }
     }
 
@@ -724,6 +741,12 @@ impl Game {
         if self.input_state.s_key {
             self.current_state = GameState::SpriteStressTest;
             self.setup_sprite_stress_test();
+            return;
+        }
+
+        if self.input_state.p_key {
+            self.current_state = GameState::PhysicsStressTest;
+            self.setup_physics_stress_test();
             return;
         }
 
@@ -765,12 +788,78 @@ impl Game {
                 Material {
                     texture_handle: player_texture,
                 },
+                Sprite,
             ));
         }
     }
 
     fn update_sprite_stress_test(&mut self) {
         self.text_commands.clear();
+        self.process_asset_server();
+        self.build_renderables();
+    }
+
+    fn setup_physics_stress_test(&mut self) {
+        self.world.clear_entities_of_component(ComponentType::Button);
+        self.world.clear_entities_of_component(ComponentType::Sprite);
+
+        const PPM: f32 = 50.0; // Pixels Per Meter
+        const SCREEN_WIDTH: f32 = 800.0;
+        const SCREEN_HEIGHT: f32 = 600.0;
+        const WALL_THICKNESS: f32 = 10.0;
+
+        let ground_texture = self.asset_server.load_texture("assets/test.png");
+        let box_texture = self.asset_server.load_texture("assets/player.png");
+
+        // Create container walls
+        let walls = [
+            // Bottom
+            (SCREEN_WIDTH / 2.0, WALL_THICKNESS / 2.0, SCREEN_WIDTH, WALL_THICKNESS),
+            // Top
+            (SCREEN_WIDTH / 2.0, SCREEN_HEIGHT - WALL_THICKNESS / 2.0, SCREEN_WIDTH, WALL_THICKNESS),
+            // Left
+            (WALL_THICKNESS / 2.0, SCREEN_HEIGHT / 2.0, WALL_THICKNESS, SCREEN_HEIGHT),
+            // Right
+            (SCREEN_WIDTH - WALL_THICKNESS / 2.0, SCREEN_HEIGHT / 2.0, WALL_THICKNESS, SCREEN_HEIGHT),
+        ];
+
+        for (x, y, w, h) in walls {
+            let body_id = ffi::create_static_box_body(x / PPM, y / PPM, w / PPM, h / PPM);
+            self.world.spawn((
+                ffi::Transform {
+                    position: ffi::Vec3 { x, y, z: 0.0 },
+                    rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                    scale: ffi::Vec3 { x: w, y: h, z: 1.0 },
+                },
+                PhysicsBody { id: body_id },
+                Material { texture_handle: ground_texture },
+            ));
+        }
+
+        // Create dynamic falling boxes
+        let mut rng = rand::thread_rng();
+        let box_size = 10.0;
+        for _ in 0..500 {
+            let x = rng.gen_range((WALL_THICKNESS + box_size)..(SCREEN_WIDTH - WALL_THICKNESS - box_size));
+            let y = rng.gen_range((WALL_THICKNESS + box_size)..(SCREEN_HEIGHT - WALL_THICKNESS - box_size));
+
+            let body_id = ffi::create_dynamic_box_body(x / PPM, y / PPM, box_size / PPM, box_size / PPM);
+            self.world.spawn((
+                ffi::Transform {
+                    position: ffi::Vec3 { x, y, z: 0.0 },
+                    rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                    scale: ffi::Vec3 { x: box_size, y: box_size, z: 1.0 },
+                },
+                PhysicsBody { id: body_id },
+                Material { texture_handle: box_texture },
+            ));
+        }
+    }
+
+    fn update_physics_stress_test(&mut self) {
+        self.text_commands.clear();
+        self.poll_physics_events();
+        self.sync_physics_to_render();
         self.process_asset_server();
         self.build_renderables();
     }
