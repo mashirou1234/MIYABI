@@ -1,9 +1,7 @@
-#include "miyabi/bridge.h"
-
-#ifdef MIYABI_PERFORMANCE_TEST
 #include <cstdint>
-uint32_t g_performance_test_sprite_count = 50000;
-uint32_t get_performance_test_sprite_count() {
-    return g_performance_test_sprite_count;
+
+// This is a simple implementation for the performance test.
+// In the future, this could read from a config file or be controlled by user input.
+extern "C" uint32_t get_performance_test_sprite_count() {
+    return 10000;
 }
-#endif

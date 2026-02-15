@@ -1,6 +1,6 @@
 // This file is used by cxx to bridge C++ and Rust.
 #include "miyabi/bridge.h"
-#include "miyabi_logic_cxx_bridge/lib.h" // For definitions of shared types like Vec2
+#include "lib.rs.h" // For definitions of shared types like Vec2
 #include "physics/PhysicsManager.hpp"
 
 // The miniaudio implementation must be in exactly one C++ file.

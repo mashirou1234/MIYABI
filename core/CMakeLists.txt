@@ -34,6 +34,7 @@ add_executable(miyabi
     src/renderer/FontManager.cpp
     src/renderer/TextRenderer.cpp
     src/physics/PhysicsManager.cpp
+    ../logic/src/performance.cpp
 )
 
 target_include_directories(miyabi PUBLIC 

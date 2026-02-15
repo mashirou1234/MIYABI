@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.25)
 
 # 【変更点1】 project() よりも前に定義を配置し、拡張機能(gnu++17など)をOFFにする
 set(CMAKE_C_STANDARD 11)
@@ -57,5 +57,5 @@ FetchContent_GetProperties(box2d
 set(BOX2D_INCLUDE_DIR ${box2d_SOURCE_DIR}/include)
 configure_file(logic/src/paths.rs.in ${CMAKE_CURRENT_SOURCE_DIR}/logic/src/paths.rs @ONLY)
 
-add_subdirectory(core)
 add_subdirectory(logic)
+add_subdirectory(core)
