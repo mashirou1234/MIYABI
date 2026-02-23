@@ -292,8 +292,12 @@ pub struct AssetServer {
     #[serde(skip)]
     pub pending_requests: HashMap<u32, PendingAssetRequest>,
     pub texture_handle_map: HashMap<String, u32>,
+    pub texture_path_map: HashMap<u32, String>,
+    pub texture_asset_id_map: HashMap<u32, u64>,
+    pub asset_id_path_map: HashMap<u64, String>,
     pub next_request_id: u32,
     pub next_texture_handle: u32,
+    pub next_asset_id: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -308,8 +312,12 @@ impl AssetServer {
         Self {
             pending_requests: HashMap::new(),
             texture_handle_map: HashMap::new(),
+            texture_path_map: HashMap::new(),
+            texture_asset_id_map: HashMap::new(),
+            asset_id_path_map: HashMap::new(),
             next_request_id: 1,
             next_texture_handle: 1,
+            next_asset_id: 1,
         }
     }
 
@@ -320,7 +328,13 @@ impl AssetServer {
 
         let handle = self.next_texture_handle;
         self.next_texture_handle += 1;
+        let asset_id = self.next_asset_id;
+        self.next_asset_id += 1;
+
         self.texture_handle_map.insert(path.to_string(), handle);
+        self.texture_path_map.insert(handle, path.to_string());
+        self.texture_asset_id_map.insert(handle, asset_id);
+        self.asset_id_path_map.insert(asset_id, path.to_string());
         self.enqueue_request(path, ffi::AssetCommandType::LoadTexture);
 
         handle
@@ -366,6 +380,38 @@ impl AssetServer {
         self.pending_requests
             .values()
             .any(|request| request.path == path)
+    }
+
+    pub fn path_for_texture_handle(&self, texture_handle: u32) -> Option<&str> {
+        self.texture_path_map
+            .get(&texture_handle)
+            .map(|path| path.as_str())
+    }
+
+    pub fn asset_id_for_texture_handle(&self, texture_handle: u32) -> Option<u64> {
+        self.texture_asset_id_map.get(&texture_handle).copied()
+    }
+
+    pub fn has_pending_request_for_texture_handle(&self, texture_handle: u32) -> bool {
+        let Some(path) = self.path_for_texture_handle(texture_handle) else {
+            return false;
+        };
+        self.has_pending_request(path)
+    }
+
+    pub fn is_registry_consistent(&self) -> bool {
+        for (path, handle) in &self.texture_handle_map {
+            if self.texture_path_map.get(handle) != Some(path) {
+                return false;
+            }
+            let Some(asset_id) = self.texture_asset_id_map.get(handle) else {
+                return false;
+            };
+            if self.asset_id_path_map.get(asset_id) != Some(path) {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -850,6 +896,14 @@ pub struct Game {
     #[serde(skip)]
     pub u_was_pressed: bool,
     #[serde(skip)]
+    pub asset_integrity_tick: u32,
+    #[serde(skip)]
+    pub reported_missing_texture_handles: HashSet<u32>,
+    #[serde(skip)]
+    pub reported_unresolved_texture_handles: HashSet<u32>,
+    #[serde(skip)]
+    pub reported_registry_inconsistency: bool,
+    #[serde(skip)]
     pub save_file_path: PathBuf,
 }
 
@@ -871,6 +925,7 @@ const MIN_SPAWN_INTERVAL_SEC: f32 = 0.25;
 const SAVE_FILE_REL_PATH: &str = "save/save_data.json";
 pub(crate) const SETTINGS_STEP: f32 = 0.1;
 const BGM_TRACK_PATH: &str = "assets/test_sound.wav";
+const ASSET_INTEGRITY_CHECK_INTERVAL_FRAMES: u32 = 30;
 
 impl Game {
     pub fn new() -> Self {
@@ -910,6 +965,10 @@ impl Game {
             obstacle_spawn_accumulator_sec: 0.0,
             esc_was_pressed: false,
             u_was_pressed: false,
+            asset_integrity_tick: 0,
+            reported_missing_texture_handles: HashSet::new(),
+            reported_unresolved_texture_handles: HashSet::new(),
+            reported_registry_inconsistency: false,
             save_file_path,
         };
         // Setup the initial state
@@ -987,6 +1046,82 @@ impl Game {
         let queued = self.asset_server.reimport_all_textures();
         if queued > 0 {
             eprintln!("[asset] queued texture reimport count={queued}");
+        }
+    }
+
+    fn collect_referenced_texture_handles(&self) -> HashSet<u32> {
+        let mut handles = HashSet::new();
+        for archetype in &self.world.archetypes {
+            if !archetype.types.contains(&ComponentType::Material) {
+                continue;
+            }
+
+            let Some(material_storage) = archetype.storage.get(&ComponentType::Material) else {
+                continue;
+            };
+            let Some(materials) = material_storage.downcast_ref::<Vec<Material>>() else {
+                continue;
+            };
+
+            for material in materials {
+                handles.insert(material.texture_handle);
+            }
+        }
+        handles
+    }
+
+    fn run_asset_integrity_check(&mut self) {
+        self.asset_integrity_tick = self.asset_integrity_tick.wrapping_add(1);
+        if self.asset_integrity_tick % ASSET_INTEGRITY_CHECK_INTERVAL_FRAMES != 0 {
+            return;
+        }
+
+        let referenced_handles = self.collect_referenced_texture_handles();
+        self.reported_missing_texture_handles
+            .retain(|handle| referenced_handles.contains(handle));
+        self.reported_unresolved_texture_handles
+            .retain(|handle| referenced_handles.contains(handle));
+
+        let registry_consistent = self.asset_server.is_registry_consistent();
+        if !registry_consistent && !self.reported_registry_inconsistency {
+            eprintln!("[asset] integrity: registry inconsistency detected");
+            self.reported_registry_inconsistency = true;
+        } else if registry_consistent && self.reported_registry_inconsistency {
+            self.reported_registry_inconsistency = false;
+        }
+
+        for handle in referenced_handles {
+            let Some(path) = self
+                .asset_server
+                .path_for_texture_handle(handle)
+                .map(str::to_string)
+            else {
+                if self.reported_missing_texture_handles.insert(handle) {
+                    eprintln!("[asset] integrity: missing registry for texture_handle={handle}");
+                }
+                continue;
+            };
+
+            let asset_id = self
+                .asset_server
+                .asset_id_for_texture_handle(handle)
+                .unwrap_or(0);
+            let has_loaded_texture = self.texture_map.contains_key(&handle);
+            let has_pending_request = self
+                .asset_server
+                .has_pending_request_for_texture_handle(handle);
+
+            if !has_loaded_texture && !has_pending_request {
+                let queued = self.asset_server.reimport_texture(&path);
+                if self.reported_unresolved_texture_handles.insert(handle) || queued {
+                    eprintln!(
+                        "[asset] integrity: unresolved reference handle={handle} asset_id={asset_id} path={} queued_reimport={queued}",
+                        path
+                    );
+                }
+            } else if has_loaded_texture {
+                self.reported_unresolved_texture_handles.remove(&handle);
+            }
         }
     }
 
@@ -1181,6 +1316,7 @@ impl Game {
             GameState::PhysicsStressTest => self.update_physics_stress_test(),
             GameState::UIStressTest => self.update_ui_stress_test(),
         }
+        self.run_asset_integrity_check();
     }
 
     fn update_main_menu(&mut self) {

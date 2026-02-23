@@ -13,7 +13,7 @@ fn main() {
         build.file("src/performance.cpp");
         build.define("MIYABI_PERFORMANCE_TEST", "1");
     }
-    
+
     build.compile("logic");
 
     println!("cargo:rerun-if-changed=src/lib.rs");

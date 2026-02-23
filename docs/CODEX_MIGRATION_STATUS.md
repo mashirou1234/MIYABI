@@ -90,6 +90,10 @@
   - `core/src/renderer/TextureManager.cpp`（`reload_texture` 実装）
   - `docs/ASSET_IMPORT_REIMPORT.md`
   - `PLAN.md`（タスク10.2へ反映）
+- アセットID管理と参照整合チェックを導入し、診断ログ/復旧手順を整備
+  - `logic/src/lib.rs`（asset registry、参照整合チェック、未解決参照の自動reimport再キュー）
+  - `docs/ASSET_IMPORT_REIMPORT.md`（診断ログと復旧手順を追加）
+  - `PLAN.md`（タスク10.2へ反映）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
