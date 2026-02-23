@@ -1,13 +1,14 @@
 mod paths;
 pub mod save;
+use crate::ui::Button;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::path::{Path, PathBuf};
 use std::ptr;
-use crate::ui::Button;
 
 pub mod ui;
 
@@ -199,7 +200,6 @@ fn get_sprite_count() -> u32 {
     ffi::get_performance_test_sprite_count()
 }
 
-
 // Main game state
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -211,6 +211,75 @@ pub enum GameState {
     SpriteStressTest,
     PhysicsStressTest,
     UIStressTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SaveProgress {
+    pub best_score: u32,
+    pub best_survival_sec: u32,
+    pub total_play_count: u32,
+    pub total_clear_count: u32,
+}
+
+impl Default for SaveProgress {
+    fn default() -> Self {
+        Self {
+            best_score: 0,
+            best_survival_sec: 0,
+            total_play_count: 0,
+            total_clear_count: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SaveSettings {
+    pub master_volume: f32,
+    pub bgm_volume: f32,
+    pub se_volume: f32,
+    pub fullscreen: bool,
+}
+
+impl Default for SaveSettings {
+    fn default() -> Self {
+        Self {
+            master_volume: 1.0,
+            bgm_volume: 0.8,
+            se_volume: 0.8,
+            fullscreen: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SaveData {
+    pub progress: SaveProgress,
+    pub settings: SaveSettings,
+}
+
+impl Default for SaveData {
+    fn default() -> Self {
+        Self {
+            progress: SaveProgress::default(),
+            settings: SaveSettings::default(),
+        }
+    }
+}
+
+impl SaveSettings {
+    fn sanitized(mut self) -> Self {
+        self.master_volume = self.master_volume.clamp(0.0, 1.0);
+        self.bgm_volume = self.bgm_volume.clamp(0.0, 1.0);
+        self.se_volume = self.se_volume.clamp(0.0, 1.0);
+        self
+    }
+}
+
+impl SaveData {
+    fn sanitized(mut self) -> Self {
+        self.settings = self.settings.sanitized();
+        self
+    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -718,6 +787,7 @@ pub struct Game {
     pub difficulty_level: u32,
     pub result_is_clear: bool,
     pub total_play_count: u32,
+    pub save_data: SaveData,
 
     #[serde(skip)]
     pub player_texture_handle: u32,
@@ -727,6 +797,8 @@ pub struct Game {
     pub obstacle_spawn_accumulator_sec: f32,
     #[serde(skip)]
     pub esc_was_pressed: bool,
+    #[serde(skip)]
+    pub save_file_path: PathBuf,
 }
 
 // Temporary alias for backward compatibility with sample_game
@@ -744,9 +816,12 @@ const BASE_OBSTACLE_SPEED: f32 = 120.0;
 const MAX_OBSTACLES: usize = 80;
 const BASE_SPAWN_INTERVAL_SEC: f32 = 1.2;
 const MIN_SPAWN_INTERVAL_SEC: f32 = 0.25;
+const SAVE_FILE_REL_PATH: &str = "save/save_data.json";
 
 impl Game {
     pub fn new() -> Self {
+        let save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
+        let save_data = Self::load_save_data(&save_file_path);
         let mut game = Game {
             world: InternalWorld::new(),
             current_state: GameState::Title,
@@ -774,15 +849,69 @@ impl Game {
             score: 0,
             difficulty_level: 1,
             result_is_clear: false,
-            total_play_count: 0,
+            total_play_count: save_data.progress.total_play_count,
+            save_data,
             player_texture_handle: 0,
             obstacle_texture_handle: 0,
             obstacle_spawn_accumulator_sec: 0.0,
             esc_was_pressed: false,
+            save_file_path,
         };
         // Setup the initial state
         game.setup_title_screen();
         game
+    }
+
+    fn load_save_data(path: &Path) -> SaveData {
+        match save::load_or_default::<SaveData>(path) {
+            Ok(save::LoadState::Loaded(data)) => data.sanitized(),
+            Ok(save::LoadState::Defaulted { data, backup_path }) => {
+                if let Some(path) = backup_path {
+                    eprintln!(
+                        "[save] Corrupt save detected. Moved backup to {}",
+                        path.display()
+                    );
+                }
+                data.sanitized()
+            }
+            Err(save::SaveError::VersionMismatch { found, expected }) => {
+                eprintln!(
+                    "[save] Version mismatch (found={found}, expected={expected}). Starting with defaults."
+                );
+                SaveData::default()
+            }
+            Err(err) => {
+                eprintln!(
+                    "[save] Failed to load save from {}: {err}. Starting with defaults.",
+                    path.display()
+                );
+                SaveData::default()
+            }
+        }
+    }
+
+    fn persist_save_data(&self, reason: &str) {
+        if let Err(err) = save::save_to_path(&self.save_file_path, &self.save_data) {
+            eprintln!(
+                "[save] Failed to save data ({reason}) to {}: {err}",
+                self.save_file_path.display()
+            );
+        }
+    }
+
+    fn apply_result_to_progress_and_persist(&mut self) {
+        self.save_data.progress.best_score = self.save_data.progress.best_score.max(self.score);
+
+        let survival_sec = self.survival_time_sec.floor() as u32;
+        self.save_data.progress.best_survival_sec =
+            self.save_data.progress.best_survival_sec.max(survival_sec);
+
+        if self.result_is_clear {
+            self.save_data.progress.total_clear_count =
+                self.save_data.progress.total_clear_count.saturating_add(1);
+        }
+
+        self.persist_save_data("result_transition");
     }
 
     pub fn update(&mut self) {
@@ -878,7 +1007,9 @@ impl Game {
         self.difficulty_level = 1;
         self.result_is_clear = false;
         self.obstacle_spawn_accumulator_sec = 0.0;
-        self.total_play_count = self.total_play_count.saturating_add(1);
+        self.save_data.progress.total_play_count =
+            self.save_data.progress.total_play_count.saturating_add(1);
+        self.total_play_count = self.save_data.progress.total_play_count;
 
         self.player_texture_handle = self.asset_server.load_texture("assets/player.png");
         self.obstacle_texture_handle = self.asset_server.load_texture("assets/test.png");
@@ -1030,12 +1161,15 @@ impl Game {
                 continue;
             }
 
-            let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
+            let mut transform_storage =
+                archetype.storage.remove(&ComponentType::Transform).unwrap();
             let mut velocity_storage = archetype.storage.remove(&ComponentType::Velocity).unwrap();
             let transforms = transform_storage
                 .downcast_mut::<Vec<ffi::Transform>>()
                 .unwrap();
-            let velocities = velocity_storage.downcast_mut::<Vec<ffi::Velocity>>().unwrap();
+            let velocities = velocity_storage
+                .downcast_mut::<Vec<ffi::Velocity>>()
+                .unwrap();
 
             for i in 0..archetype.entity_count {
                 let mut move_x: f32 = 0.0;
@@ -1108,12 +1242,15 @@ impl Game {
                 continue;
             }
 
-            let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
+            let mut transform_storage =
+                archetype.storage.remove(&ComponentType::Transform).unwrap();
             let mut velocity_storage = archetype.storage.remove(&ComponentType::Velocity).unwrap();
             let transforms = transform_storage
                 .downcast_mut::<Vec<ffi::Transform>>()
                 .unwrap();
-            let velocities = velocity_storage.downcast_mut::<Vec<ffi::Velocity>>().unwrap();
+            let velocities = velocity_storage
+                .downcast_mut::<Vec<ffi::Velocity>>()
+                .unwrap();
 
             for i in 0..archetype.entity_count {
                 velocities[i].y = -obstacle_speed;
@@ -1239,13 +1376,54 @@ impl Game {
                 w: 1.0,
             },
         });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!("High Score: {}", self.save_data.progress.best_score),
+            position: ffi::Vec2 { x: 300.0, y: 330.0 },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.8,
+                y: 0.95,
+                z: 0.8,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!(
+                "Best Survival: {} sec",
+                self.save_data.progress.best_survival_sec
+            ),
+            position: ffi::Vec2 { x: 300.0, y: 305.0 },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.8,
+                y: 0.85,
+                z: 0.95,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!(
+                "Play:{}  Clear:{}",
+                self.save_data.progress.total_play_count, self.save_data.progress.total_clear_count
+            ),
+            position: ffi::Vec2 { x: 300.0, y: 280.0 },
+            font_size: 18.0,
+            color: ffi::Vec4 {
+                x: 0.75,
+                y: 0.75,
+                z: 0.75,
+                w: 1.0,
+            },
+        });
 
         ui::ui_system(self);
     }
 
     fn setup_sprite_stress_test(&mut self) {
-        self.world.clear_entities_of_component(ComponentType::Button);
-        self.world.clear_entities_of_component(ComponentType::Physics);
+        self.world
+            .clear_entities_of_component(ComponentType::Button);
+        self.world
+            .clear_entities_of_component(ComponentType::Physics);
 
         let mut rng = rand::thread_rng();
         let player_texture = self.asset_server.load_texture("assets/player.png");
@@ -1295,8 +1473,10 @@ impl Game {
     }
 
     fn setup_physics_stress_test(&mut self) {
-        self.world.clear_entities_of_component(ComponentType::Button);
-        self.world.clear_entities_of_component(ComponentType::Sprite);
+        self.world
+            .clear_entities_of_component(ComponentType::Button);
+        self.world
+            .clear_entities_of_component(ComponentType::Sprite);
 
         const PPM: f32 = 50.0; // Pixels Per Meter
         const SCREEN_WIDTH: f32 = 800.0;
@@ -1309,13 +1489,33 @@ impl Game {
         // Create container walls
         let walls = [
             // Bottom
-            (SCREEN_WIDTH / 2.0, WALL_THICKNESS / 2.0, SCREEN_WIDTH, WALL_THICKNESS),
+            (
+                SCREEN_WIDTH / 2.0,
+                WALL_THICKNESS / 2.0,
+                SCREEN_WIDTH,
+                WALL_THICKNESS,
+            ),
             // Top
-            (SCREEN_WIDTH / 2.0, SCREEN_HEIGHT - WALL_THICKNESS / 2.0, SCREEN_WIDTH, WALL_THICKNESS),
+            (
+                SCREEN_WIDTH / 2.0,
+                SCREEN_HEIGHT - WALL_THICKNESS / 2.0,
+                SCREEN_WIDTH,
+                WALL_THICKNESS,
+            ),
             // Left
-            (WALL_THICKNESS / 2.0, SCREEN_HEIGHT / 2.0, WALL_THICKNESS, SCREEN_HEIGHT),
+            (
+                WALL_THICKNESS / 2.0,
+                SCREEN_HEIGHT / 2.0,
+                WALL_THICKNESS,
+                SCREEN_HEIGHT,
+            ),
             // Right
-            (SCREEN_WIDTH - WALL_THICKNESS / 2.0, SCREEN_HEIGHT / 2.0, WALL_THICKNESS, SCREEN_HEIGHT),
+            (
+                SCREEN_WIDTH - WALL_THICKNESS / 2.0,
+                SCREEN_HEIGHT / 2.0,
+                WALL_THICKNESS,
+                SCREEN_HEIGHT,
+            ),
         ];
 
         for (x, y, w, h) in walls {
@@ -1323,11 +1523,17 @@ impl Game {
             self.world.spawn((
                 ffi::Transform {
                     position: ffi::Vec3 { x, y, z: 0.0 },
-                    rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                    rotation: ffi::Vec3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
                     scale: ffi::Vec3 { x: w, y: h, z: 1.0 },
                 },
                 PhysicsBody { id: body_id },
-                Material { texture_handle: ground_texture },
+                Material {
+                    texture_handle: ground_texture,
+                },
             ));
         }
 
@@ -1335,18 +1541,32 @@ impl Game {
         let mut rng = rand::thread_rng();
         let box_size = 10.0;
         for _ in 0..500 {
-            let x = rng.gen_range((WALL_THICKNESS + box_size)..(SCREEN_WIDTH - WALL_THICKNESS - box_size));
-            let y = rng.gen_range((WALL_THICKNESS + box_size)..(SCREEN_HEIGHT - WALL_THICKNESS - box_size));
+            let x = rng
+                .gen_range((WALL_THICKNESS + box_size)..(SCREEN_WIDTH - WALL_THICKNESS - box_size));
+            let y = rng.gen_range(
+                (WALL_THICKNESS + box_size)..(SCREEN_HEIGHT - WALL_THICKNESS - box_size),
+            );
 
-            let body_id = ffi::create_dynamic_box_body(x / PPM, y / PPM, box_size / PPM, box_size / PPM);
+            let body_id =
+                ffi::create_dynamic_box_body(x / PPM, y / PPM, box_size / PPM, box_size / PPM);
             self.world.spawn((
                 ffi::Transform {
                     position: ffi::Vec3 { x, y, z: 0.0 },
-                    rotation: ffi::Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                    scale: ffi::Vec3 { x: box_size, y: box_size, z: 1.0 },
+                    rotation: ffi::Vec3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    scale: ffi::Vec3 {
+                        x: box_size,
+                        y: box_size,
+                        z: 1.0,
+                    },
                 },
                 PhysicsBody { id: body_id },
-                Material { texture_handle: box_texture },
+                Material {
+                    texture_handle: box_texture,
+                },
             ));
         }
     }
@@ -1360,9 +1580,12 @@ impl Game {
     }
 
     fn setup_ui_stress_test(&mut self) {
-        self.world.clear_entities_of_component(ComponentType::Button);
-        self.world.clear_entities_of_component(ComponentType::Sprite);
-        self.world.clear_entities_of_component(ComponentType::Physics);
+        self.world
+            .clear_entities_of_component(ComponentType::Button);
+        self.world
+            .clear_entities_of_component(ComponentType::Sprite);
+        self.world
+            .clear_entities_of_component(ComponentType::Physics);
     }
 
     fn update_ui_stress_test(&mut self) {
@@ -1383,7 +1606,12 @@ impl Game {
                         y: 15.0 + (i as f32 * (600.0 / items_per_col as f32)),
                     },
                     font_size,
-                    color: ffi::Vec4 { x: 0.8, y: 0.8, z: 0.1, w: 1.0 },
+                    color: ffi::Vec4 {
+                        x: 0.8,
+                        y: 0.8,
+                        z: 0.1,
+                        w: 1.0,
+                    },
                 });
             }
         }
@@ -1424,6 +1652,7 @@ impl Game {
 
         if self.hp <= 0 {
             self.result_is_clear = false;
+            self.apply_result_to_progress_and_persist();
             self.current_state = GameState::Result;
             self.setup_result_menu();
             ffi::play_sound("assets/test_sound.wav");
@@ -1431,6 +1660,7 @@ impl Game {
         }
         if self.survival_time_sec >= 1800.0 {
             self.result_is_clear = true;
+            self.apply_result_to_progress_and_persist();
             self.current_state = GameState::Result;
             self.setup_result_menu();
             ffi::play_sound("assets/test_sound.wav");
@@ -1539,7 +1769,9 @@ pub extern "C" fn create_game() -> *mut Game {
 pub extern "C" fn destroy_game(game: *mut Game) {
     if !game.is_null() {
         unsafe {
-            drop(Box::from_raw(game));
+            let boxed = Box::from_raw(game);
+            boxed.persist_save_data("app_exit");
+            drop(boxed);
         }
     }
 }
@@ -1562,6 +1794,9 @@ pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
     let c_str = unsafe { CStr::from_ptr(json) };
     let r_str = c_str.to_str().unwrap();
     let mut game: Game = serde_json::from_str(r_str).unwrap();
+    game.save_data = game.save_data.sanitized();
+    game.total_play_count = game.save_data.progress.total_play_count;
+    game.save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
     // Re-initialize non-serializable fields
     game.asset_server = AssetServer::new();
     // ... etc. for other non-serde fields

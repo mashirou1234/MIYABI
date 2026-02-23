@@ -62,6 +62,11 @@
   - `logic/src/save.rs`（save/load API、バージョン、破損時backup、原子的保存）
   - `docs/CORE_SAVE_SUBSYSTEM.md`
   - `PLAN.md`（タスク10.2へ反映）
+- セーブ/ロード最小実装をプレイ導線へ統合
+  - `logic/src/lib.rs`（起動時ロード、リザルト遷移保存、終了時保存、進行データ表示）
+  - `PLAN.md`（タスク10.2へ反映）
+  - `docs/CORE_DEVELOPMENT_TRACK.md`
+  - `docs/GAME_DEVELOPMENT_TRACK.md`
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -90,10 +95,9 @@
    - ベースライン記録
 5. ゲーム開発 G1/G3 に向けた未完了
    - 30分連続プレイの安定性検証（G2判定）
-   - セーブ/ロード最小実装をプレイ導線へ統合
    - 1OS向け配布手順の固定化
 6. コア開発 C1 に向けた未完了
-   - Save サブシステムのゲーム実導線統合
+   - 設定変更導線への Save 反映（設定UI未実装）
 
 ## 5. 続スレッド再開コマンド
 

@@ -55,11 +55,15 @@
 - missing file -> default
 - corrupt file -> backup + default
 
-## 6. 次段階（ゲーム接続）
+## 6. ゲーム接続状況（2026-02-23）
 
-本サブシステムは定義完了。次にゲーム側へ接続する。
+実装済み:
 
 1. `SaveData`（progress/settings）構造体を実装
 2. 起動時 `load_or_default` を実行し反映
-3. リザルト遷移/設定変更/終了時 `save_to_path` を実行
-4. 失敗時UI通知またはログ出力を追加
+3. リザルト遷移時とアプリ終了時に `save_to_path` を実行
+4. 失敗時ログ出力（`eprintln!`）を追加
+
+未実装:
+
+1. 設定変更時の保存導線（設定UI実装後に接続）

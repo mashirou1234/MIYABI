@@ -44,7 +44,7 @@
   - `find_package` 可能な SDK package config
   - CI（configure/build/smoke）
   - 性能ベースラインと回帰監視
-  - Save サブシステムのゲーム実導線統合
+  - 設定変更導線への Save 反映（設定UI実装後）
   - リンカ警告整理
 
 ## 4. 管理ドキュメント
