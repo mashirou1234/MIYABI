@@ -8,10 +8,10 @@
 - ゲーム到達判定の正: `docs/GAME_DEVELOPMENT_TRACK.md`
 - 現在ステージ:
   - コア: C0（Core Runtime）
-  - ゲーム: G0（2D縦切り仕様固定）
+  - ゲーム: G1（2Dプレイアブルループ）
 - 次ゲート:
   - コア: C1（2D Engine Baseline）
-  - ゲーム: G1（2Dプレイアブルループ）
+  - ゲーム: G2（2D Vertical Slice 完成）
 - 本ドキュメントの役割: 「今スレッドで何を変更したか」を管理する
 
 ## 1. 現在の到達点
@@ -53,6 +53,11 @@
 - Phase 9.1 の縦切り仕様を固定
   - `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md`
   - `PLAN.md`（タスク9.1完了）
+- Phase 9.2 のプレイループを実装
+  - `logic/src/lib.rs`（Title/InGame/Pause/Result、障害物サバイバル、HUD、Result遷移）
+  - `logic/src/ui.rs`（Start/Resume/Retry/BackToTitle）
+  - `core/src/main.cpp`（`ESC` 入力をロジックへ伝搬）
+  - `PLAN.md`（タスク9.2完了）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -80,6 +85,7 @@
    - シーン構築/破棄ストレステスト
    - ベースライン記録
 5. ゲーム開発 G1/G3 に向けた未完了
+   - 30分連続プレイの安定性検証（G2判定）
    - セーブ/ロード最小実装をプレイ導線へ統合
    - 1OS向け配布手順の固定化
 

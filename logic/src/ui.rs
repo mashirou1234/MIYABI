@@ -1,9 +1,9 @@
 
 // logic/src/ui.rs
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::ffi::{Vec2, Vec4};
-use crate::{Game, GameState}; // We'll need access to the main Game object
+use crate::{Game, GameState};
 
 // 1. Define the Button Component
 // =============================
@@ -19,15 +19,19 @@ pub struct Rect {
 impl Rect {
     /// Checks if a point is inside the rectangle.
     pub fn contains(&self, point: Vec2) -> bool {
-        point.x >= self.x && point.x <= self.x + self.width &&
-        point.y >= self.y && point.y <= self.y + self.height
+        point.x >= self.x
+            && point.x <= self.x + self.width
+            && point.y >= self.y
+            && point.y <= self.y + self.height
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ButtonAction {
     StartGame,
-    // Quit, // Example for later
+    ResumeGame,
+    RetryGame,
+    BackToTitle,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -58,25 +62,22 @@ impl Component for Button {
 pub fn ui_system(game: &mut Game) {
     let mouse_pos = game.input_state.mouse_pos;
     let mouse_clicked = game.input_state.mouse_clicked;
-    let mut next_state = None;
+    let mut queued_action: Option<ButtonAction> = None;
 
     // Find archetypes with a Button component
     for archetype in &game.world.archetypes {
         if archetype.types.contains(&ComponentType::Button) {
-            let buttons = archetype.storage.get(&ComponentType::Button).unwrap().downcast_ref::<Vec<Button>>().unwrap();
-            
+            let buttons = archetype
+                .storage
+                .get(&ComponentType::Button)
+                .unwrap()
+                .downcast_ref::<Vec<Button>>()
+                .unwrap();
+
             for button in buttons.iter() {
                 // --- Interaction Logic ---
-                if mouse_clicked && button.rect.contains(mouse_pos) {
-                    // Perform action
-                    match button.action {
-                        ButtonAction::StartGame => {
-                             // We shouldn't change state while iterating, so we queue it.
-                            next_state = Some(GameState::InGame);
-                            // Play a sound to confirm the action
-                            crate::ffi::play_sound("assets/test_sound.wav");
-                        }
-                    }
+                if mouse_clicked && queued_action.is_none() && button.rect.contains(mouse_pos) {
+                    queued_action = Some(button.action.clone());
                 }
 
                 // --- Drawing Logic ---
@@ -84,7 +85,7 @@ pub fn ui_system(game: &mut Game) {
                 game.text_commands.push(crate::ffi::TextCommand {
                     text: button.text.clone(),
                     // Center the text roughly
-                    position: Vec2 { 
+                    position: Vec2 {
                         x: button.rect.x + (button.rect.width / 2.0) - (button.text.len() as f32 * 6.0), // Estimate
                         y: button.rect.y + (button.rect.height / 2.0) - 8.0 // Estimate
                     },
@@ -95,15 +96,23 @@ pub fn ui_system(game: &mut Game) {
         }
     }
 
-    // If a state change was queued, perform it now.
-    if let Some(state) = next_state {
-        game.current_state = state;
-        // If we are entering the game, we need to set up the world for it.
-        if state == GameState::InGame {
-            // Clear out UI entities from the main menu
-            game.world.clear_entities_of_component(ComponentType::Button);
-            // Setup the game world for the 'InGame' state.
-            game.setup_in_game();
+    // If an action was queued, perform it now.
+    if let Some(action) = queued_action {
+        crate::ffi::play_sound("assets/test_sound.wav");
+        match action {
+            ButtonAction::StartGame => {
+                game.start_new_run();
+            }
+            ButtonAction::ResumeGame => {
+                game.clear_menu_buttons();
+                game.current_state = GameState::InGame;
+            }
+            ButtonAction::RetryGame => {
+                game.start_new_run();
+            }
+            ButtonAction::BackToTitle => {
+                game.setup_title_screen();
+            }
         }
     }
 }

@@ -79,6 +79,7 @@ pub enum ComponentType {
     Velocity,
     Material,
     Player,
+    Obstacle,
     Button,
     Physics,
     Sprite,
@@ -114,6 +115,7 @@ pub mod ffi {
         pub down: bool,
         pub left: bool,
         pub right: bool,
+        pub esc_key: bool,
         pub s_key: bool,
         pub p_key: bool,
         pub u_key: bool,
@@ -201,8 +203,10 @@ fn get_sprite_count() -> u32 {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum GameState {
-    MainMenu,
+    Title,
     InGame,
+    Pause,
+    Result,
     SpriteStressTest,
     PhysicsStressTest,
     UIStressTest,
@@ -270,6 +274,12 @@ impl Component for Player {
 pub struct Sprite;
 impl Component for Sprite {
     const COMPONENT_TYPE: ComponentType = ComponentType::Sprite;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Obstacle;
+impl Component for Obstacle {
+    const COMPONENT_TYPE: ComponentType = ComponentType::Obstacle;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -346,6 +356,11 @@ impl InternalWorld {
                 .storage
                 .insert(ComponentType::Player, Box::new(Vec::<Player>::new()));
         }
+        if types.contains(&ComponentType::Obstacle) {
+            archetype
+                .storage
+                .insert(ComponentType::Obstacle, Box::new(Vec::<Obstacle>::new()));
+        }
         if types.contains(&ComponentType::Button) {
             archetype
                 .storage
@@ -418,6 +433,8 @@ impl InternalWorld {
                     } else if let Some(vec) = storage.downcast_mut::<Vec<Material>>() {
                         vec.clear();
                     } else if let Some(vec) = storage.downcast_mut::<Vec<Player>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<Obstacle>>() {
                         vec.clear();
                     } else if let Some(vec) = storage.downcast_mut::<Vec<Button>>() {
                         vec.clear();
@@ -692,6 +709,23 @@ pub struct Game {
     pub text_commands: Vec<ffi::TextCommand>,
     #[serde(skip)]
     pub collision_events: Vec<ffi::CollisionEvent>,
+
+    pub hp: i32,
+    pub survival_time_sec: f32,
+    pub avoid_count: u32,
+    pub score: u32,
+    pub difficulty_level: u32,
+    pub result_is_clear: bool,
+    pub total_play_count: u32,
+
+    #[serde(skip)]
+    pub player_texture_handle: u32,
+    #[serde(skip)]
+    pub obstacle_texture_handle: u32,
+    #[serde(skip)]
+    pub obstacle_spawn_accumulator_sec: f32,
+    #[serde(skip)]
+    pub esc_was_pressed: bool,
 }
 
 // Temporary alias for backward compatibility with sample_game
@@ -699,11 +733,22 @@ pub type World = Game;
 
 // use sample_game::{setup_game_world, update_game_logic};
 
+const SCREEN_WIDTH: f32 = 800.0;
+const SCREEN_HEIGHT: f32 = 600.0;
+const FIXED_DT_SEC: f32 = 1.0 / 60.0;
+const PLAYER_SIZE: f32 = 32.0;
+const PLAYER_SPEED: f32 = 260.0;
+const OBSTACLE_SIZE: f32 = 28.0;
+const BASE_OBSTACLE_SPEED: f32 = 120.0;
+const MAX_OBSTACLES: usize = 80;
+const BASE_SPAWN_INTERVAL_SEC: f32 = 1.2;
+const MIN_SPAWN_INTERVAL_SEC: f32 = 0.25;
+
 impl Game {
     pub fn new() -> Self {
         let mut game = Game {
             world: InternalWorld::new(),
-            current_state: GameState::MainMenu,
+            current_state: GameState::Title,
             asset_server: AssetServer::new(),
             texture_map: HashMap::new(),
             input_state: ffi::InputState {
@@ -711,6 +756,7 @@ impl Game {
                 down: false,
                 left: false,
                 right: false,
+                esc_key: false,
                 s_key: false,
                 p_key: false,
                 u_key: false,
@@ -721,16 +767,29 @@ impl Game {
             asset_commands: Vec::new(),
             text_commands: Vec::new(),
             collision_events: Vec::new(),
+            hp: 3,
+            survival_time_sec: 0.0,
+            avoid_count: 0,
+            score: 0,
+            difficulty_level: 1,
+            result_is_clear: false,
+            total_play_count: 0,
+            player_texture_handle: 0,
+            obstacle_texture_handle: 0,
+            obstacle_spawn_accumulator_sec: 0.0,
+            esc_was_pressed: false,
         };
         // Setup the initial state
-        game.setup_main_menu();
+        game.setup_title_screen();
         game
     }
 
     pub fn update(&mut self) {
         match self.current_state {
-            GameState::MainMenu => self.update_main_menu(),
+            GameState::Title => self.update_main_menu(),
             GameState::InGame => self.update_in_game(),
+            GameState::Pause => self.update_pause(),
+            GameState::Result => self.update_result(),
             GameState::SpriteStressTest => self.update_sprite_stress_test(),
             GameState::PhysicsStressTest => self.update_physics_stress_test(),
             GameState::UIStressTest => self.update_ui_stress_test(),
@@ -740,26 +799,446 @@ impl Game {
     fn update_main_menu(&mut self) {
         self.text_commands.clear();
         self.renderables.clear();
-
-        if self.input_state.s_key {
-            self.current_state = GameState::SpriteStressTest;
-            self.setup_sprite_stress_test();
-            return;
-        }
-
-        if self.input_state.p_key {
-            self.current_state = GameState::PhysicsStressTest;
-            self.setup_physics_stress_test();
-            return;
-        }
-
-        if self.input_state.u_key {
-            self.current_state = GameState::UIStressTest;
-            self.setup_ui_stress_test();
-            return;
-        }
+        self.text_commands.push(ffi::TextCommand {
+            text: "MIYABI Box Survival".to_string(),
+            position: ffi::Vec2 { x: 255.0, y: 520.0 },
+            font_size: 36.0,
+            color: ffi::Vec4 {
+                x: 0.95,
+                y: 0.95,
+                z: 0.95,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: "Arrow Keys: Move / ESC: Pause".to_string(),
+            position: ffi::Vec2 { x: 235.0, y: 480.0 },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.8,
+                y: 0.8,
+                z: 0.8,
+                w: 1.0,
+            },
+        });
 
         // The UI system now handles drawing and interactions for buttons.
+        ui::ui_system(self);
+    }
+
+    pub(crate) fn clear_menu_buttons(&mut self) {
+        self.world
+            .clear_entities_of_component(ComponentType::Button);
+    }
+
+    fn clear_runtime_world(&mut self) {
+        for component_type in [
+            ComponentType::Transform,
+            ComponentType::Velocity,
+            ComponentType::Material,
+            ComponentType::Player,
+            ComponentType::Obstacle,
+            ComponentType::Button,
+            ComponentType::Physics,
+            ComponentType::Sprite,
+        ] {
+            self.world.clear_entities_of_component(component_type);
+        }
+        self.renderables.clear();
+        self.text_commands.clear();
+        self.asset_commands.clear();
+    }
+
+    pub(crate) fn setup_title_screen(&mut self) {
+        self.clear_runtime_world();
+        self.current_state = GameState::Title;
+        self.esc_was_pressed = false;
+
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 300.0,
+                y: 360.0,
+                width: 200.0,
+                height: 50.0,
+            },
+            text: "Start Game".to_string(),
+            action: ui::ButtonAction::StartGame,
+        },));
+    }
+
+    pub(crate) fn start_new_run(&mut self) {
+        self.clear_runtime_world();
+        self.current_state = GameState::InGame;
+        self.esc_was_pressed = false;
+        self.hp = 3;
+        self.survival_time_sec = 0.0;
+        self.avoid_count = 0;
+        self.score = 0;
+        self.difficulty_level = 1;
+        self.result_is_clear = false;
+        self.obstacle_spawn_accumulator_sec = 0.0;
+        self.total_play_count = self.total_play_count.saturating_add(1);
+
+        self.player_texture_handle = self.asset_server.load_texture("assets/player.png");
+        self.obstacle_texture_handle = self.asset_server.load_texture("assets/test.png");
+
+        self.world.spawn((
+            ffi::Transform {
+                position: ffi::Vec3 {
+                    x: SCREEN_WIDTH * 0.5,
+                    y: 80.0,
+                    z: 0.0,
+                },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: PLAYER_SIZE,
+                    y: PLAYER_SIZE,
+                    z: 1.0,
+                },
+            },
+            ffi::Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Material {
+                texture_handle: self.player_texture_handle,
+            },
+            Sprite,
+            Player,
+        ));
+
+        for _ in 0..8 {
+            self.spawn_obstacle();
+        }
+
+        ffi::play_sound("assets/test_sound.wav");
+    }
+
+    fn setup_pause_menu(&mut self) {
+        self.clear_menu_buttons();
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 300.0,
+                y: 320.0,
+                width: 200.0,
+                height: 50.0,
+            },
+            text: "Resume".to_string(),
+            action: ui::ButtonAction::ResumeGame,
+        },));
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 300.0,
+                y: 250.0,
+                width: 200.0,
+                height: 50.0,
+            },
+            text: "Back To Title".to_string(),
+            action: ui::ButtonAction::BackToTitle,
+        },));
+    }
+
+    fn setup_result_menu(&mut self) {
+        self.clear_menu_buttons();
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 300.0,
+                y: 250.0,
+                width: 200.0,
+                height: 50.0,
+            },
+            text: "Retry".to_string(),
+            action: ui::ButtonAction::RetryGame,
+        },));
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 300.0,
+                y: 180.0,
+                width: 200.0,
+                height: 50.0,
+            },
+            text: "Back To Title".to_string(),
+            action: ui::ButtonAction::BackToTitle,
+        },));
+    }
+
+    fn spawn_obstacle(&mut self) {
+        if self.obstacle_texture_handle == 0 {
+            self.obstacle_texture_handle = self.asset_server.load_texture("assets/test.png");
+        }
+
+        let mut rng = rand::thread_rng();
+        self.world.spawn((
+            ffi::Transform {
+                position: ffi::Vec3 {
+                    x: rng.gen_range(20.0..(SCREEN_WIDTH - 20.0)),
+                    y: SCREEN_HEIGHT + rng.gen_range(20.0..120.0),
+                    z: 0.0,
+                },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: OBSTACLE_SIZE,
+                    y: OBSTACLE_SIZE,
+                    z: 1.0,
+                },
+            },
+            ffi::Velocity {
+                x: 0.0,
+                y: -BASE_OBSTACLE_SPEED,
+                z: 0.0,
+            },
+            Material {
+                texture_handle: self.obstacle_texture_handle,
+            },
+            Sprite,
+            Obstacle,
+        ));
+    }
+
+    fn count_obstacles(&self) -> usize {
+        self.world
+            .archetypes
+            .iter()
+            .filter(|arch| arch.types.contains(&ComponentType::Obstacle))
+            .map(|arch| arch.entity_count)
+            .sum()
+    }
+
+    fn current_spawn_interval_sec(&self) -> f32 {
+        let level_reduction = (self.difficulty_level.saturating_sub(1) as f32) * 0.08;
+        (BASE_SPAWN_INTERVAL_SEC - level_reduction).max(MIN_SPAWN_INTERVAL_SEC)
+    }
+
+    fn update_player_and_get_bounds(&mut self) -> Option<(f32, f32, f32, f32)> {
+        let mut player_bounds = None;
+
+        for archetype in &mut self.world.archetypes {
+            if !(archetype.types.contains(&ComponentType::Player)
+                && archetype.types.contains(&ComponentType::Transform)
+                && archetype.types.contains(&ComponentType::Velocity))
+            {
+                continue;
+            }
+
+            let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
+            let mut velocity_storage = archetype.storage.remove(&ComponentType::Velocity).unwrap();
+            let transforms = transform_storage
+                .downcast_mut::<Vec<ffi::Transform>>()
+                .unwrap();
+            let velocities = velocity_storage.downcast_mut::<Vec<ffi::Velocity>>().unwrap();
+
+            for i in 0..archetype.entity_count {
+                let mut move_x: f32 = 0.0;
+                let mut move_y: f32 = 0.0;
+                if self.input_state.left {
+                    move_x -= 1.0;
+                }
+                if self.input_state.right {
+                    move_x += 1.0;
+                }
+                if self.input_state.up {
+                    move_y += 1.0;
+                }
+                if self.input_state.down {
+                    move_y -= 1.0;
+                }
+
+                let length = (move_x * move_x + move_y * move_y).sqrt();
+                if length > 0.0 {
+                    move_x /= length;
+                    move_y /= length;
+                }
+
+                velocities[i].x = move_x * PLAYER_SPEED;
+                velocities[i].y = move_y * PLAYER_SPEED;
+                transforms[i].position.x += velocities[i].x * FIXED_DT_SEC;
+                transforms[i].position.y += velocities[i].y * FIXED_DT_SEC;
+
+                let half_w = transforms[i].scale.x * 0.5;
+                let half_h = transforms[i].scale.y * 0.5;
+                transforms[i].position.x = transforms[i]
+                    .position
+                    .x
+                    .clamp(half_w, SCREEN_WIDTH - half_w);
+                transforms[i].position.y = transforms[i]
+                    .position
+                    .y
+                    .clamp(half_h, SCREEN_HEIGHT - half_h);
+
+                player_bounds = Some((
+                    transforms[i].position.x - half_w,
+                    transforms[i].position.y - half_h,
+                    transforms[i].position.x + half_w,
+                    transforms[i].position.y + half_h,
+                ));
+            }
+
+            archetype
+                .storage
+                .insert(ComponentType::Transform, transform_storage);
+            archetype
+                .storage
+                .insert(ComponentType::Velocity, velocity_storage);
+        }
+
+        player_bounds
+    }
+
+    fn update_obstacles_and_collisions(&mut self, player_bounds: Option<(f32, f32, f32, f32)>) {
+        let obstacle_speed =
+            BASE_OBSTACLE_SPEED + (self.difficulty_level.saturating_sub(1) as f32) * 30.0;
+        let mut rng = rand::thread_rng();
+        let mut hit_detected = false;
+
+        for archetype in &mut self.world.archetypes {
+            if !(archetype.types.contains(&ComponentType::Obstacle)
+                && archetype.types.contains(&ComponentType::Transform)
+                && archetype.types.contains(&ComponentType::Velocity))
+            {
+                continue;
+            }
+
+            let mut transform_storage = archetype.storage.remove(&ComponentType::Transform).unwrap();
+            let mut velocity_storage = archetype.storage.remove(&ComponentType::Velocity).unwrap();
+            let transforms = transform_storage
+                .downcast_mut::<Vec<ffi::Transform>>()
+                .unwrap();
+            let velocities = velocity_storage.downcast_mut::<Vec<ffi::Velocity>>().unwrap();
+
+            for i in 0..archetype.entity_count {
+                velocities[i].y = -obstacle_speed;
+                transforms[i].position.y += velocities[i].y * FIXED_DT_SEC;
+
+                if transforms[i].position.y < -OBSTACLE_SIZE {
+                    transforms[i].position.y = SCREEN_HEIGHT + rng.gen_range(20.0..120.0);
+                    transforms[i].position.x = rng.gen_range(20.0..(SCREEN_WIDTH - 20.0));
+                    self.avoid_count = self.avoid_count.saturating_add(1);
+                }
+
+                if let Some((pl, pb, pr, pt)) = player_bounds {
+                    let half_w = transforms[i].scale.x * 0.5;
+                    let half_h = transforms[i].scale.y * 0.5;
+                    let ol = transforms[i].position.x - half_w;
+                    let ob = transforms[i].position.y - half_h;
+                    let oright = transforms[i].position.x + half_w;
+                    let ot = transforms[i].position.y + half_h;
+                    let overlaps = pl < oright && pr > ol && pb < ot && pt > ob;
+                    if overlaps {
+                        self.hp -= 1;
+                        transforms[i].position.y = SCREEN_HEIGHT + rng.gen_range(20.0..120.0);
+                        transforms[i].position.x = rng.gen_range(20.0..(SCREEN_WIDTH - 20.0));
+                        hit_detected = true;
+                    }
+                }
+            }
+
+            archetype
+                .storage
+                .insert(ComponentType::Transform, transform_storage);
+            archetype
+                .storage
+                .insert(ComponentType::Velocity, velocity_storage);
+        }
+
+        if hit_detected {
+            ffi::play_sound("assets/test_sound.wav");
+        }
+    }
+
+    fn push_hud_text(&mut self) {
+        self.text_commands.push(ffi::TextCommand {
+            text: format!(
+                "HP:{}  Time:{:.1}s  Score:{}  Lv:{}",
+                self.hp, self.survival_time_sec, self.score, self.difficulty_level
+            ),
+            position: ffi::Vec2 { x: 16.0, y: 570.0 },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+                w: 1.0,
+            },
+        });
+    }
+
+    fn update_pause(&mut self) {
+        self.text_commands.clear();
+        self.text_commands.push(ffi::TextCommand {
+            text: "PAUSED".to_string(),
+            position: ffi::Vec2 { x: 340.0, y: 420.0 },
+            font_size: 36.0,
+            color: ffi::Vec4 {
+                x: 1.0,
+                y: 0.95,
+                z: 0.2,
+                w: 1.0,
+            },
+        });
+
+        let esc_just_pressed = self.input_state.esc_key && !self.esc_was_pressed;
+        self.esc_was_pressed = self.input_state.esc_key;
+        if esc_just_pressed {
+            self.clear_menu_buttons();
+            self.current_state = GameState::InGame;
+            return;
+        }
+
+        ui::ui_system(self);
+    }
+
+    fn update_result(&mut self) {
+        self.text_commands.clear();
+        self.renderables.clear();
+
+        let headline = if self.result_is_clear {
+            "CLEAR"
+        } else {
+            "GAME OVER"
+        };
+        self.text_commands.push(ffi::TextCommand {
+            text: headline.to_string(),
+            position: ffi::Vec2 { x: 300.0, y: 440.0 },
+            font_size: 42.0,
+            color: ffi::Vec4 {
+                x: 1.0,
+                y: 0.9,
+                z: 0.2,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!("Score: {}", self.score),
+            position: ffi::Vec2 { x: 300.0, y: 390.0 },
+            font_size: 26.0,
+            color: ffi::Vec4 {
+                x: 0.95,
+                y: 0.95,
+                z: 0.95,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!("Survival: {:.1} sec", self.survival_time_sec),
+            position: ffi::Vec2 { x: 300.0, y: 360.0 },
+            font_size: 22.0,
+            color: ffi::Vec4 {
+                x: 0.85,
+                y: 0.85,
+                z: 0.85,
+                w: 1.0,
+            },
+        });
+
         ui::ui_system(self);
     }
 
@@ -806,6 +1285,12 @@ impl Game {
         self.text_commands.clear();
         self.process_asset_server();
         self.build_renderables();
+    }
+
+    fn poll_physics_events(&mut self) {
+        self.collision_events.clear();
+        let events = ffi::get_collision_events();
+        self.collision_events.extend_from_slice(events);
     }
 
     fn setup_physics_stress_test(&mut self) {
@@ -904,101 +1389,56 @@ impl Game {
     }
 
     fn setup_in_game(&mut self) {
-        const PPM: f32 = 50.0; // Pixels Per Meter
-
-        // Create a static ground body
-        let ground_width = 800.0;
-        let ground_height = 50.0;
-        let ground_x = 400.0;
-        let ground_y = 25.0;
-        let ground_body_id = ffi::create_static_box_body(
-            ground_x / PPM,
-            ground_y / PPM,
-            ground_width / PPM,
-            ground_height / PPM,
-        );
-
-        self.world.spawn((
-            ffi::Transform {
-                position: ffi::Vec3 {
-                    x: ground_x,
-                    y: ground_y,
-                    z: 0.0,
-                },
-                rotation: ffi::Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                scale: ffi::Vec3 {
-                    x: ground_width,
-                    y: ground_height,
-                    z: 1.0,
-                },
-            },
-            PhysicsBody {
-                id: ground_body_id,
-            },
-            Material {
-                texture_handle: self.asset_server.load_texture("assets/test.png"),
-            },
-        ));
-
-        // Create a dynamic falling box
-        let box_width = 50.0;
-        let box_height = 50.0;
-        let box_x = 400.0;
-        let box_y = 500.0;
-        let box_body_id = ffi::create_dynamic_box_body(
-            box_x / PPM,
-            box_y / PPM,
-            box_width / PPM,
-            box_height / PPM,
-        );
-
-        self.world.spawn((
-            ffi::Transform {
-                position: ffi::Vec3 {
-                    x: box_x,
-                    y: box_y,
-                    z: 0.0,
-                },
-                rotation: ffi::Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                scale: ffi::Vec3 {
-                    x: box_width,
-                    y: box_height,
-                    z: 1.0,
-                },
-            },
-            PhysicsBody { id: box_body_id },
-            Material {
-                texture_handle: self.asset_server.load_texture("assets/player.png"),
-            },
-        ));
-    }
-
-    fn run_input_system(&mut self) {
-        // For now, we disable player input to observe physics
-    }
-
-    fn poll_physics_events(&mut self) {
-        self.collision_events.clear();
-        let events = ffi::get_collision_events();
-        self.collision_events.extend_from_slice(events);
+        self.start_new_run();
     }
 
     fn update_in_game(&mut self) {
         self.text_commands.clear();
-        self.run_input_system();
-        self.poll_physics_events();
-        self.sync_physics_to_render(); // New physics system
-                                      // self.run_movement_system(); // Old movement system is not needed for now
+
+        let esc_just_pressed = self.input_state.esc_key && !self.esc_was_pressed;
+        self.esc_was_pressed = self.input_state.esc_key;
+        if esc_just_pressed {
+            self.current_state = GameState::Pause;
+            self.setup_pause_menu();
+            return;
+        }
+
+        let player_bounds = self.update_player_and_get_bounds();
+
+        self.obstacle_spawn_accumulator_sec += FIXED_DT_SEC;
+        let spawn_interval = self.current_spawn_interval_sec();
+        while self.obstacle_spawn_accumulator_sec >= spawn_interval {
+            if self.count_obstacles() < MAX_OBSTACLES {
+                self.spawn_obstacle();
+            }
+            self.obstacle_spawn_accumulator_sec -= spawn_interval;
+        }
+
+        self.update_obstacles_and_collisions(player_bounds);
+        self.survival_time_sec += FIXED_DT_SEC;
+        self.difficulty_level = (self.survival_time_sec / 60.0).floor() as u32 + 1;
+        self.score = (self.survival_time_sec as u32)
+            .saturating_mul(10)
+            .saturating_add(self.avoid_count.saturating_mul(100));
+
+        if self.hp <= 0 {
+            self.result_is_clear = false;
+            self.current_state = GameState::Result;
+            self.setup_result_menu();
+            ffi::play_sound("assets/test_sound.wav");
+            return;
+        }
+        if self.survival_time_sec >= 1800.0 {
+            self.result_is_clear = true;
+            self.current_state = GameState::Result;
+            self.setup_result_menu();
+            ffi::play_sound("assets/test_sound.wav");
+            return;
+        }
+
         self.process_asset_server();
         self.build_renderables();
+        self.push_hud_text();
     }
 
     fn sync_physics_to_render(&mut self) {
@@ -1035,16 +1475,7 @@ impl Game {
     // --- Old systems to be removed or refactored ---
 
     fn setup_main_menu(&mut self) {
-        self.world.spawn((Button {
-            rect: ui::Rect {
-                x: 300.0,
-                y: 400.0,
-                width: 200.0,
-                height: 50.0,
-            },
-            text: "Start Game".to_string(),
-            action: ui::ButtonAction::StartGame,
-        },));
+        self.setup_title_screen();
     }
 
     pub fn build_renderables(&mut self) {
@@ -1148,7 +1579,7 @@ pub extern "C" fn free_serialized_string(s: *mut c_char) {
 #[no_mangle]
 pub extern "C" fn update_game(game: *mut Game) -> GameState {
     if game.is_null() {
-        return GameState::MainMenu;
+        return GameState::Title;
     }
     let game = unsafe { &mut *game };
     game.update();
