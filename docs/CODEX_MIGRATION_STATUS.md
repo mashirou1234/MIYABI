@@ -72,6 +72,12 @@
   - `logic/src/ui.rs`（設定用 ButtonAction と更新処理）
   - `PLAN.md`（タスク10.2へ反映）
   - `docs/CORE_SAVE_SUBSYSTEM.md`
+- 設定値のランタイム適用を接続
+  - `logic/src/lib.rs`（設定変更時にC++側へ反映要求）
+  - `core/src/miyabi_bridge.cpp`（オーディオ設定反映、fullscreen要求キュー）
+  - `core/include/miyabi/bridge.h`
+  - `core/src/main.cpp`（fullscreen要求を消費して GLFW へ適用）
+  - `PLAN.md`（タスク10.2へ反映）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -102,7 +108,7 @@
    - 30分連続プレイの安定性検証（G2判定）
    - 1OS向け配布手順の固定化
 6. コア開発 C1 に向けた未完了
-   - 設定値のランタイム適用（音量反映、実ウィンドウの fullscreen 切替）
+   - BGM実再生導線の整備（`bgm_volume` の体感確認）
 
 ## 5. 続スレッド再開コマンド
 

@@ -44,7 +44,7 @@
   - `find_package` 可能な SDK package config
   - CI（configure/build/smoke）
   - 性能ベースラインと回帰監視
-  - 設定値のランタイム適用（音量反映、実ウィンドウの fullscreen 切替）
+  - BGM実再生導線の整備（`bgm_volume` の体感確認）
   - リンカ警告整理
 
 ## 4. 管理ドキュメント

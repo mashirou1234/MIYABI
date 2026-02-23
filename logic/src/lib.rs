@@ -178,6 +178,8 @@ pub mod ffi {
 
         // Audio
         fn play_sound(path: &str);
+        fn set_runtime_audio_settings(master_volume: f32, bgm_volume: f32, se_volume: f32);
+        fn request_fullscreen(enabled: bool);
 
         // Physics
         fn create_dynamic_box_body(x: f32, y: f32, width: f32, height: f32) -> u64;
@@ -860,6 +862,8 @@ impl Game {
         };
         // Setup the initial state
         game.setup_title_screen();
+        game.apply_runtime_audio_settings();
+        game.apply_runtime_fullscreen_setting();
         game
     }
 
@@ -900,11 +904,24 @@ impl Game {
         }
     }
 
+    fn apply_runtime_audio_settings(&self) {
+        ffi::set_runtime_audio_settings(
+            self.save_data.settings.master_volume,
+            self.save_data.settings.bgm_volume,
+            self.save_data.settings.se_volume,
+        );
+    }
+
+    fn apply_runtime_fullscreen_setting(&self) {
+        ffi::request_fullscreen(self.save_data.settings.fullscreen);
+    }
+
     pub(crate) fn adjust_master_volume(&mut self, delta: f32) {
         let current = self.save_data.settings.master_volume;
         let next = (current + delta).clamp(0.0, 1.0);
         if (next - current).abs() > f32::EPSILON {
             self.save_data.settings.master_volume = next;
+            self.apply_runtime_audio_settings();
             self.persist_save_data("settings_changed");
         }
     }
@@ -914,6 +931,7 @@ impl Game {
         let next = (current + delta).clamp(0.0, 1.0);
         if (next - current).abs() > f32::EPSILON {
             self.save_data.settings.bgm_volume = next;
+            self.apply_runtime_audio_settings();
             self.persist_save_data("settings_changed");
         }
     }
@@ -923,12 +941,14 @@ impl Game {
         let next = (current + delta).clamp(0.0, 1.0);
         if (next - current).abs() > f32::EPSILON {
             self.save_data.settings.se_volume = next;
+            self.apply_runtime_audio_settings();
             self.persist_save_data("settings_changed");
         }
     }
 
     pub(crate) fn toggle_fullscreen_setting(&mut self) {
         self.save_data.settings.fullscreen = !self.save_data.settings.fullscreen;
+        self.apply_runtime_fullscreen_setting();
         self.persist_save_data("settings_changed");
     }
 
@@ -1985,6 +2005,8 @@ pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
     game.save_data = game.save_data.sanitized();
     game.total_play_count = game.save_data.progress.total_play_count;
     game.save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
+    game.apply_runtime_audio_settings();
+    game.apply_runtime_fullscreen_setting();
     // Re-initialize non-serializable fields
     game.asset_server = AssetServer::new();
     // ... etc. for other non-serde fields

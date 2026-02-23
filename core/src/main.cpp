@@ -56,6 +56,15 @@ const unsigned int SCR_HEIGHT = 600;
 // --- Function Prototypes ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window, InputState& input_state);
+void apply_fullscreen_mode(
+    GLFWwindow* window,
+    bool enable,
+    bool& is_fullscreen,
+    int& windowed_x,
+    int& windowed_y,
+    int& windowed_width,
+    int& windowed_height
+);
 
 // VTable is now linked statically, we just need to get it.
 extern "C" MiyabiVTable get_miyabi_vtable();
@@ -142,6 +151,26 @@ int main() {
     glBindVertexArray(0);
 
     Game* miyabi_game = g_vtable.create_game();
+    bool is_fullscreen = false;
+    int windowed_x = 100;
+    int windowed_y = 100;
+    int windowed_width = SCR_WIDTH;
+    int windowed_height = SCR_HEIGHT;
+    glfwGetWindowPos(window, &windowed_x, &windowed_y);
+    glfwGetWindowSize(window, &windowed_width, &windowed_height);
+
+    if (has_pending_fullscreen_request()) {
+        bool requested_fullscreen = consume_pending_fullscreen_request();
+        apply_fullscreen_mode(
+            window,
+            requested_fullscreen,
+            is_fullscreen,
+            windowed_x,
+            windowed_y,
+            windowed_width,
+            windowed_height
+        );
+    }
 
     // Process any initial asset load commands
     AssetCommandSlice asset_commands = g_vtable.get_asset_commands(miyabi_game);
@@ -197,6 +226,19 @@ int main() {
         {
             MIYABI_PROFILE_SCOPE("RustLogicUpdate");
             g_vtable.update_game(miyabi_game);
+        }
+
+        if (has_pending_fullscreen_request()) {
+            bool requested_fullscreen = consume_pending_fullscreen_request();
+            apply_fullscreen_mode(
+                window,
+                requested_fullscreen,
+                is_fullscreen,
+                windowed_x,
+                windowed_y,
+                windowed_width,
+                windowed_height
+            );
         }
 
         {
@@ -342,4 +384,62 @@ void processInput(GLFWwindow *window, InputState& input_state) {
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
+}
+
+void apply_fullscreen_mode(
+    GLFWwindow* window,
+    bool enable,
+    bool& is_fullscreen,
+    int& windowed_x,
+    int& windowed_y,
+    int& windowed_width,
+    int& windowed_height
+) {
+    if (enable == is_fullscreen) {
+        return;
+    }
+
+    if (enable) {
+        glfwGetWindowPos(window, &windowed_x, &windowed_y);
+        glfwGetWindowSize(window, &windowed_width, &windowed_height);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        if (monitor == NULL) {
+            std::cerr << "Failed to get primary monitor for fullscreen." << std::endl;
+            return;
+        }
+
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        if (mode == NULL) {
+            std::cerr << "Failed to get video mode for fullscreen." << std::endl;
+            return;
+        }
+
+        glfwSetWindowMonitor(
+            window,
+            monitor,
+            0,
+            0,
+            mode->width,
+            mode->height,
+            mode->refreshRate
+        );
+        is_fullscreen = true;
+    } else {
+        glfwSetWindowMonitor(
+            window,
+            NULL,
+            windowed_x,
+            windowed_y,
+            windowed_width,
+            windowed_height,
+            0
+        );
+        is_fullscreen = false;
+    }
+
+    int fb_width = 0;
+    int fb_height = 0;
+    glfwGetFramebufferSize(window, &fb_width, &fb_height);
+    glViewport(0, 0, fb_width, fb_height);
 }
