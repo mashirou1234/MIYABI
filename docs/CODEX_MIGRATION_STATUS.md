@@ -101,6 +101,26 @@
     - `sample_game` の `cargo test`（ユーザー開発側のコンパイル整合チェック）
     - `build/core/miyabi` 生成確認
   - `PLAN.md`（タスク10.3へ反映）
+- 性能ベースライン計測と回帰判定を導入
+  - `logic/src/perf.rs`（`sprite/ui/scene_construct_destruct` のヘッドレス計測）
+  - `logic/src/bin/perf_baseline.rs`（計測実行とJSON出力）
+  - `docs/perf/baseline_macos14.json`（初期ベースライン）
+  - `tools/check_perf_regression.py`（閾値比較による回帰判定）
+  - `PERFORMANCE_TEST.md`（運用手順・初期値の記録）
+  - `PLAN.md`（タスク10.3へ反映）
+- CIへ性能計測と回帰判定を統合
+  - `.github/workflows/build.yml`
+    - `Perf baseline (headless benchmark)`
+    - `Perf regression check`
+    - `Upload perf artifacts`
+- クラッシュ/不具合報告テンプレートを追加
+  - `.github/ISSUE_TEMPLATE/bug_report.md`
+  - `PLAN.md`（タスク10.3へ反映）
+- macOS向け 1OS 配布手順を固定し、再現ビルド導線を追加
+  - `scripts/package_macos_game.sh`（クリーンビルド→配布ZIP生成）
+  - `docs/DISTRIBUTION_1OS.md`（運用手順と確認項目）
+  - `PLAN.md`（タスク9.3完了へ反映）
+  - `docs/GAME_DEVELOPMENT_TRACK.md`（直近不足を更新）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -119,18 +139,14 @@
    - `find_package` 可能な CMake package config の提供
    - ABIバージョン定数（互換性判定用）の導入
 2. CI拡張
-   - 現在は macOS 1ジョブの `configure/build/smoke` を実行。
+   - 現在は macOS 1ジョブの `configure/build/smoke` + `perf baseline/regression` を実行。
    - 今後は multi-OS とキャッシュ最適化、失敗時アーティファクト収集を追加する。
 3. リンカ警告の整理
    - duplicate libraries warning
    - macOS deployment target warning（26.2 vs 26.0）
-4. 性能計画の未完了タスク
-   - シーン構築/破棄ストレステスト
-   - ベースライン記録
-5. ゲーム開発 G1/G3 に向けた未完了
+4. ゲーム開発 G1/G3 に向けた未完了
    - 30分連続プレイの安定性検証（G2判定）
-   - 1OS向け配布手順の固定化
-6. コア開発 C1 に向けた未完了
+5. コア開発 C1 に向けた未完了
    - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
 
 ## 5. 続スレッド再開コマンド
@@ -146,7 +162,7 @@ cmake --build build -j4
 
 - 現在のローカル状態:
   - ブランチ: `master`
-  - `origin/master` に対して `ahead 6`（未pushコミットあり）
+  - `origin/master` に対して `ahead 7`（未pushコミットあり）
 - 直近コミット（新しい順）:
   - `0a361a8` `ci: configure build smoke を自動実行`
   - `dc8ff8d` `feat: アセットID整合チェックと復旧導線を追加`
@@ -154,9 +170,9 @@ cmake --build build -j4
   - `f455a5e` `feat: BGM実再生導線を追加`
   - `ba2d8f0` `feat: 設定値のランタイム適用を実装`
 - 次スレッドの推奨着手順:
-  1. `PLAN.md` のタスク10.3「性能ベースライン確立と回帰検知」へ着手する。
-  2. ベースライン計測手順を文書化し、CIに回帰判定を追加する。
-  3. 次点で「クラッシュ/不具合報告テンプレート整備」を実施する。
+  1. G2判定向けに 30分連続プレイの安定性検証（進行不能/クラッシュ有無）を実施する。
+  2. SDK次段階として `find_package` 可能な CMake package config 提供に着手する。
+  3. duplicate libraries / deployment target 警告を整理し、ビルドログノイズを低減する。
 - 合意済みの運用方針:
   - コア開発（システム）とゲーム開発（ユーザー）をドキュメント上で分離して管理する。
   - `sample_game` はユーザー開発導線として扱うが、必要に応じてコア側改修を伴う方針で進める。

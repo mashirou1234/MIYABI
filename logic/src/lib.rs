@@ -1,4 +1,5 @@
 mod paths;
+pub mod perf;
 pub mod save;
 use crate::ui::Button;
 use rand::Rng;

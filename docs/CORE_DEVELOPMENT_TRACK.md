@@ -42,8 +42,6 @@
 - 次ゲート: **C1**
 - 直近不足:
   - `find_package` 可能な SDK package config
-  - CI（configure/build/smoke）
-  - 性能ベースラインと回帰監視
   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
   - リンカ警告整理
 

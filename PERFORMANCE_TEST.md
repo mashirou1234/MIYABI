@@ -51,12 +51,47 @@
     -   内容: 大量の文字列、または複雑なレイアウトのUI要素を画面上に描画します。
     -   目的: テキストレンダリング（グリフ生成、テクスチャアトラス管理、描画）のパイプライン全体の性能を測定します。
 
--   [ ] **タスク2.4: シーン構築/破棄テスト (Scene Management Stress Test)**
+-   [x] **タスク2.4: シーン構築/破棄テスト (Scene Management Stress Test)**
     -   内容: 大量のエンティティを持つシーンの生成と破棄を短時間で繰り返します。
     -   目的: エンティティやコンポーネントの生成・削除に伴うメモリ確保・解放のオーバーヘッドを測定し、ECS実装の効率を評価します。
+    -   実装: `logic/src/perf.rs` の `scene_construct_destruct` シナリオで計測します。
 
 ### ステップ3：ベースラインの確立
 
--   [ ] **タスク3.1: ベースライン性能の記録**
+-   [x] **タスク3.1: ベースライン性能の記録**
     -   内容: ステップ1, 2が完了した後、各ベンチマークシナリオを実行し、その結果（平均FPS、フレームタイムの内訳など）をこのドキュメント、または別のファイルに記録します。
     -   目的: この記録が、今後の全ての性能評価の基準となります。機能追加やリファクタリングの前後でベンチマークを再実行し、性能が向上したか、あるいは意図せず悪化（リグレッション）していないかを確認します。
+    -   記録先:
+        -   ベースライン: `docs/perf/baseline_macos14.json`
+        -   計測バイナリ: `logic/src/bin/perf_baseline.rs`
+        -   回帰判定: `tools/check_perf_regression.py`
+        -   CIアーティファクト: `build/perf/current_baseline.json`, `build/perf/regression_report.md`
+
+---
+
+## 4. 運用手順（2026-02-23）
+
+### 4.1 ローカルで計測
+
+```bash
+cargo run --release --manifest-path logic/Cargo.toml --bin perf_baseline -- \
+  --output build/perf/current_baseline.json
+python3 tools/check_perf_regression.py \
+  --baseline docs/perf/baseline_macos14.json \
+  --current build/perf/current_baseline.json \
+  --output build/perf/regression_report.md
+```
+
+### 4.2 CIでの判定
+
+- `.github/workflows/build.yml` で上記2コマンドを自動実行する。
+- 判定ロジック: `current_avg_ms <= baseline_avg_ms * (1 + max_regression_pct / 100)`。
+- レポートは CI アーティファクト `perf-report-<run_id>` に保存する。
+
+### 4.3 初期ベースライン値（macos-14）
+
+| scenario | baseline_avg_ms | max_regression_pct |
+| --- | ---: | ---: |
+| `sprite_renderable_build` | 0.121 | 200 |
+| `ui_text_command_build` | 0.069 | 200 |
+| `scene_construct_destruct` | 1.364 | 200 |

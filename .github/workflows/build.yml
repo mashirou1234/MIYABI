@@ -35,3 +35,29 @@ jobs:
 
       - name: Smoke (artifact check)
         run: test -x build/core/miyabi
+
+      - name: Perf baseline (headless benchmark)
+        run: |
+          cargo run --release --manifest-path logic/Cargo.toml --bin perf_baseline -- \
+            --output build/perf/current_baseline.json \
+            --iterations 30 \
+            --warmup 5 \
+            --sprite-count 10000 \
+            --ui-rows 30 \
+            --ui-cols 40 \
+            --scene-entities 5000
+
+      - name: Perf regression check
+        run: |
+          python3 tools/check_perf_regression.py \
+            --baseline docs/perf/baseline_macos14.json \
+            --current build/perf/current_baseline.json \
+            --output build/perf/regression_report.md
+
+      - name: Upload perf artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-${{ github.run_id }}
+          path: build/perf
+          if-no-files-found: warn

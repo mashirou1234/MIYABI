@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "platform": "macos-14",
+  "generated_on": "2026-02-23",
+  "baseline_source": "logic/src/bin/perf_baseline.rs",
+  "comparison_rule": "current_avg_ms <= baseline_avg_ms * (1 + max_regression_pct / 100)",
+  "scenarios": [
+    {
+      "name": "sprite_renderable_build",
+      "baseline_avg_ms": 0.12143053333333334,
+      "max_regression_pct": 200
+    },
+    {
+      "name": "ui_text_command_build",
+      "baseline_avg_ms": 0.06913063333333333,
+      "max_regression_pct": 200
+    },
+    {
+      "name": "scene_construct_destruct",
+      "baseline_avg_ms": 1.3639402000000003,
+      "max_regression_pct": 200
+    }
+  ]
+}
