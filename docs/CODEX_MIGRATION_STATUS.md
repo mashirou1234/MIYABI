@@ -141,3 +141,22 @@ git status --short --branch
 cmake -S . -B build -DMIYABI_PERFORMANCE_TEST=ON
 cmake --build build -j4
 ```
+
+## 6. 次スレッド引き継ぎメモ（2026-02-23）
+
+- 現在のローカル状態:
+  - ブランチ: `master`
+  - `origin/master` に対して `ahead 5`（未pushコミットあり）
+- 直近コミット（新しい順）:
+  - `0a361a8` `ci: configure build smoke を自動実行`
+  - `dc8ff8d` `feat: アセットID整合チェックと復旧導線を追加`
+  - `f7b7e46` `feat: texture import/reimport導線を整備`
+  - `f455a5e` `feat: BGM実再生導線を追加`
+  - `ba2d8f0` `feat: 設定値のランタイム適用を実装`
+- 次スレッドの推奨着手順:
+  1. `PLAN.md` のタスク10.3「性能ベースライン確立と回帰検知」へ着手する。
+  2. ベースライン計測手順を文書化し、CIに回帰判定を追加する。
+  3. 次点で「クラッシュ/不具合報告テンプレート整備」を実施する。
+- 合意済みの運用方針:
+  - コア開発（システム）とゲーム開発（ユーザー）をドキュメント上で分離して管理する。
+  - `sample_game` はユーザー開発導線として扱うが、必要に応じてコア側改修を伴う方針で進める。
