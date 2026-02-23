@@ -1,4 +1,5 @@
 mod paths;
+pub mod save;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::any::Any;

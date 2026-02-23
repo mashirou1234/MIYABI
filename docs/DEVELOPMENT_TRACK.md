@@ -23,6 +23,8 @@
 
 - 2D縦切り仕様（サンプルゲーム）:
   - `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md`
+- コア Save サブシステム定義:
+  - `docs/CORE_SAVE_SUBSYSTEM.md`
 
 ## 4. 運用ルール
 

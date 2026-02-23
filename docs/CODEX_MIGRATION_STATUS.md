@@ -58,6 +58,10 @@
   - `logic/src/ui.rs`（Start/Resume/Retry/BackToTitle）
   - `core/src/main.cpp`（`ESC` 入力をロジックへ伝搬）
   - `PLAN.md`（タスク9.2完了）
+- コア Save サブシステムを定義
+  - `logic/src/save.rs`（save/load API、バージョン、破損時backup、原子的保存）
+  - `docs/CORE_SAVE_SUBSYSTEM.md`
+  - `PLAN.md`（タスク10.2へ反映）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -88,6 +92,8 @@
    - 30分連続プレイの安定性検証（G2判定）
    - セーブ/ロード最小実装をプレイ導線へ統合
    - 1OS向け配布手順の固定化
+6. コア開発 C1 に向けた未完了
+   - Save サブシステムのゲーム実導線統合
 
 ## 5. 続スレッド再開コマンド
 

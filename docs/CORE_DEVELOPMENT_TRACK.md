@@ -13,6 +13,7 @@
 - FFI経由でゲーム更新/描画データ受け渡しが成立
 - 2D描画/入力/音声/2D物理の最小統合が成立
 - SDK v0.1 配布物が成立
+- Core Save サブシステム定義が成立（未接続）
 
 ### C1: 2D Engine Baseline
 
@@ -43,6 +44,7 @@
   - `find_package` 可能な SDK package config
   - CI（configure/build/smoke）
   - 性能ベースラインと回帰監視
+  - Save サブシステムのゲーム実導線統合
   - リンカ警告整理
 
 ## 4. 管理ドキュメント
