@@ -1,4 +1,4 @@
-name: build
+name: ci-build-smoke
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: ["master"]
 
 jobs:
-  build:
+  build-and-smoke:
     runs-on: macos-14
 
     steps:
@@ -19,7 +19,6 @@ jobs:
 
       - name: Install native dependencies
         run: |
-          brew update
           brew install glfw freetype
 
       - name: Configure
@@ -27,3 +26,12 @@ jobs:
 
       - name: Build
         run: cmake --build build -j3
+
+      - name: Smoke (logic tests)
+        run: cargo test --manifest-path logic/Cargo.toml
+
+      - name: Smoke (sample_game compile/test)
+        run: cargo test --manifest-path sample_game/Cargo.toml
+
+      - name: Smoke (artifact check)
+        run: test -x build/core/miyabi

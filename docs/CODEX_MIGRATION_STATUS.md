@@ -94,6 +94,13 @@
   - `logic/src/lib.rs`（asset registry、参照整合チェック、未解決参照の自動reimport再キュー）
   - `docs/ASSET_IMPORT_REIMPORT.md`（診断ログと復旧手順を追加）
   - `PLAN.md`（タスク10.2へ反映）
+- CIで `configure/build/smoke` を自動実行
+  - `.github/workflows/build.yml`（Configure/Build/Smoke を実装）
+  - Smoke対象:
+    - `logic` の `cargo test`
+    - `sample_game` の `cargo test`（ユーザー開発側のコンパイル整合チェック）
+    - `build/core/miyabi` 生成確認
+  - `PLAN.md`（タスク10.3へ反映）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -111,9 +118,9 @@
 1. SDKの次段階整備
    - `find_package` 可能な CMake package config の提供
    - ABIバージョン定数（互換性判定用）の導入
-2. CI導入
-   - `.github/workflows` が未整備。
-   - まずは configure/build の自動実行を追加する。
+2. CI拡張
+   - 現在は macOS 1ジョブの `configure/build/smoke` を実行。
+   - 今後は multi-OS とキャッシュ最適化、失敗時アーティファクト収集を追加する。
 3. リンカ警告の整理
    - duplicate libraries warning
    - macOS deployment target warning（26.2 vs 26.0）
