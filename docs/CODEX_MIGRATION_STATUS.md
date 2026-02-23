@@ -67,6 +67,11 @@
   - `PLAN.md`（タスク10.2へ反映）
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
+- 設定UIを実装し、設定変更時保存を接続
+  - `logic/src/lib.rs`（Title/Pauseに設定表示と設定ボタン配置）
+  - `logic/src/ui.rs`（設定用 ButtonAction と更新処理）
+  - `PLAN.md`（タスク10.2へ反映）
+  - `docs/CORE_SAVE_SUBSYSTEM.md`
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -97,7 +102,7 @@
    - 30分連続プレイの安定性検証（G2判定）
    - 1OS向け配布手順の固定化
 6. コア開発 C1 に向けた未完了
-   - 設定変更導線への Save 反映（設定UI未実装）
+   - 設定値のランタイム適用（音量反映、実ウィンドウの fullscreen 切替）
 
 ## 5. 続スレッド再開コマンド
 

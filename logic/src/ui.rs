@@ -1,4 +1,3 @@
-
 // logic/src/ui.rs
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +31,13 @@ pub enum ButtonAction {
     ResumeGame,
     RetryGame,
     BackToTitle,
+    MasterVolumeDown,
+    MasterVolumeUp,
+    BgmVolumeDown,
+    BgmVolumeUp,
+    SeVolumeDown,
+    SeVolumeUp,
+    ToggleFullscreen,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -53,7 +59,6 @@ use crate::ComponentType;
 impl Component for Button {
     const COMPONENT_TYPE: ComponentType = ComponentType::Button;
 }
-
 
 // 2. UI System Logic
 // ==================
@@ -86,11 +91,17 @@ pub fn ui_system(game: &mut Game) {
                     text: button.text.clone(),
                     // Center the text roughly
                     position: Vec2 {
-                        x: button.rect.x + (button.rect.width / 2.0) - (button.text.len() as f32 * 6.0), // Estimate
-                        y: button.rect.y + (button.rect.height / 2.0) - 8.0 // Estimate
+                        x: button.rect.x + (button.rect.width / 2.0)
+                            - (button.text.len() as f32 * 6.0), // Estimate
+                        y: button.rect.y + (button.rect.height / 2.0) - 8.0, // Estimate
                     },
                     font_size: 24.0,
-                    color: Vec4 { x: 1.0, y: 1.0, z: 1.0, w: 1.0 },
+                    color: Vec4 {
+                        x: 1.0,
+                        y: 1.0,
+                        z: 1.0,
+                        w: 1.0,
+                    },
                 });
             }
         }
@@ -112,6 +123,27 @@ pub fn ui_system(game: &mut Game) {
             }
             ButtonAction::BackToTitle => {
                 game.setup_title_screen();
+            }
+            ButtonAction::MasterVolumeDown => {
+                game.adjust_master_volume(-crate::SETTINGS_STEP);
+            }
+            ButtonAction::MasterVolumeUp => {
+                game.adjust_master_volume(crate::SETTINGS_STEP);
+            }
+            ButtonAction::BgmVolumeDown => {
+                game.adjust_bgm_volume(-crate::SETTINGS_STEP);
+            }
+            ButtonAction::BgmVolumeUp => {
+                game.adjust_bgm_volume(crate::SETTINGS_STEP);
+            }
+            ButtonAction::SeVolumeDown => {
+                game.adjust_se_volume(-crate::SETTINGS_STEP);
+            }
+            ButtonAction::SeVolumeUp => {
+                game.adjust_se_volume(crate::SETTINGS_STEP);
+            }
+            ButtonAction::ToggleFullscreen => {
+                game.toggle_fullscreen_setting();
             }
         }
     }

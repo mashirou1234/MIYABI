@@ -817,6 +817,7 @@ const MAX_OBSTACLES: usize = 80;
 const BASE_SPAWN_INTERVAL_SEC: f32 = 1.2;
 const MIN_SPAWN_INTERVAL_SEC: f32 = 0.25;
 const SAVE_FILE_REL_PATH: &str = "save/save_data.json";
+pub(crate) const SETTINGS_STEP: f32 = 0.1;
 
 impl Game {
     pub fn new() -> Self {
@@ -899,6 +900,167 @@ impl Game {
         }
     }
 
+    pub(crate) fn adjust_master_volume(&mut self, delta: f32) {
+        let current = self.save_data.settings.master_volume;
+        let next = (current + delta).clamp(0.0, 1.0);
+        if (next - current).abs() > f32::EPSILON {
+            self.save_data.settings.master_volume = next;
+            self.persist_save_data("settings_changed");
+        }
+    }
+
+    pub(crate) fn adjust_bgm_volume(&mut self, delta: f32) {
+        let current = self.save_data.settings.bgm_volume;
+        let next = (current + delta).clamp(0.0, 1.0);
+        if (next - current).abs() > f32::EPSILON {
+            self.save_data.settings.bgm_volume = next;
+            self.persist_save_data("settings_changed");
+        }
+    }
+
+    pub(crate) fn adjust_se_volume(&mut self, delta: f32) {
+        let current = self.save_data.settings.se_volume;
+        let next = (current + delta).clamp(0.0, 1.0);
+        if (next - current).abs() > f32::EPSILON {
+            self.save_data.settings.se_volume = next;
+            self.persist_save_data("settings_changed");
+        }
+    }
+
+    pub(crate) fn toggle_fullscreen_setting(&mut self) {
+        self.save_data.settings.fullscreen = !self.save_data.settings.fullscreen;
+        self.persist_save_data("settings_changed");
+    }
+
+    fn spawn_settings_buttons(&mut self, first_row_y: f32) {
+        let row_step = 56.0;
+        let minus_x = 240.0;
+        let plus_x = 510.0;
+        let volume_button_w = 50.0;
+        let button_h = 40.0;
+
+        let rows = [
+            (
+                ui::ButtonAction::MasterVolumeDown,
+                ui::ButtonAction::MasterVolumeUp,
+                first_row_y,
+            ),
+            (
+                ui::ButtonAction::BgmVolumeDown,
+                ui::ButtonAction::BgmVolumeUp,
+                first_row_y - row_step,
+            ),
+            (
+                ui::ButtonAction::SeVolumeDown,
+                ui::ButtonAction::SeVolumeUp,
+                first_row_y - row_step * 2.0,
+            ),
+        ];
+
+        for (down_action, up_action, y) in rows {
+            self.world.spawn((Button {
+                rect: ui::Rect {
+                    x: minus_x,
+                    y,
+                    width: volume_button_w,
+                    height: button_h,
+                },
+                text: "-".to_string(),
+                action: down_action,
+            },));
+            self.world.spawn((Button {
+                rect: ui::Rect {
+                    x: plus_x,
+                    y,
+                    width: volume_button_w,
+                    height: button_h,
+                },
+                text: "+".to_string(),
+                action: up_action,
+            },));
+        }
+
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 250.0,
+                y: first_row_y - row_step * 3.0,
+                width: 300.0,
+                height: button_h,
+            },
+            text: "Toggle Fullscreen".to_string(),
+            action: ui::ButtonAction::ToggleFullscreen,
+        },));
+    }
+
+    fn push_settings_text(&mut self, first_row_y: f32) {
+        let row_step = 56.0;
+        let master_pct = (self.save_data.settings.master_volume * 100.0).round() as u32;
+        let bgm_pct = (self.save_data.settings.bgm_volume * 100.0).round() as u32;
+        let se_pct = (self.save_data.settings.se_volume * 100.0).round() as u32;
+        let fullscreen = if self.save_data.settings.fullscreen {
+            "ON"
+        } else {
+            "OFF"
+        };
+
+        self.text_commands.push(ffi::TextCommand {
+            text: format!("Master Volume: {master_pct}%"),
+            position: ffi::Vec2 {
+                x: 305.0,
+                y: first_row_y + 12.0,
+            },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.9,
+                y: 0.9,
+                z: 0.9,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!("BGM Volume: {bgm_pct}%"),
+            position: ffi::Vec2 {
+                x: 305.0,
+                y: first_row_y - row_step + 12.0,
+            },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.9,
+                y: 0.9,
+                z: 0.9,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!("SE Volume: {se_pct}%"),
+            position: ffi::Vec2 {
+                x: 305.0,
+                y: first_row_y - row_step * 2.0 + 12.0,
+            },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.9,
+                y: 0.9,
+                z: 0.9,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: format!("Fullscreen: {fullscreen}"),
+            position: ffi::Vec2 {
+                x: 315.0,
+                y: first_row_y - row_step * 3.0 + 12.0,
+            },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.8,
+                y: 0.95,
+                z: 0.8,
+                w: 1.0,
+            },
+        });
+    }
+
     fn apply_result_to_progress_and_persist(&mut self) {
         self.save_data.progress.best_score = self.save_data.progress.best_score.max(self.score);
 
@@ -951,6 +1113,18 @@ impl Game {
                 w: 1.0,
             },
         });
+        self.text_commands.push(ffi::TextCommand {
+            text: "Settings (auto-saved)".to_string(),
+            position: ffi::Vec2 { x: 285.0, y: 360.0 },
+            font_size: 22.0,
+            color: ffi::Vec4 {
+                x: 0.8,
+                y: 0.9,
+                z: 1.0,
+                w: 1.0,
+            },
+        });
+        self.push_settings_text(300.0);
 
         // The UI system now handles drawing and interactions for buttons.
         ui::ui_system(self);
@@ -987,13 +1161,14 @@ impl Game {
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
-                y: 360.0,
+                y: 430.0,
                 width: 200.0,
                 height: 50.0,
             },
             text: "Start Game".to_string(),
             action: ui::ButtonAction::StartGame,
         },));
+        self.spawn_settings_buttons(300.0);
     }
 
     pub(crate) fn start_new_run(&mut self) {
@@ -1056,7 +1231,7 @@ impl Game {
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
-                y: 320.0,
+                y: 340.0,
                 width: 200.0,
                 height: 50.0,
             },
@@ -1066,13 +1241,14 @@ impl Game {
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
-                y: 250.0,
+                y: 270.0,
                 width: 200.0,
                 height: 50.0,
             },
             text: "Back To Title".to_string(),
             action: ui::ButtonAction::BackToTitle,
         },));
+        self.spawn_settings_buttons(170.0);
     }
 
     fn setup_result_menu(&mut self) {
@@ -1322,6 +1498,18 @@ impl Game {
                 w: 1.0,
             },
         });
+        self.text_commands.push(ffi::TextCommand {
+            text: "Settings (auto-saved)".to_string(),
+            position: ffi::Vec2 { x: 285.0, y: 230.0 },
+            font_size: 20.0,
+            color: ffi::Vec4 {
+                x: 0.8,
+                y: 0.9,
+                z: 1.0,
+                w: 1.0,
+            },
+        });
+        self.push_settings_text(170.0);
 
         let esc_just_pressed = self.input_state.esc_key && !self.esc_was_pressed;
         self.esc_was_pressed = self.input_state.esc_key;
