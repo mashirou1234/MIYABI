@@ -318,6 +318,7 @@ void processInput(GLFWwindow *window, InputState& input_state) {
 
     input_state.s_key = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     input_state.p_key = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+    input_state.u_key = glfwGetKey(window, GLFW_KEY_U) == GLFW_PRESS;
 
     // Mouse position
     double xpos, ypos;

@@ -44,7 +44,14 @@ target_include_directories(miyabi PUBLIC
     ${glm_SOURCE_DIR}
 )
 
-# Link against the miyabi_logic crate and other system libraries.
+# HACK: Explicitly propagate include directories from the CXX bridge.
+# For some reason, this is not happening automatically via target_link_libraries.
+get_target_property(MIYABI_LOGIC_CXX_INCLUDES miyabi_logic_cxx INTERFACE_INCLUDE_DIRECTORIES)
+if(MIYABI_LOGIC_CXX_INCLUDES)
+    target_include_directories(miyabi PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
+endif()
+
+# Link against the Rust logic crate and system libraries.
 target_link_libraries(miyabi PRIVATE 
     miyabi_logic
     glfw
@@ -52,6 +59,9 @@ target_link_libraries(miyabi PRIVATE
     Freetype::Freetype
     box2d
 )
+
+# Ensure cxx bridge headers are generated before compiling core sources.
+add_dependencies(miyabi miyabi_logic_cxx)
 
 # Set the rpath for the executable
 set_target_properties(miyabi PROPERTIES

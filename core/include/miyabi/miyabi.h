@@ -2,7 +2,7 @@
 
 // Includes the CXX-generated header for shared data types.
 // This path is configured in CMake.
-#include "miyabi_logic_cxx_bridge/lib.h"
+#include "miyabi_logic_cxx/lib.h"
 
 // Forward-declare the opaque pointer to the Rust Game.
 // C++ must NEVER know its internal layout.

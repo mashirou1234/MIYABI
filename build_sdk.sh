@@ -23,32 +23,39 @@ fi
 
 
 # 1. Configure CMake for Release build
-cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DMIYABI_PERFORMANCE_TEST=ON
 
 # 2. Build the project
 cmake --build "$BUILD_DIR"
 
 # 3. Create SDK directory structure
 echo "Creating SDK directory..."
+mkdir -p "$SDK_DIR"/bin
 mkdir -p "$SDK_DIR"/lib
 mkdir -p "$SDK_DIR"/include/miyabi
 
-# 4. Copy libraries
-echo "Copying libraries..."
-cp "$BUILD_DIR"/core/libsample_game.dylib "$SDK_DIR"/lib/
-cp "$BUILD_DIR"/core/libmiyabi_logic.a "$SDK_DIR"/lib/
-cp "$BUILD_DIR"/core/libmiyabi_cxxbridge.a "$SDK_DIR"/lib/
+# 4. Copy runtime executable
+echo "Copying runtime executable..."
+cp "$BUILD_DIR"/core/miyabi "$SDK_DIR"/bin/
 
-# 5. Copy headers
+# 5. Copy static libraries
+echo "Copying static libraries..."
+cp "$BUILD_DIR"/logic/libmiyabi_logic.a "$SDK_DIR"/lib/
+cp "$BUILD_DIR"/logic/libmiyabi_logic_cxx.a "$SDK_DIR"/lib/
+
+# 6. Copy headers
 echo "Copying headers..."
 cp -R core/include/miyabi/* "$SDK_DIR"/include/miyabi/
-cp -R "$BUILD_DIR"/core/corrosion_generated/cxxbridge/miyabi_cxxbridge/include/* "$SDK_DIR"/include/
+cp -R "$BUILD_DIR"/logic/corrosion_generated/cxxbridge/miyabi_logic_cxx/include/* "$SDK_DIR"/include/
 
-# 6. Copy template CMake file
+# 7. Copy runtime assets and template CMake file
+echo "Copying runtime assets..."
+cp -R assets "$SDK_DIR"/
+
 echo "Copying template CMakeLists.txt..."
 cp sdk_template_CMakeLists.txt "$SDK_DIR"/template_CMakeLists.txt
 
-# 7. Create Zip archive
+# 8. Create Zip archive
 echo "Creating SDK archive..."
 zip -r "$ZIP_NAME" "$SDK_DIR"
 

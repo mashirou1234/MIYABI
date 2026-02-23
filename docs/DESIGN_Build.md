@@ -1,5 +1,7 @@
 # MIYABI Build System & Hot-Reloading Technical Design
 
+> Status Note (2026-02-23): このドキュメントはホットリロード設計の履歴を含みます。現行実装は `staticlib` ベースで、`core/src/main.cpp` から `get_miyabi_vtable()` を静的リンクして利用します。運用上の正準手順は `docs/CODEX_MIGRATION_STATUS.md` を参照してください。
+
 ## 1. Document Purpose and Overview
 
 This document provides an exhaustive specification for the MIYABI build system and the technical mechanics of its hot-reloading workflow. A stable, understandable, and reproducible build process is critical for a hybrid C++/Rust project.

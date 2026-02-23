@@ -116,6 +116,7 @@ pub mod ffi {
         pub right: bool,
         pub s_key: bool,
         pub p_key: bool,
+        pub u_key: bool,
         pub mouse_pos: Vec2,
         pub mouse_clicked: bool,
     }
@@ -192,9 +193,7 @@ pub mod ffi {
 
 #[cfg(feature = "performance_test")]
 fn get_sprite_count() -> u32 {
-    unsafe {
-        ffi::get_performance_test_sprite_count()
-    }
+    ffi::get_performance_test_sprite_count()
 }
 
 
@@ -206,6 +205,7 @@ pub enum GameState {
     InGame,
     SpriteStressTest,
     PhysicsStressTest,
+    UIStressTest,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -712,6 +712,8 @@ impl Game {
                 left: false,
                 right: false,
                 s_key: false,
+                p_key: false,
+                u_key: false,
                 mouse_pos: ffi::Vec2 { x: 0.0, y: 0.0 },
                 mouse_clicked: false,
             },
@@ -731,6 +733,7 @@ impl Game {
             GameState::InGame => self.update_in_game(),
             GameState::SpriteStressTest => self.update_sprite_stress_test(),
             GameState::PhysicsStressTest => self.update_physics_stress_test(),
+            GameState::UIStressTest => self.update_ui_stress_test(),
         }
     }
 
@@ -747,6 +750,12 @@ impl Game {
         if self.input_state.p_key {
             self.current_state = GameState::PhysicsStressTest;
             self.setup_physics_stress_test();
+            return;
+        }
+
+        if self.input_state.u_key {
+            self.current_state = GameState::UIStressTest;
+            self.setup_ui_stress_test();
             return;
         }
 
@@ -862,6 +871,36 @@ impl Game {
         self.sync_physics_to_render();
         self.process_asset_server();
         self.build_renderables();
+    }
+
+    fn setup_ui_stress_test(&mut self) {
+        self.world.clear_entities_of_component(ComponentType::Button);
+        self.world.clear_entities_of_component(ComponentType::Sprite);
+        self.world.clear_entities_of_component(ComponentType::Physics);
+    }
+
+    fn update_ui_stress_test(&mut self) {
+        self.text_commands.clear();
+
+        let items_per_row = 30;
+        let items_per_col = 40;
+        let font_size = 12.0;
+        let mut count = 0;
+
+        for i in 0..items_per_col {
+            for j in 0..items_per_row {
+                count += 1;
+                self.text_commands.push(ffi::TextCommand {
+                    text: format!("T{}", count),
+                    position: ffi::Vec2 {
+                        x: 5.0 + (j as f32 * (800.0 / items_per_row as f32)),
+                        y: 15.0 + (i as f32 * (600.0 / items_per_col as f32)),
+                    },
+                    font_size,
+                    color: ffi::Vec4 { x: 0.8, y: 0.8, z: 0.1, w: 1.0 },
+                });
+            }
+        }
     }
 
     fn setup_in_game(&mut self) {
@@ -1068,7 +1107,7 @@ pub extern "C" fn create_game() -> *mut Game {
 pub extern "C" fn destroy_game(game: *mut Game) {
     if !game.is_null() {
         unsafe {
-            Box::from_raw(game);
+            drop(Box::from_raw(game));
         }
     }
 }
@@ -1101,7 +1140,7 @@ pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
 pub extern "C" fn free_serialized_string(s: *mut c_char) {
     if !s.is_null() {
         unsafe {
-            CString::from_raw(s);
+            drop(CString::from_raw(s));
         }
     }
 }
@@ -1215,7 +1254,7 @@ pub extern "C" fn get_text_command_text_cstring(command: *const ffi::TextCommand
 pub extern "C" fn free_cstring(s: *mut c_char) {
     if !s.is_null() {
         unsafe {
-            CString::from_raw(s);
+            drop(CString::from_raw(s));
         }
     }
 }

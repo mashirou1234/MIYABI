@@ -1,5 +1,5 @@
 #include "physics/PhysicsManager.hpp"
-#include "miyabi_logic_cxx_bridge/lib.h" // For Vec2 and CollisionEvent definition
+#include "miyabi_logic_cxx/lib.h" // For Vec2 and CollisionEvent definition
 #include <iostream>
 
 namespace miyabi {
