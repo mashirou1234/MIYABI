@@ -178,6 +178,8 @@ pub mod ffi {
 
         // Audio
         fn play_sound(path: &str);
+        fn play_bgm(path: &str, looped: bool);
+        fn stop_bgm();
         fn set_runtime_audio_settings(master_volume: f32, bgm_volume: f32, se_volume: f32);
         fn request_fullscreen(enabled: bool);
 
@@ -820,6 +822,7 @@ const BASE_SPAWN_INTERVAL_SEC: f32 = 1.2;
 const MIN_SPAWN_INTERVAL_SEC: f32 = 0.25;
 const SAVE_FILE_REL_PATH: &str = "save/save_data.json";
 pub(crate) const SETTINGS_STEP: f32 = 0.1;
+const BGM_TRACK_PATH: &str = "assets/test_sound.wav";
 
 impl Game {
     pub fn new() -> Self {
@@ -914,6 +917,15 @@ impl Game {
 
     fn apply_runtime_fullscreen_setting(&self) {
         ffi::request_fullscreen(self.save_data.settings.fullscreen);
+    }
+
+    fn apply_runtime_bgm_for_state(&self) {
+        match self.current_state {
+            GameState::Title | GameState::InGame | GameState::Pause | GameState::Result => {
+                ffi::play_bgm(BGM_TRACK_PATH, true);
+            }
+            _ => ffi::stop_bgm(),
+        }
     }
 
     pub(crate) fn adjust_master_volume(&mut self, delta: f32) {
@@ -1177,6 +1189,7 @@ impl Game {
         self.clear_runtime_world();
         self.current_state = GameState::Title;
         self.esc_was_pressed = false;
+        self.apply_runtime_bgm_for_state();
 
         self.world.spawn((Button {
             rect: ui::Rect {
@@ -1195,6 +1208,7 @@ impl Game {
         self.clear_runtime_world();
         self.current_state = GameState::InGame;
         self.esc_was_pressed = false;
+        self.apply_runtime_bgm_for_state();
         self.hp = 3;
         self.survival_time_sec = 0.0;
         self.avoid_count = 0;
@@ -1273,6 +1287,7 @@ impl Game {
 
     fn setup_result_menu(&mut self) {
         self.clear_menu_buttons();
+        self.apply_runtime_bgm_for_state();
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
@@ -2007,6 +2022,7 @@ pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
     game.save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
     game.apply_runtime_audio_settings();
     game.apply_runtime_fullscreen_setting();
+    game.apply_runtime_bgm_for_state();
     // Re-initialize non-serializable fields
     game.asset_server = AssetServer::new();
     // ... etc. for other non-serde fields

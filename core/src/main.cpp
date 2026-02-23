@@ -343,6 +343,7 @@ int main() {
     // --- Cleanup ---
     glDeleteBuffers(1, &instance_vbo);
     g_vtable.destroy_game(miyabi_game);
+    shutdown_engine_systems();
 
     glfwTerminate();
     return 0;

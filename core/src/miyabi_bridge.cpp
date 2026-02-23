@@ -9,18 +9,22 @@
 
 #include <algorithm>
 #include <atomic>
+#include <mutex>
 #include <string>
 
 // --- Global Engine Systems ---
 ma_engine g_engine;
 ma_sound_group g_bgm_group;
 ma_sound_group g_se_group;
+ma_sound g_bgm_sound;
 miyabi::physics::PhysicsManager g_physics_manager;
 std::atomic<bool> g_audio_ready{false};
 std::atomic<bool> g_bgm_group_ready{false};
 std::atomic<bool> g_se_group_ready{false};
+std::atomic<bool> g_bgm_sound_ready{false};
 std::atomic<bool> g_pending_fullscreen{false};
 std::atomic<bool> g_requested_fullscreen{false};
+std::mutex g_bgm_mutex;
 
 
 // --- FFI Implementations ---
@@ -33,6 +37,55 @@ void play_sound(rust::Str path) {
     std::string path_str(path);
     ma_sound_group* group = g_se_group_ready.load(std::memory_order_acquire) ? &g_se_group : NULL;
     ma_engine_play_sound(&g_engine, path_str.c_str(), group);
+}
+
+void play_bgm(rust::Str path, bool looped) {
+    if (!g_audio_ready.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(g_bgm_mutex);
+    if (g_bgm_sound_ready.load(std::memory_order_acquire)) {
+        ma_sound_stop(&g_bgm_sound);
+        ma_sound_uninit(&g_bgm_sound);
+        g_bgm_sound_ready.store(false, std::memory_order_release);
+    }
+
+    std::string path_str(path);
+    ma_sound_group* group = g_bgm_group_ready.load(std::memory_order_acquire) ? &g_bgm_group : NULL;
+    ma_result result = ma_sound_init_from_file(
+        &g_engine,
+        path_str.c_str(),
+        MA_SOUND_FLAG_STREAM,
+        group,
+        NULL,
+        &g_bgm_sound
+    );
+    if (result != MA_SUCCESS) {
+        printf("Failed to initialize BGM sound: %s\n", path_str.c_str());
+        return;
+    }
+
+    ma_sound_set_looping(&g_bgm_sound, looped ? MA_TRUE : MA_FALSE);
+    result = ma_sound_start(&g_bgm_sound);
+    if (result != MA_SUCCESS) {
+        printf("Failed to start BGM sound: %s\n", path_str.c_str());
+        ma_sound_uninit(&g_bgm_sound);
+        return;
+    }
+
+    g_bgm_sound_ready.store(true, std::memory_order_release);
+}
+
+void stop_bgm() {
+    std::lock_guard<std::mutex> lock(g_bgm_mutex);
+    if (!g_bgm_sound_ready.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    ma_sound_stop(&g_bgm_sound);
+    ma_sound_uninit(&g_bgm_sound);
+    g_bgm_sound_ready.store(false, std::memory_order_release);
 }
 
 void set_runtime_audio_settings(float master_volume, float bgm_volume, float se_volume) {
@@ -106,6 +159,23 @@ void init_engine_systems() {
 
     // Init Physics
     g_physics_manager.init();
+}
+
+void shutdown_engine_systems() {
+    stop_bgm();
+
+    if (g_se_group_ready.load(std::memory_order_acquire)) {
+        ma_sound_group_uninit(&g_se_group);
+        g_se_group_ready.store(false, std::memory_order_release);
+    }
+    if (g_bgm_group_ready.load(std::memory_order_acquire)) {
+        ma_sound_group_uninit(&g_bgm_group);
+        g_bgm_group_ready.store(false, std::memory_order_release);
+    }
+    if (g_audio_ready.load(std::memory_order_acquire)) {
+        ma_engine_uninit(&g_engine);
+        g_audio_ready.store(false, std::memory_order_release);
+    }
 }
 
 void step_engine_systems() {

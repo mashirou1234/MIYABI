@@ -78,6 +78,12 @@
   - `core/include/miyabi/bridge.h`
   - `core/src/main.cpp`（fullscreen要求を消費して GLFW へ適用）
   - `PLAN.md`（タスク10.2へ反映）
+- BGM実再生導線を接続
+  - `core/src/miyabi_bridge.cpp`（BGM再生/停止、BGMグループ音量反映）
+  - `core/include/miyabi/bridge.h`（`play_bgm/stop_bgm/shutdown_engine_systems`）
+  - `core/src/main.cpp`（終了時 `shutdown_engine_systems`）
+  - `logic/src/lib.rs`（Title/InGame/Result 遷移でBGM適用）
+  - `PLAN.md`（タスク10.2へ反映）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -108,7 +114,7 @@
    - 30分連続プレイの安定性検証（G2判定）
    - 1OS向け配布手順の固定化
 6. コア開発 C1 に向けた未完了
-   - BGM実再生導線の整備（`bgm_volume` の体感確認）
+   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
 
 ## 5. 続スレッド再開コマンド
 
