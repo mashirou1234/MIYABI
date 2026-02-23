@@ -25,6 +25,8 @@
   - `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md`
 - コア Save サブシステム定義:
   - `docs/CORE_SAVE_SUBSYSTEM.md`
+- アセット import/reimport 手順:
+  - `docs/ASSET_IMPORT_REIMPORT.md`
 
 ## 4. 運用ルール
 

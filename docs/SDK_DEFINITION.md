@@ -29,7 +29,7 @@ MIYABI SDK v0.1 は、外部 C++ アプリケーションから MIYABI ロジッ
 
 ### 3.2 ランタイムサービス起点
 
-- 宣言: `void init_engine_systems();`, `void step_engine_systems();`
+- 宣言: `void init_engine_systems();`, `void step_engine_systems();`, `void shutdown_engine_systems();`
 - 定義元: `libmiyabi_runtime.a`
 - 役割: 音声・物理など、ロジック側が要求する C++ サービスを初期化/更新
 
@@ -69,6 +69,7 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 3. `create_game()`
 4. 毎フレーム `step_engine_systems()` → `update_game()`
 5. 終了時 `destroy_game()`
+6. 終了時 `shutdown_engine_systems()`
 
 所有権/メモリルールは `docs/DESIGN_FFI.md` と `core/include/miyabi/miyabi.h` を正とする。
 

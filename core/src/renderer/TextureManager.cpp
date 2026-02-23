@@ -13,16 +13,16 @@ TextureManager::~TextureManager() {
     }
 }
 
-uint32_t TextureManager::load_texture(const std::string& path) {
+bool TextureManager::upload_texture_to_gl(uint32_t gl_id, const std::string& path) {
     stbi_set_flip_vertically_on_load(true);
 
     int width, height, nr_channels;
     unsigned char *data = stbi_load(path.c_str(), &width, &height, &nr_channels, 0);
 
     if (!data) {
-        std::cerr << "TextureManager::load_texture - Failed to load texture: " << path << std::endl;
+        std::cerr << "TextureManager::upload_texture_to_gl - Failed to load texture: " << path << std::endl;
         std::cerr << "stbi_failure_reason: " << stbi_failure_reason() << std::endl;
-        return 0;
+        return false;
     }
 
     GLenum format;
@@ -33,13 +33,11 @@ uint32_t TextureManager::load_texture(const std::string& path) {
     else if (nr_channels == 4)
         format = GL_RGBA;
     else {
-        std::cerr << "TextureManager::load_texture - Unsupported number of channels: " << nr_channels << " in " << path << std::endl;
+        std::cerr << "TextureManager::upload_texture_to_gl - Unsupported number of channels: " << nr_channels << " in " << path << std::endl;
         stbi_image_free(data);
-        return 0;
+        return false;
     }
 
-    uint32_t gl_id;
-    glGenTextures(1, &gl_id);
     glBindTexture(GL_TEXTURE_2D, gl_id);
 
     glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
@@ -52,12 +50,54 @@ uint32_t TextureManager::load_texture(const std::string& path) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     stbi_image_free(data);
+    return true;
+}
+
+uint32_t TextureManager::load_texture(const std::string& path) {
+    auto existing = m_path_to_texture_id.find(path);
+    if (existing != m_path_to_texture_id.end()) {
+        return existing->second;
+    }
+
+    uint32_t gl_id = 0;
+    glGenTextures(1, &gl_id);
+    if (gl_id == 0) {
+        std::cerr << "TextureManager::load_texture - Failed to allocate GL texture for: " << path << std::endl;
+        return 0;
+    }
+
+    if (!upload_texture_to_gl(gl_id, path)) {
+        glDeleteTextures(1, &gl_id);
+        return 0;
+    }
 
     uint32_t texture_id = m_next_texture_id++;
     m_texture_id_to_gl_id[texture_id] = gl_id;
+    m_path_to_texture_id[path] = texture_id;
 
     std::cout << "TextureManager: Loaded '" << path << "' with texture_id " << texture_id << " (gl_id " << gl_id << ")" << std::endl;
 
+    return texture_id;
+}
+
+uint32_t TextureManager::reload_texture(const std::string& path) {
+    auto existing = m_path_to_texture_id.find(path);
+    if (existing == m_path_to_texture_id.end()) {
+        return load_texture(path);
+    }
+
+    uint32_t texture_id = existing->second;
+    auto gl_it = m_texture_id_to_gl_id.find(texture_id);
+    if (gl_it == m_texture_id_to_gl_id.end()) {
+        return load_texture(path);
+    }
+
+    uint32_t gl_id = gl_it->second;
+    if (!upload_texture_to_gl(gl_id, path)) {
+        return texture_id;
+    }
+
+    std::cout << "TextureManager: Reloaded '" << path << "' with texture_id " << texture_id << " (gl_id " << gl_id << ")" << std::endl;
     return texture_id;
 }
 

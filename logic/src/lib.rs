@@ -136,6 +136,7 @@ pub mod ffi {
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum AssetCommandType {
         LoadTexture,
+        ReloadTexture,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -289,10 +290,17 @@ impl SaveData {
 #[derive(Serialize, Deserialize, Default)]
 pub struct AssetServer {
     #[serde(skip)]
-    pub pending_requests: HashMap<u32, String>,
+    pub pending_requests: HashMap<u32, PendingAssetRequest>,
     pub texture_handle_map: HashMap<String, u32>,
     pub next_request_id: u32,
     pub next_texture_handle: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingAssetRequest {
+    pub path: String,
+    pub command_type: ffi::AssetCommandType,
+    pub dispatched: bool,
 }
 
 impl AssetServer {
@@ -310,16 +318,54 @@ impl AssetServer {
             return *handle;
         }
 
-        let request_id = self.next_request_id;
-        self.next_request_id += 1;
-
         let handle = self.next_texture_handle;
         self.next_texture_handle += 1;
-
-        self.pending_requests.insert(request_id, path.to_string());
         self.texture_handle_map.insert(path.to_string(), handle);
+        self.enqueue_request(path, ffi::AssetCommandType::LoadTexture);
 
         handle
+    }
+
+    pub fn reimport_texture(&mut self, path: &str) -> bool {
+        if !self.texture_handle_map.contains_key(path) {
+            return false;
+        }
+        if self.has_pending_request(path) {
+            return false;
+        }
+
+        self.enqueue_request(path, ffi::AssetCommandType::ReloadTexture);
+        true
+    }
+
+    pub fn reimport_all_textures(&mut self) -> usize {
+        let paths: Vec<String> = self.texture_handle_map.keys().cloned().collect();
+        let mut queued_count = 0usize;
+        for path in paths {
+            if self.reimport_texture(&path) {
+                queued_count += 1;
+            }
+        }
+        queued_count
+    }
+
+    fn enqueue_request(&mut self, path: &str, command_type: ffi::AssetCommandType) {
+        let request_id = self.next_request_id;
+        self.next_request_id += 1;
+        self.pending_requests.insert(
+            request_id,
+            PendingAssetRequest {
+                path: path.to_string(),
+                command_type,
+                dispatched: false,
+            },
+        );
+    }
+
+    fn has_pending_request(&self, path: &str) -> bool {
+        self.pending_requests
+            .values()
+            .any(|request| request.path == path)
     }
 }
 
@@ -802,6 +848,8 @@ pub struct Game {
     #[serde(skip)]
     pub esc_was_pressed: bool,
     #[serde(skip)]
+    pub u_was_pressed: bool,
+    #[serde(skip)]
     pub save_file_path: PathBuf,
 }
 
@@ -861,6 +909,7 @@ impl Game {
             obstacle_texture_handle: 0,
             obstacle_spawn_accumulator_sec: 0.0,
             esc_was_pressed: false,
+            u_was_pressed: false,
             save_file_path,
         };
         // Setup the initial state
@@ -925,6 +974,19 @@ impl Game {
                 ffi::play_bgm(BGM_TRACK_PATH, true);
             }
             _ => ffi::stop_bgm(),
+        }
+    }
+
+    fn handle_reimport_shortcut(&mut self) {
+        let reimport_just_pressed = self.input_state.u_key && !self.u_was_pressed;
+        self.u_was_pressed = self.input_state.u_key;
+        if !reimport_just_pressed {
+            return;
+        }
+
+        let queued = self.asset_server.reimport_all_textures();
+        if queued > 0 {
+            eprintln!("[asset] queued texture reimport count={queued}");
         }
     }
 
@@ -1109,6 +1171,7 @@ impl Game {
     }
 
     pub fn update(&mut self) {
+        self.handle_reimport_shortcut();
         match self.current_state {
             GameState::Title => self.update_main_menu(),
             GameState::InGame => self.update_in_game(),
@@ -1142,6 +1205,17 @@ impl Game {
                 x: 0.8,
                 y: 0.8,
                 z: 0.8,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: "U: Reimport Textures".to_string(),
+            position: ffi::Vec2 { x: 290.0, y: 450.0 },
+            font_size: 18.0,
+            color: ffi::Vec4 {
+                x: 0.7,
+                y: 0.95,
+                z: 0.95,
                 w: 1.0,
             },
         });
@@ -1530,6 +1604,17 @@ impl Game {
                 x: 1.0,
                 y: 0.95,
                 z: 0.2,
+                w: 1.0,
+            },
+        });
+        self.text_commands.push(ffi::TextCommand {
+            text: "U: Reimport Textures".to_string(),
+            position: ffi::Vec2 { x: 290.0, y: 390.0 },
+            font_size: 18.0,
+            color: ffi::Vec4 {
+                x: 0.7,
+                y: 0.95,
+                z: 0.95,
                 w: 1.0,
             },
         });
@@ -1971,12 +2056,17 @@ impl Game {
 
     pub fn process_asset_server(&mut self) {
         self.asset_commands.clear();
-        for (request_id, path) in self.asset_server.pending_requests.drain() {
+        for (request_id, request) in self.asset_server.pending_requests.iter_mut() {
+            if request.dispatched {
+                continue;
+            }
+
             self.asset_commands.push(ffi::AssetCommand {
-                request_id,
-                type_: ffi::AssetCommandType::LoadTexture,
-                path,
+                request_id: *request_id,
+                type_: request.command_type.clone(),
+                path: request.path.clone(),
             });
+            request.dispatched = true;
         }
     }
 }
@@ -2093,8 +2183,8 @@ pub extern "C" fn notify_asset_loaded(game: *mut Game, request_id: u32, asset_id
         return;
     }
     let game = unsafe { &mut *game };
-    if let Some(path) = game.asset_server.pending_requests.remove(&request_id) {
-        if let Some(handle) = game.asset_server.texture_handle_map.get_mut(&path) {
+    if let Some(request) = game.asset_server.pending_requests.remove(&request_id) {
+        if let Some(handle) = game.asset_server.texture_handle_map.get_mut(&request.path) {
             game.texture_map.insert(*handle, asset_id);
         }
     }

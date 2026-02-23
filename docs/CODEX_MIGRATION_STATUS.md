@@ -84,6 +84,12 @@
   - `core/src/main.cpp`（終了時 `shutdown_engine_systems`）
   - `logic/src/lib.rs`（Title/InGame/Result 遷移でBGM適用）
   - `PLAN.md`（タスク10.2へ反映）
+- アセット import/reimport 手順を整備
+  - `logic/src/lib.rs`（`ReloadTexture` 要求と `U` キー導線）
+  - `core/src/main.cpp`（`LoadTexture/ReloadTexture` の実処理）
+  - `core/src/renderer/TextureManager.cpp`（`reload_texture` 実装）
+  - `docs/ASSET_IMPORT_REIMPORT.md`
+  - `PLAN.md`（タスク10.2へ反映）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
