@@ -1,6 +1,6 @@
 # MIYABI Build System & Hot-Reloading Technical Design
 
-> Status Note (2026-02-23): このドキュメントはホットリロード設計の履歴を含みます。現行実装は `staticlib` ベースで、`core/src/main.cpp` から `get_miyabi_vtable()` を静的リンクして利用します。運用上の正準手順は `docs/CODEX_MIGRATION_STATUS.md` を参照してください。
+> Status Note (2026-02-23): このドキュメントはホットリロード設計の履歴を含みます。現行実装は `staticlib` ベースで、`core/src/main.cpp` から `get_miyabi_vtable()` を静的リンクして利用します。運用上の正準手順は `docs/CODEX_MIGRATION_STATUS.md`、SDK境界の定義は `docs/SDK_DEFINITION.md` を参照してください。
 
 ## 1. Document Purpose and Overview
 

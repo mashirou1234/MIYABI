@@ -1,5 +1,9 @@
 #pragma once
 
+#define MIYABI_SDK_VERSION_MAJOR 0
+#define MIYABI_SDK_VERSION_MINOR 1
+#define MIYABI_SDK_VERSION_PATCH 0
+
 // Includes the CXX-generated header for shared data types.
 // This path is configured in CMake.
 #include "miyabi_logic_cxx/lib.h"

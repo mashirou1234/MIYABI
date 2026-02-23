@@ -1,6 +1,6 @@
 # MIYABI FFI Technical Design (Detailed)
 
-> Status Note (2026-02-23): 本文には将来の `dlopen/dlsym` ホットリロード設計が含まれます。現行実装は静的リンク前提で、実装契約は `core/include/miyabi/miyabi.h` と `logic/src/lib.rs` を正とします。移行状況は `docs/CODEX_MIGRATION_STATUS.md` を参照してください。
+> Status Note (2026-02-23): 本文には将来の `dlopen/dlsym` ホットリロード設計が含まれます。現行実装は静的リンク前提で、実装契約は `core/include/miyabi/miyabi.h` と `logic/src/lib.rs` を正とします。移行状況は `docs/CODEX_MIGRATION_STATUS.md`、SDKの公開境界は `docs/SDK_DEFINITION.md` を参照してください。
 
 ## 1. Document Purpose and Guiding Principles
 

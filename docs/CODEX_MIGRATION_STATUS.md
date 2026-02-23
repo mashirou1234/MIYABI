@@ -2,6 +2,18 @@
 
 最終更新: 2026-02-23
 
+## 0. 開発動線との紐付け
+
+- コア到達判定の正: `docs/CORE_DEVELOPMENT_TRACK.md`
+- ゲーム到達判定の正: `docs/GAME_DEVELOPMENT_TRACK.md`
+- 現在ステージ:
+  - コア: C0（Core Runtime）
+  - ゲーム: G0（2D縦切り仕様固定）
+- 次ゲート:
+  - コア: C1（2D Engine Baseline）
+  - ゲーム: G1（2Dプレイアブルループ）
+- 本ドキュメントの役割: 「今スレッドで何を変更したか」を管理する
+
 ## 1. 現在の到達点
 
 - `cmake -S . -B build -DMIYABI_PERFORMANCE_TEST=ON`
@@ -28,6 +40,23 @@
 - 設計ドキュメントに「現行は静的リンク」注記を追加
   - `docs/DESIGN_Build.md`
   - `docs/DESIGN_FFI.md`
+- SDK定義 v0.1 を明文化し、配布物とエントリポイントを固定
+  - `docs/SDK_DEFINITION.md`
+  - `core/include/miyabi/miyabi.h`（SDKバージョン定数）
+- SDKのランタイムブリッジ実装を独立ライブラリ化
+  - `core/CMakeLists.txt`（`miyabi_runtime` 追加）
+  - `build_sdk.sh`（`libmiyabi_runtime.a` と `libbox2d.a` 同梱）
+  - `sdk_template_CMakeLists.txt`
+  - `sdk_template_main.cpp`
+- `PLAN.md` の Beyond Phase 8 を、フェーズ9〜14の実行計画へ詳細化
+  - 2D縦切り → 2Dプロダクション → 3D基盤 → 3D縦切り → 3Dプロダクション → エコシステム強化
+- Phase 9.1 の縦切り仕様を固定
+  - `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md`
+  - `PLAN.md`（タスク9.1完了）
+- コア開発とゲーム開発のトラックを分離
+  - `docs/CORE_DEVELOPMENT_TRACK.md`
+  - `docs/GAME_DEVELOPMENT_TRACK.md`
+  - `docs/DEVELOPMENT_TRACK.md`（案内ページ化）
 
 ## 3. 現在の構成（正）
 
@@ -38,9 +67,9 @@
 
 ## 4. 残課題（次スレッド優先）
 
-1. SDKの定義を明確化
-   - 現在のSDKは「ランタイム + logic静的ライブラリ」寄り。
-   - 「外部ゲーム開発向けSDK」として成立させるには、公開API/エントリポイント設計の再定義が必要。
+1. SDKの次段階整備
+   - `find_package` 可能な CMake package config の提供
+   - ABIバージョン定数（互換性判定用）の導入
 2. CI導入
    - `.github/workflows` が未整備。
    - まずは configure/build の自動実行を追加する。
@@ -50,6 +79,9 @@
 4. 性能計画の未完了タスク
    - シーン構築/破棄ストレステスト
    - ベースライン記録
+5. ゲーム開発 G1/G3 に向けた未完了
+   - セーブ/ロード最小実装をプレイ導線へ統合
+   - 1OS向け配布手順の固定化
 
 ## 5. 続スレッド再開コマンド
 
@@ -59,4 +91,3 @@ git status --short --branch
 cmake -S . -B build -DMIYABI_PERFORMANCE_TEST=ON
 cmake --build build -j4
 ```
-

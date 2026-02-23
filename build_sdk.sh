@@ -33,6 +33,8 @@ echo "Creating SDK directory..."
 mkdir -p "$SDK_DIR"/bin
 mkdir -p "$SDK_DIR"/lib
 mkdir -p "$SDK_DIR"/include/miyabi
+mkdir -p "$SDK_DIR"/docs
+mkdir -p "$SDK_DIR"/examples
 
 # 4. Copy runtime executable
 echo "Copying runtime executable..."
@@ -42,6 +44,14 @@ cp "$BUILD_DIR"/core/miyabi "$SDK_DIR"/bin/
 echo "Copying static libraries..."
 cp "$BUILD_DIR"/logic/libmiyabi_logic.a "$SDK_DIR"/lib/
 cp "$BUILD_DIR"/logic/libmiyabi_logic_cxx.a "$SDK_DIR"/lib/
+cp "$BUILD_DIR"/core/libmiyabi_runtime.a "$SDK_DIR"/lib/
+
+BOX2D_LIB="$(find "$BUILD_DIR" -name 'libbox2d.a' -print -quit)"
+if [ -z "$BOX2D_LIB" ]; then
+    echo "ERROR: libbox2d.a not found under $BUILD_DIR"
+    exit 1
+fi
+cp "$BOX2D_LIB" "$SDK_DIR"/lib/
 
 # 6. Copy headers
 echo "Copying headers..."
@@ -54,6 +64,10 @@ cp -R assets "$SDK_DIR"/
 
 echo "Copying template CMakeLists.txt..."
 cp sdk_template_CMakeLists.txt "$SDK_DIR"/template_CMakeLists.txt
+
+echo "Copying template source and SDK docs..."
+cp sdk_template_main.cpp "$SDK_DIR"/examples/main.cpp
+cp docs/SDK_DEFINITION.md "$SDK_DIR"/docs/SDK_DEFINITION.md
 
 # 8. Create Zip archive
 echo "Creating SDK archive..."
