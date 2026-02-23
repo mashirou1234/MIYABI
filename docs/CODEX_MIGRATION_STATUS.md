@@ -146,7 +146,7 @@ cmake --build build -j4
 
 - 現在のローカル状態:
   - ブランチ: `master`
-  - `origin/master` に対して `ahead 5`（未pushコミットあり）
+  - `origin/master` に対して `ahead 6`（未pushコミットあり）
 - 直近コミット（新しい順）:
   - `0a361a8` `ci: configure build smoke を自動実行`
   - `dc8ff8d` `feat: アセットID整合チェックと復旧導線を追加`
