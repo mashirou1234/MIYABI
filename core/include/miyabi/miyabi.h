@@ -1,8 +1,19 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 #define MIYABI_SDK_VERSION_MAJOR 0
 #define MIYABI_SDK_VERSION_MINOR 1
 #define MIYABI_SDK_VERSION_PATCH 0
+
+#define MIYABI_ABI_VERSION_MAJOR 1
+#define MIYABI_ABI_VERSION_MINOR 0
+#define MIYABI_ABI_VERSION_PATCH 0
+#define MIYABI_ABI_VERSION_ENCODE(major, minor, patch) \
+    (((uint32_t)(major) << 16) | ((uint32_t)(minor) << 8) | (uint32_t)(patch))
+#define MIYABI_ABI_VERSION \
+    MIYABI_ABI_VERSION_ENCODE(MIYABI_ABI_VERSION_MAJOR, MIYABI_ABI_VERSION_MINOR, MIYABI_ABI_VERSION_PATCH)
 
 // Includes the CXX-generated header for shared data types.
 // This path is configured in CMake.
@@ -42,6 +53,7 @@ struct TextCommandSlice {
 
 // The complete API provided by the Rust dynamic library, exposed as a C-style VTable.
 struct MiyabiVTable {
+    uint32_t abi_version;
     Game* (*create_game)();
     void (*destroy_game)(Game* game);
     const char* (*serialize_game)(const Game* game);

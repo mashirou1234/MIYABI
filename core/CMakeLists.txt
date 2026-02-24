@@ -73,6 +73,10 @@ target_link_libraries(miyabi PRIVATE
     Freetype::Freetype
 )
 
+if(APPLE)
+    target_link_options(miyabi PRIVATE "LINKER:-no_warn_duplicate_libraries")
+endif()
+
 # Ensure cxx bridge headers are generated before compiling core sources.
 add_dependencies(miyabi miyabi_logic_cxx)
 add_dependencies(miyabi_runtime miyabi_logic_cxx)

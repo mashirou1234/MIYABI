@@ -7,6 +7,9 @@ int main() {
     init_engine_systems();
 
     MiyabiVTable vtable = get_miyabi_vtable();
+    if (vtable.abi_version != MIYABI_ABI_VERSION) {
+        return 1;
+    }
     Game* game = vtable.create_game();
 
     step_engine_systems();

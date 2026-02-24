@@ -41,9 +41,7 @@
 - 現在ステージ: **C0**
 - 次ゲート: **C1**
 - 直近不足:
-  - `find_package` 可能な SDK package config
   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
-  - リンカ警告整理
 
 ## 4. 管理ドキュメント
 

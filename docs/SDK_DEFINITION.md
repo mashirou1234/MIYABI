@@ -33,6 +33,12 @@ MIYABI SDK v0.1 は、外部 C++ アプリケーションから MIYABI ロジッ
 - 定義元: `libmiyabi_runtime.a`
 - 役割: 音声・物理など、ロジック側が要求する C++ サービスを初期化/更新
 
+### 3.3 ABI互換判定定数
+
+- 宣言: `MIYABI_ABI_VERSION_MAJOR`, `MIYABI_ABI_VERSION_MINOR`, `MIYABI_ABI_VERSION_PATCH`, `MIYABI_ABI_VERSION`
+- 配置: `include/miyabi/miyabi.h`
+- 役割: `get_miyabi_vtable()` の戻り値 `MiyabiVTable::abi_version` と比較し、ホストとロジックのABI整合性を実行時に判定する。
+
 ## 4. 配布物定義
 
 SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
@@ -45,18 +51,21 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 - `lib/libmiyabi_logic_cxx.a`
 - `lib/libmiyabi_runtime.a`
 - `lib/libbox2d.a`
+- `cmake/MIYABIConfig.cmake`
+- `cmake/MIYABIConfigVersion.cmake`
 - `template_CMakeLists.txt`
 - `examples/main.cpp`
 - `docs/SDK_DEFINITION.md`
 
 ## 5. リンク契約
 
-静的リンク時は依存解決のためにリンク順序を守る。
+`find_package(MIYABI CONFIG REQUIRED)` により `MIYABI::SDK` を利用する。
+`MIYABI::SDK` は内部で以下の順序でリンクされる。
 
-1. `miyabi_logic`
-2. `miyabi_logic_cxx`
-3. `miyabi_runtime`
-4. `box2d`
+1. `MIYABI::miyabi_logic`
+2. `MIYABI::miyabi_logic_cxx`
+3. `MIYABI::miyabi_runtime`
+4. `MIYABI::box2d`
 
 推奨テンプレートは `sdk/template_CMakeLists.txt` を正とする。
 
@@ -65,7 +74,7 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 最小実行フロー:
 
 1. `init_engine_systems()`
-2. `get_miyabi_vtable()`
+2. `get_miyabi_vtable()` + `vtable.abi_version == MIYABI_ABI_VERSION` を検証
 3. `create_game()`
 4. 毎フレーム `step_engine_systems()` → `update_game()`
 5. 終了時 `destroy_game()`
@@ -81,6 +90,24 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 
 ## 8. 今後の拡張方針
 
-- ABIバージョン定数の導入
-- `find_package` 可能な CMake package config の提供
+- ABI更新時の移行ポリシー（互換/非互換判定）の明文化
 - プラットフォーム別の公式配布とCIによる検証
+
+## 9. ABI更新ポリシー
+
+`MIYABI_ABI_VERSION = (major << 16) | (minor << 8) | patch` とする。
+
+- `major`:
+  - `MiyabiVTable` レイアウト変更、関数削除、引数型変更などの**非互換変更**でインクリメントする。
+  - 変更時は、既存SDK利用側コードの修正が必須になる。
+- `minor`:
+  - 既存契約を壊さない関数追加などの**後方互換変更**でインクリメントする。
+  - 既存利用側は再ビルドのみで動作継続できる前提とする。
+- `patch`:
+  - 不具合修正・内部実装変更など、ABIに影響しない変更でインクリメントする。
+
+運用ルール:
+
+1. ABIに関わるPRでは `core/include/miyabi/miyabi.h` のバージョン定数更新有無をレビュー項目に含める。
+2. SDK配布時は `sdk/examples/main.cpp` で `vtable.abi_version` の比較を維持する。
+3. `major` 変更時は `docs/CODEX_MIGRATION_STATUS.md` に移行手順（影響範囲/変更点）を明記する。

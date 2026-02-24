@@ -33,6 +33,7 @@ echo "Creating SDK directory..."
 mkdir -p "$SDK_DIR"/bin
 mkdir -p "$SDK_DIR"/lib
 mkdir -p "$SDK_DIR"/include/miyabi
+mkdir -p "$SDK_DIR"/cmake
 mkdir -p "$SDK_DIR"/docs
 mkdir -p "$SDK_DIR"/examples
 
@@ -58,7 +59,12 @@ echo "Copying headers..."
 cp -R core/include/miyabi/* "$SDK_DIR"/include/miyabi/
 cp -R "$BUILD_DIR"/logic/corrosion_generated/cxxbridge/miyabi_logic_cxx/include/* "$SDK_DIR"/include/
 
-# 7. Copy runtime assets and template CMake file
+# 7. Copy CMake package config
+echo "Copying CMake package config..."
+cp cmake/sdk-package/MIYABIConfig.cmake "$SDK_DIR"/cmake/
+cp cmake/sdk-package/MIYABIConfigVersion.cmake "$SDK_DIR"/cmake/
+
+# 8. Copy runtime assets and template CMake file
 echo "Copying runtime assets..."
 cp -R assets "$SDK_DIR"/
 
@@ -69,7 +75,7 @@ echo "Copying template source and SDK docs..."
 cp sdk_template_main.cpp "$SDK_DIR"/examples/main.cpp
 cp docs/SDK_DEFINITION.md "$SDK_DIR"/docs/SDK_DEFINITION.md
 
-# 8. Create Zip archive
+# 9. Create Zip archive
 echo "Creating SDK archive..."
 zip -r "$ZIP_NAME" "$SDK_DIR"
 

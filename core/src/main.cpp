@@ -71,6 +71,15 @@ extern "C" MiyabiVTable get_miyabi_vtable();
 
 int main() {
     g_vtable = get_miyabi_vtable();
+    if (g_vtable.abi_version != MIYABI_ABI_VERSION) {
+        std::cerr
+            << "ABI version mismatch. expected="
+            << MIYABI_ABI_VERSION
+            << " actual="
+            << g_vtable.abi_version
+            << std::endl;
+        return -1;
+    }
 
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;

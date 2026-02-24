@@ -1,5 +1,18 @@
 cmake_minimum_required(VERSION 3.25)
 
+# Align deployment target with active SDK on macOS to avoid Rust/C++ target mismatch.
+if(APPLE AND "${CMAKE_OSX_DEPLOYMENT_TARGET}" STREQUAL "")
+    execute_process(
+        COMMAND xcrun --sdk macosx --show-sdk-version
+        OUTPUT_VARIABLE MIYABI_MACOS_SDK_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(MIYABI_MACOS_SDK_VERSION)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "${MIYABI_MACOS_SDK_VERSION}" CACHE STRING "macOS deployment target" FORCE)
+    endif()
+endif()
+
 # 【変更点1】 project() よりも前に定義を配置し、拡張機能(gnu++17など)をOFFにする
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)

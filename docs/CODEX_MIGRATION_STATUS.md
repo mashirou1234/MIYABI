@@ -121,6 +121,26 @@
   - `docs/DISTRIBUTION_1OS.md`（運用手順と確認項目）
   - `PLAN.md`（タスク9.3完了へ反映）
   - `docs/GAME_DEVELOPMENT_TRACK.md`（直近不足を更新）
+- SDK を `find_package` で利用可能に拡張
+  - `cmake/sdk-package/MIYABIConfig.cmake`
+  - `cmake/sdk-package/MIYABIConfigVersion.cmake`
+  - `build_sdk.sh`（`sdk/cmake` への同梱）
+  - `sdk_template_CMakeLists.txt` / `sdk/template_CMakeLists.txt`（`find_package(MIYABI CONFIG REQUIRED)` へ移行）
+  - `docs/SDK_DEFINITION.md`（配布物とリンク契約を更新）
+  - `docs/CORE_DEVELOPMENT_TRACK.md`（直近不足を更新）
+- ABIバージョン定数と実行時互換判定を導入
+  - `core/include/miyabi/miyabi.h`（`MIYABI_ABI_VERSION_*` / `MiyabiVTable::abi_version`）
+  - `logic/src/lib.rs`（`get_miyabi_vtable()` へ `abi_version` を設定）
+  - `core/src/main.cpp`（起動時ABI整合チェック）
+  - `sdk_template_main.cpp`（SDK利用側の最小ABIチェック）
+  - `docs/SDK_DEFINITION.md`（ABI契約を追記）
+- リンカ警告を整理
+  - `CMakeLists.txt`（`CMAKE_OSX_DEPLOYMENT_TARGET` をSDKバージョンへ同期）
+  - `core/CMakeLists.txt`（Darwin向け duplicate libraries warning を抑制）
+  - `sdk_template_CMakeLists.txt`（SDK利用側も deployment target を同期）
+  - `cmake/sdk-package/MIYABIConfig.cmake`（Darwin向け link option を付与）
+- ABI更新ポリシーを明文化
+  - `docs/SDK_DEFINITION.md`（major/minor/patch の互換性ルールと運用手順）
 - コア開発とゲーム開発のトラックを分離
   - `docs/CORE_DEVELOPMENT_TRACK.md`
   - `docs/GAME_DEVELOPMENT_TRACK.md`
@@ -136,17 +156,13 @@
 ## 4. 残課題（次スレッド優先）
 
 1. SDKの次段階整備
-   - `find_package` 可能な CMake package config の提供
-   - ABIバージョン定数（互換性判定用）の導入
+   - ABI変更時の移行ガイド（利用側コード差分例）のテンプレート化
 2. CI拡張
    - 現在は macOS 1ジョブの `configure/build/smoke` + `perf baseline/regression` を実行。
    - 今後は multi-OS とキャッシュ最適化、失敗時アーティファクト収集を追加する。
-3. リンカ警告の整理
-   - duplicate libraries warning
-   - macOS deployment target warning（26.2 vs 26.0）
-4. ゲーム開発 G1/G3 に向けた未完了
+3. ゲーム開発 G1/G3 に向けた未完了
    - 30分連続プレイの安定性検証（G2判定）
-5. コア開発 C1 に向けた未完了
+4. コア開発 C1 に向けた未完了
    - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
 
 ## 5. 続スレッド再開コマンド
@@ -171,8 +187,8 @@ cmake --build build -j4
   - `ba2d8f0` `feat: 設定値のランタイム適用を実装`
 - 次スレッドの推奨着手順:
   1. G2判定向けに 30分連続プレイの安定性検証（進行不能/クラッシュ有無）を実施する。
-  2. SDK次段階として `find_package` 可能な CMake package config 提供に着手する。
-  3. duplicate libraries / deployment target 警告を整理し、ビルドログノイズを低減する。
+  2. `sample_game` と `core` の責務再分離方針を明文化し、C1到達条件を確定する。
+  3. ABI変更時の移行ガイド（利用側コード差分例）をテンプレート化する。
 - 合意済みの運用方針:
   - コア開発（システム）とゲーム開発（ユーザー）をドキュメント上で分離して管理する。
   - `sample_game` はユーザー開発導線として扱うが、必要に応じてコア側改修を伴う方針で進める。

@@ -34,6 +34,7 @@ pub struct TextCommandSlice {
 
 #[repr(C)]
 pub struct MiyabiVTable {
+    abi_version: u32,
     create_game: extern "C" fn() -> *mut Game,
     destroy_game: extern "C" fn(*mut Game),
     serialize_game: extern "C" fn(*const Game) -> *mut c_char,
@@ -51,9 +52,12 @@ pub struct MiyabiVTable {
     free_cstring: extern "C" fn(*mut c_char),
 }
 
+const MIYABI_ABI_VERSION: u32 = (1u32 << 16) | (0u32 << 8);
+
 #[no_mangle]
 pub extern "C" fn get_miyabi_vtable() -> MiyabiVTable {
     MiyabiVTable {
+        abi_version: MIYABI_ABI_VERSION,
         create_game,
         destroy_game,
         serialize_game,
