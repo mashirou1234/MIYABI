@@ -1,0 +1,1594 @@
+Switched to a new branch 'codex/issue-1-bench-80-01-sample-game-core'
+OpenAI Codex v0.46.0 (research preview)
+--------
+workdir: /private/tmp/miyabi-orch-run-20260226230618
+model: gpt-5-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR] (network access enabled)
+reasoning effort: high
+reasoning summaries: auto
+session id: 019c9a45-a70b-7693-836c-f35189552dec
+--------
+user
+# Codex Orchestration Task
+
+You are running in non-interactive mode for the repository currently checked out.
+
+## Context
+- SCM: github
+- Issue: #1
+- Title: [Bench-80][01] sample_game/core責務境界を文書化する
+- URL: https://github.com/mashirou1234/MIYABI/issues/1
+
+## Issue Body
+## 背景
+C1到達の直近不足として、`sample_game` と `core` の責務再分離が未完了です。
+境界ルールが散在しており、実装判断がスレッド依存になっています。
+
+## 目的
+`sample_game` と `core` の責務境界を1ページで明文化し、参照先を固定する。
+
+## 作業範囲 In
+- 現在の依存方向（`core` / `logic` / `sample_game`）を整理する
+- 境界ルール（許可依存・禁止依存）を文書化する
+- 既存ドキュメント（`docs/CORE_DEVELOPMENT_TRACK.md` など）から参照リンクを追加する
+
+## 作業範囲 Out
+- 実コードの大規模リファクタリング
+- GUI仕様の追加・変更
+
+## 受け入れ基準
+- 境界ルールを記したドキュメントが `docs/` 配下に追加されている
+- 許可/禁止依存が箇条書きで明示されている
+- 既存のトラック文書からリンク可能になっている
+- 読むだけで「次に分離すべき箇所」が判断できる
+
+## テスト
+1. 追加ドキュメントが `docs/` 配下に存在することを確認する。
+2. `rg "sample_game|core|責務" docs` で関連文書から参照できることを確認する。
+
+## リスク
+文書だけ先行して実装が追従しないと乖離が発生する。
+
+## Hard Constraints
+- Do not run `git commit` or `git push`.
+- Do not edit `.git`, `.codex`, or secrets.
+- Avoid network-dependent commands unless already prepared by setup.
+- Keep changes minimal and focused on this issue.
+
+## Expected Output (must be in final message)
+1. Summary of changes made
+2. Tests/verification commands executed and results
+3. Remaining risks / follow-up checks for reviewer
+
+thinking
+**Requesting instructions before checking artifacts**
+exec
+bash -lc 'ls artifacts' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 23ms:
+codex_last_message.md
+issue.json
+prompt.md
+run.log
+test.log
+time_guard.json
+exec
+bash -lc 'cat artifacts/codex_last_message.md' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 22ms:
+(No codex execution message captured in this run.)
+
+thinking
+**Considering creation plan**
+exec
+bash -lc ls in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 17ms:
+AGENTS.md
+CMakeLists.txt
+DESIGN.md
+PERFORMANCE_TEST.md
+PLAN.md
+artifacts
+assets
+build_sdk.sh
+cmake
+core
+docs
+dummy_file.txt
+logic
+sample_game
+scripts
+sdk_template_CMakeLists.txt
+sdk_template_main.cpp
+test_fswatch
+tools
+
+thinking
+**Considering planning approach**
+exec
+bash -lc 'ls docs' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 16ms:
+ASSET_IMPORT_REIMPORT.md
+CODEX_MIGRATION_STATUS.md
+CORE_DEVELOPMENT_TRACK.md
+CORE_SAVE_SUBSYSTEM.md
+DESIGN_Build.md
+DESIGN_ECS.md
+DESIGN_FFI.md
+DESIGN_Renderer.md
+DEVELOPMENT_TRACK.md
+DISTRIBUTION_1OS.md
+GAME_DEVELOPMENT_TRACK.md
+SDK_DEFINITION.md
+SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md
+perf
+
+thinking
+**Investigating documentation on module boundaries**
+exec
+bash -lc "sed -n '1,200p' docs/CORE_DEVELOPMENT_TRACK.md" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 21ms:
+# MIYABI コア開発トラック（システム開発）
+
+最終更新: 2026-02-23
+
+## 1. 目的
+
+エンジンとしての基盤機能を段階的に完成させ、2D/3D開発を継続可能にする。
+
+## 2. ステージ定義
+
+### C0: Core Runtime（現状）
+
+- FFI経由でゲーム更新/描画データ受け渡しが成立
+- 2D描画/入力/音声/2D物理の最小統合が成立
+- SDK v0.1 配布物が成立
+- Core Save サブシステム定義が成立（未接続）
+
+### C1: 2D Engine Baseline
+
+- 2D制作向けの実運用機能を提供
+
+thinking
+**Inspecting project structure and dependencies**
+exec
+bash -lc "sed -n '1,200p' CMakeLists.txt" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 27ms:
+cmake_minimum_required(VERSION 3.25)
+
+# Align deployment target with active SDK on macOS to avoid Rust/C++ target mismatch.
+if(APPLE AND "${CMAKE_OSX_DEPLOYMENT_TARGET}" STREQUAL "")
+    execute_process(
+        COMMAND xcrun --sdk macosx --show-sdk-version
+        OUTPUT_VARIABLE MIYABI_MACOS_SDK_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(MIYABI_MACOS_SDK_VERSION)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "${MIYABI_MACOS_SDK_VERSION}" CACHE STRING "macOS deployment target" FORCE)
+    endif()
+endif()
+
+# 【変更点1】 project() よりも前に定義を配置し、拡張機能(gnu++17など)をOFFにする
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
+thinking
+**Examining project dependencies**
+exec
+bash -lc 'cat logic/Cargo.toml' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 20ms:
+[package]
+name = "miyabi_logic"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[dependencies]
+cxx = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8.5"
+
+
+[build-dependencies]
+# cxx-build is required to run the CXX code generator.
+cxx-build = "1.0"
+
+[features]
+
+thinking
+**Checking logic source directory**
+exec
+bash -lc 'ls logic/src' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 23ms:
+bin
+lib.rs
+paths.rs
+paths.rs.in
+perf.rs
+performance.cpp
+save.rs
+ui.rs
+
+thinking
+**Checking sample_game directory contents**
+exec
+bash -lc 'ls sample_game' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 22ms:
+Cargo.lock
+Cargo.toml
+src
+
+thinking
+**Checking Cargo files for dependencies**
+exec
+bash -lc 'cat sample_game/Cargo.toml' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 21ms:
+[package]
+name = "sample_game"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cxx = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+miyabi_logic = { path = "../logic" }
+
+[build-dependencies]
+cxx-build = "1.0"
+
+thinking
+**Examining core directory dependencies**
+exec
+bash -lc 'ls core' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 16ms:
+CMakeLists.txt
+include
+src
+
+thinking
+**Checking core integration in CMake**
+exec
+bash -lc "sed -n '1,200p' core/CMakeLists.txt" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 30ms:
+cmake_minimum_required(VERSION 3.15)
+project(miyabi_core)
+
+# Fetch GLM for math
+include(FetchContent)
+set(GLM_TEST_ENABLE OFF CACHE BOOL "Disable GLM tests")
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.0
+)
+FetchContent_MakeAvailable(glm)
+FetchContent_GetProperties(glm
+    SOURCE_DIR glm_SOURCE_DIR
+)
+include_directories(SYSTEM ${glm_SOURCE_DIR})
+
+# Find necessary packages
+
+find_package(glfw3 3.3 REQUIRED)
+
+thinking
+**Clarifying dependency relationships**
+exec
+bash -lc 'ls sample_game/src' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 18ms:
+lib.rs
+
+thinking
+**Examining file content**
+exec
+bash -lc "sed -n '1,200p' sample_game/src/lib.rs" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 23ms:
+// This file is intentionally left mostly empty.
+// The game logic has been temporarily integrated into the `miyabi_logic` crate
+// to facilitate the implementation of the game state machine.
+// In the future, this `sample_game` crate will serve as a proper example
+// of how to use the MIYABI engine SDK, with a clear separation of concerns.
+
+// We can still use the logic crate if needed, for example, to define a
+// custom main entry point if the engine supports it later.
+use miyabi_logic::*;
+
+thinking
+**Checking source logic**
+exec
+bash -lc "sed -n '1,200p' logic/src/lib.rs" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 20ms:
+mod paths;
+pub mod perf;
+pub mod save;
+use crate::ui::Button;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use std::any::Any;
+use std::collections::{HashMap, HashSet};
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+use std::path::{Path, PathBuf};
+use std::ptr;
+
+pub mod ui;
+
+// Forward-declare the C++ types.
+#[repr(C)]
+pub struct RenderableObjectSlice {
+    ptr: *const ffi::RenderableObject,
+    len: usize,
+
+thinking
+**Analyzing core and sample_game boundaries**
+exec
+bash -lc 'rg -n "sample_game" -n docs' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 48ms:
+docs/CODEX_MIGRATION_STATUS.md:101:    - `sample_game` の `cargo test`（ユーザー開発側のコンパイル整合チェック）
+docs/CODEX_MIGRATION_STATUS.md:166:   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
+docs/CODEX_MIGRATION_STATUS.md:190:  2. `sample_game` と `core` の責務再分離方針を明文化し、C1到達条件を確定する。
+docs/CODEX_MIGRATION_STATUS.md:194:  - `sample_game` はユーザー開発導線として扱うが、必要に応じてコア側改修を伴う方針で進める。
+docs/CORE_DEVELOPMENT_TRACK.md:44:  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
+
+thinking
+**Checking CODEX_MIGRATION_STATUS document**
+exec
+bash -lc "sed -n '120,220p' docs/CODEX_MIGRATION_STATUS.md" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 36ms:
+  - `scripts/package_macos_game.sh`（クリーンビルド→配布ZIP生成）
+  - `docs/DISTRIBUTION_1OS.md`（運用手順と確認項目）
+  - `PLAN.md`（タスク9.3完了へ反映）
+  - `docs/GAME_DEVELOPMENT_TRACK.md`（直近不足を更新）
+- SDK を `find_package` で利用可能に拡張
+  - `cmake/sdk-package/MIYABIConfig.cmake`
+  - `cmake/sdk-package/MIYABIConfigVersion.cmake`
+  - `build_sdk.sh`（`sdk/cmake` への同梱）
+  - `sdk_template_CMakeLists.txt` / `sdk/template_CMakeLists.txt`（`find_package(MIYABI CONFIG REQUIRED)` へ移行）
+  - `docs/SDK_DEFINITION.md`（配布物とリンク契約を更新）
+  - `docs/CORE_DEVELOPMENT_TRACK.md`（直近不足を更新）
+- ABIバージョン定数と実行時互換判定を導入
+  - `core/include/miyabi/miyabi.h`（`MIYABI_ABI_VERSION_*` / `MiyabiVTable::abi_version`）
+  - `logic/src/lib.rs`（`get_miyabi_vtable()` へ `abi_version` を設定）
+  - `core/src/main.cpp`（起動時ABI整合チェック）
+  - `sdk_template_main.cpp`（SDK利用側の最小ABIチェック）
+  - `docs/SDK_DEFINITION.md`（ABI契約を追記）
+- リンカ警告を整理
+  - `CMakeLists.txt`（`CMAKE_OSX_DEPLOYMENT_TARGET` をSDKバージョンへ同期）
+  - `core/CMakeLists.txt`（Darwin向け duplicate libraries warning を抑制）
+
+thinking
+**Planning new boundary documentation**
+
+I'm outlining a new doc to clarify module boundaries and dependency rules, referencing existing docs like CORE_DEVELOPMENT_TRACK. The goal is to explain current dependency directions among core, logic, and sample_game crates, note violations, and highlight plans for separation and restructuring. I'll also search related docs to align terminology and details accurately.
+exec
+bash -lc 'rg -n "logic" docs' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 32ms:
+docs/perf/baseline_macos14.json:5:  "baseline_source": "logic/src/bin/perf_baseline.rs",
+docs/SDK_DEFINITION.md:27:- 定義元: `libmiyabi_logic.a`
+docs/SDK_DEFINITION.md:48:- `include/miyabi_logic_cxx/lib.h`
+docs/SDK_DEFINITION.md:50:- `lib/libmiyabi_logic.a`
+docs/SDK_DEFINITION.md:51:- `lib/libmiyabi_logic_cxx.a`
+docs/SDK_DEFINITION.md:65:1. `MIYABI::miyabi_logic`
+docs/SDK_DEFINITION.md:66:2. `MIYABI::miyabi_logic_cxx`
+docs/CODEX_MIGRATION_STATUS.md:26:- cxx生成ヘッダ参照を `miyabi_logic_cxx/lib.h` に統一
+docs/CODEX_MIGRATION_STATUS.md:30:- `core` から `miyabi_logic_cxx` の直接リンクを外し、重複シンボルを回避
+docs/CODEX_MIGRATION_STATUS.md:33:  - `logic/src/lib.rs`
+docs/CODEX_MIGRATION_STATUS.md:34:  - `logic/src/paths.rs.in`
+docs/CODEX_MIGRATION_STATUS.md:57:  - `logic/src/lib.rs`（Title/InGame/Pause/Result、障害物サバイバル、HUD、Result遷移）
+docs/CODEX_MIGRATION_STATUS.md:58:  - `logic/src/ui.rs`（Start/Resume/Retry/BackToTitle）
+docs/CODEX_MIGRATION_STATUS.md:62:  - `logic/src/save.rs`（save/load API、バージョン、破損時backup、原子的保存）
+docs/CODEX_MIGRATION_STATUS.md:66:  - `logic/src/lib.rs`（起動時ロード、リザルト遷移保存、終了時保存、進行データ表示）
+docs/CODEX_MIGRATION_STATUS.md:71:  - `logic/src/lib.rs`（Title/Pauseに設定表示と設定ボタン配置）
+docs/CODEX_MIGRATION_STATUS.md:72:  - `logic/src/ui.rs`（設定用 ButtonAction と更新処理）
+docs/CODEX_MIGRATION_STATUS.md:76:  - `logic/src/lib.rs`（設定変更時にC++側へ反映要求）
+docs/CODEX_MIGRATION_STATUS.md:85:  - `logic/src/lib.rs`（Title/InGame/Result 遷移でBGM適用）
+docs/CODEX_MIGRATION_STATUS.md:88:  - `logic/src/lib.rs`（`ReloadTexture` 要求と `U` キー導線）
+
+thinking
+**Organizing boundary responsibility documentation**
+exec
+bash -lc 'git status -sb' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 102ms:
+## codex/issue-1-bench-80-01-sample-game-core
+?? artifacts/
+
+thinking
+**Composing boundary documentation**
+
+I’m putting together a clear guide outlining module responsibilities, dependency directions, and allowed versus disallowed dependencies, with specific file references. The doc will explain interactions like FFI bridging and note current boundary violations to clarify what to separate next.
+exec
+bash -lc "sed -n '1,200p' logic/src/performance.cpp" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 24ms:
+#include <cstdint>
+
+// This is a simple implementation for the performance test.
+// In the future, this could read from a config file or be controlled by user input.
+uint32_t get_performance_test_sprite_count() {
+    return 10000;
+}
+
+thinking
+**Drafting core module boundary documentation**
+
+I'm preparing a detailed document outlining the core module's responsibilities and dependency boundaries. This includes layer models, allowed and prohibited dependencies, specific files to separate next, and referencing actual source lines to clarify architectural rules. I'll aim for clarity and precision in capturing these modular boundaries.
+file update
+A /private/tmp/miyabi-orch-run-20260226230618/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+# `sample_game` / `core` 責務境界
+
+最終更新: 2026-02-26
+
+## 1. レイヤーモデルと役割
+
+- `core`（C++ / `core/`）  
+  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
+  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
+- `logic`（Rust / `logic/`）  
+  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
+  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
+- `sample_game`（Rust / `sample_game/`）  
+  - SDK利用者（ユーザーゲーム）のモデルケース。  
+  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
+
+```
+┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
+│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
+└────────┘             └─────────┘             └────────────┘
+```
+
+## 2. 現状の依存方向の整理
+
+- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
+- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
+- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
+- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
+- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
+
+## 3. 境界ルール
+
+### 許可される依存
+- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
+- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
+- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
+- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
+
+### 禁止または抑止する依存
+- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
+- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
+- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
+- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
+
+## 4. 「次に分離すべき箇所」の指針
+
+- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
+- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
+- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
+- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
+
+このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+apply_patch(auto_approved=true) exited 0 in 63ms:
+Success. Updated the following files:
+A docs/SAMPLE_GAME_CORE_BOUNDARY.md
+file update:
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+file update:
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Updating documentation references**
+file update
+M /private/tmp/miyabi-orch-run-20260226230618/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -43,3 +43,4 @@
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+apply_patch(auto_approved=true) exited 0 in 36ms:
+Success. Updated the following files:
+M docs/CORE_DEVELOPMENT_TRACK.md
+file update:
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+file update:
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Planning documentation update**
+file update
+M /private/tmp/miyabi-orch-run-20260226230618/docs/CODEX_MIGRATION_STATUS.md
+@@ -165,3 +165,4 @@
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+apply_patch(auto_approved=true) exited 0 in 51ms:
+Success. Updated the following files:
+M docs/CODEX_MIGRATION_STATUS.md
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Verifying documentation references**
+exec
+bash -lc 'rg "sample_game|core|責務" docs' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 55ms:
+docs/DESIGN_ECS.md:As requested, this design is intentionally "annoyingly detailed." Languages like Rust and C++ do not forgive ambiguity. A rigorous upfront design is the most effective way to ensure a robust, maintainable, and performant core.
+docs/ASSET_IMPORT_REIMPORT.md:- `core/src/renderer/TextureManager.cpp`
+docs/ASSET_IMPORT_REIMPORT.md:- `core/src/main.cpp`
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:# `sample_game` / `core` 責務境界
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `core`（C++ / `core/`）  
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `sample_game`（Rust / `sample_game/`）  
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
+docs/SAMPLE_GAME_CORE_BOUNDARY.md:- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Checking git status for new files**
+exec
+bash -lc 'git status -sb' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 48ms:
+## codex/issue-1-bench-80-01-sample-game-core
+ M docs/CODEX_MIGRATION_STATUS.md
+ M docs/CORE_DEVELOPMENT_TRACK.md
+?? artifacts/
+?? docs/SAMPLE_GAME_CORE_BOUNDARY.md
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Preparing final summary details**
+exec
+bash -lc 'nl -ba docs/SAMPLE_GAME_CORE_BOUNDARY.md' in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 22ms:
+     1	# `sample_game` / `core` 責務境界
+     2	
+     3	最終更新: 2026-02-26
+     4	
+     5	## 1. レイヤーモデルと役割
+     6	
+     7	- `core`（C++ / `core/`）  
+     8	  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
+     9	  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
+    10	- `logic`（Rust / `logic/`）  
+    11	  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
+    12	  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
+    13	- `sample_game`（Rust / `sample_game/`）  
+    14	  - SDK利用者（ユーザーゲーム）のモデルケース。  
+    15	  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
+    16	
+    17	```
+    18	┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
+    19	│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
+    20	└────────┘             └─────────┘             └────────────┘
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Identifying line numbers for doc references**
+exec
+bash -lc "nl -ba docs/CORE_DEVELOPMENT_TRACK.md | sed -n '30,80p'" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 38ms:
+    30	
+    31	- 3D制作向けの実運用機能を提供
+    32	- 表現拡張、性能最適化、3D向けツールを整備
+    33	
+    34	### C4: Ecosystem Competitiveness（長期）
+    35	
+    36	- 開発体験（デバッグ/拡張/ドキュメント）を整備
+    37	- マルチプラットフォーム運用と互換性方針を確立
+    38	
+    39	## 3. 現在地
+    40	
+    41	- 現在ステージ: **C0**
+    42	- 次ゲート: **C1**
+    43	- 直近不足:
+    44	  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
+    45	    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+    46	
+    47	## 4. 管理ドキュメント
+    48	
+    49	- 作業タスク: `PLAN.md`
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Preparing line numbers snippet**
+exec
+bash -lc "nl -ba docs/CODEX_MIGRATION_STATUS.md | sed -n '150,210p'" in /private/tmp/miyabi-orch-run-20260226230618 succeeded in 27ms:
+   150	
+   151	- Rustロジック: `logic` クレート（`staticlib`）
+   152	- cxxブリッジ生成物: `miyabi_logic_cxx` ターゲット
+   153	- C++ホスト: `core` の `miyabi` 実行ファイル
+   154	- 呼び出し契約: `get_miyabi_vtable()` を静的リンクして利用
+   155	
+   156	## 4. 残課題（次スレッド優先）
+   157	
+   158	1. SDKの次段階整備
+   159	   - ABI変更時の移行ガイド（利用側コード差分例）のテンプレート化
+   160	2. CI拡張
+   161	   - 現在は macOS 1ジョブの `configure/build/smoke` + `perf baseline/regression` を実行。
+   162	   - 今後は multi-OS とキャッシュ最適化、失敗時アーティファクト収集を追加する。
+   163	3. ゲーム開発 G1/G3 に向けた未完了
+   164	   - 30分連続プレイの安定性検証（G2判定）
+   165	4. コア開発 C1 に向けた未完了
+   166	   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
+   167	     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+   168	
+   169	## 5. 続スレッド再開コマンド
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+
+thinking
+**Summarizing modification references and final message structure**
+codex
+**変更内容**
+- `docs/SAMPLE_GAME_CORE_BOUNDARY.md:5`, `docs/SAMPLE_GAME_CORE_BOUNDARY.md:23`, `docs/SAMPLE_GAME_CORE_BOUNDARY.md:33`, `docs/SAMPLE_GAME_CORE_BOUNDARY.md:45` に `core/logic/sample_game` のレイヤーモデル、現状の依存関係、許可/禁止依存ルール、次に分離すべき箇所を集約し、1ページで境界判断ができる指針を用意しました。
+- `docs/CORE_DEVELOPMENT_TRACK.md:41` と `docs/CODEX_MIGRATION_STATUS.md:166` から新境界ドキュメントへの参照を追加し、トラック文書から直接リンクできるよう整備しました。
+
+**テスト**
+- `rg "sample_game|core|責務" docs`：`docs/SAMPLE_GAME_CORE_BOUNDARY.md` および既存文書からの参照が検出されることを確認。
+
+**リスク・フォローアップ**
+- 実装はまだ境界に沿っていない（`logic/src/lib.rs` にサンプルゲーム実装が残る等）ため、ドキュメントに沿った段階的なコード分離が必要。
+file update:
+diff --git a/docs/CODEX_MIGRATION_STATUS.md b/docs/CODEX_MIGRATION_STATUS.md
+index b9a2affc33867d90c79196bc22c8941eb860a619..fc453db03b0efde63b9c9ba204a91bb38083393d
+--- a/docs/CODEX_MIGRATION_STATUS.md
++++ b/docs/CODEX_MIGRATION_STATUS.md
+@@ -163,7 +163,8 @@
+ 3. ゲーム開発 G1/G3 に向けた未完了
+    - 30分連続プレイの安定性検証（G2判定）
+ 4. コア開発 C1 に向けた未完了
+-   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++   - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++     - 境界と許可/禁止依存: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 5. 続スレッド再開コマンド
+ 
+diff --git a/docs/CORE_DEVELOPMENT_TRACK.md b/docs/CORE_DEVELOPMENT_TRACK.md
+index 0429fb74422d81e202f67fff5b96facb5f9bc22c..2abc60591292f36def8b62ddfd079bb8b5493ca3
+--- a/docs/CORE_DEVELOPMENT_TRACK.md
++++ b/docs/CORE_DEVELOPMENT_TRACK.md
+@@ -41,7 +41,8 @@
+ - 現在ステージ: **C0**
+ - 次ゲート: **C1**
+ - 直近不足:
+-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）
++  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
++    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+ 
+ ## 4. 管理ドキュメント
+ 
+diff --git a/docs/SAMPLE_GAME_CORE_BOUNDARY.md b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..58a218998f0592dc852f79f235793a84e4912d74
+--- /dev/null
++++ b/docs/SAMPLE_GAME_CORE_BOUNDARY.md
+@@ -0,0 +1,52 @@
++# `sample_game` / `core` 責務境界
++
++最終更新: 2026-02-26
++
++## 1. レイヤーモデルと役割
++
++- `core`（C++ / `core/`）  
++  - プラットフォーム抽象、レンダリング、入力、音声、物理、アセットI/Oなどのランタイムを保持する。  
++  - Rust側とは `core/include/miyabi/bridge.h` と `logic` が生成する `miyabi_logic_cxx` を介してのみ通信する。
++- `logic`（Rust / `logic/`）  
++  - C++ランタイム用の FFI、ゲームループ、ECS/シリアライズ/API契約を提供する SDK コア。  
++  - 現状は `sample_game` の状態機械・UI・アセットレジストリも暫定的に内包している。
++- `sample_game`（Rust / `sample_game/`）  
++  - SDK利用者（ユーザーゲーム）のモデルケース。  
++  - 将来的には `logic` が公開する API だけに依存し、`core` と直接リンクしない。
++
++```
++┌────────┐   FFI/ABI   ┌─────────┐   Game API   ┌────────────┐
++│  core   │ ─────────▶ │  logic  │ ◀────────── │ sample_game │
++└────────┘             └─────────┘             └────────────┘
++```
++
++## 2. 現状の依存方向の整理
++
++- `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
++- `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
++- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
++- `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
++- 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
++
++## 3. 境界ルール
++
++### 許可される依存
++- `core` → `logic`（FFI境界）: `get_miyabi_vtable()` を取得してゲームインスタンスを生成し、レンダリング/入力結果を橋渡しする。
++- `logic` → `core`（サービス呼び出し）: `bridge.h` に列挙されたランタイム機能（オーディオ、物理、テクスチャロードなど）だけを利用する。
++- `sample_game` → `logic`: 公開された ECS 型 (`Component`, `RenderableObject` 等)、保存/ロード API (`logic/src/save.rs`)、UI 部品 (`logic/src/ui.rs`) を介してゲームプレイを実装する。
++- `logic` 内部モジュール間: FFI、安全なユーティリティ、アセット同期処理同士は自由に参照してよい。
++
++### 禁止または抑止する依存
++- `core` → `sample_game`: C++ 側が特定ゲームのリソース/状態へ直接アクセスすることを禁止する。サンプル固有の定数は Rust 側で完結させる。
++- `sample_game` → `core`: SDK 利用者が `core/include/*` を参照したり `glfw` などを直接リンクするのは不可。ランタイム機能を使いたい場合は `logic` が提供する API を経由する。
++- `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
++- `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
++
++## 4. 「次に分離すべき箇所」の指針
++
++- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
++- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
++- `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
++- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
++
++このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
+
+tokens used
+110,994
+**変更内容**
+- `docs/SAMPLE_GAME_CORE_BOUNDARY.md:5`, `docs/SAMPLE_GAME_CORE_BOUNDARY.md:23`, `docs/SAMPLE_GAME_CORE_BOUNDARY.md:33`, `docs/SAMPLE_GAME_CORE_BOUNDARY.md:45` に `core/logic/sample_game` のレイヤーモデル、現状の依存関係、許可/禁止依存ルール、次に分離すべき箇所を集約し、1ページで境界判断ができる指針を用意しました。
+- `docs/CORE_DEVELOPMENT_TRACK.md:41` と `docs/CODEX_MIGRATION_STATUS.md:166` から新境界ドキュメントへの参照を追加し、トラック文書から直接リンクできるよう整備しました。
+
+**テスト**
+- `rg "sample_game|core|責務" docs`：`docs/SAMPLE_GAME_CORE_BOUNDARY.md` および既存文書からの参照が検出されることを確認。
+
+**リスク・フォローアップ**
+- 実装はまだ境界に沿っていない（`logic/src/lib.rs` にサンプルゲーム実装が残る等）ため、ドキュメントに沿った段階的なコード分離が必要。
