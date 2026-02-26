@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mashirou1234/Neunzehn
-          ref: v1.14
+          ref: v1.15
           path: .orch
           token: ${{ secrets.ORCH_REPO_READ_TOKEN != '' && secrets.ORCH_REPO_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
@@ -76,6 +76,13 @@ jobs:
           ORCH_NO_COST_MODE: "1"
           ORCH_SAVE_JSON_EVENTS: "1"
           ORCH_CODEX_MODEL: ${{ github.event_name == 'workflow_dispatch' && inputs.codex_model || 'gpt-5-codex' }}
+          ORCH_CODEX_SANDBOX_MODE: ${{ vars.ORCH_CODEX_SANDBOX_MODE != '' && vars.ORCH_CODEX_SANDBOX_MODE || 'workspace-write' }}
+          ORCH_CODEX_REASONING_EFFORT: ${{ vars.ORCH_CODEX_REASONING_EFFORT != '' && vars.ORCH_CODEX_REASONING_EFFORT || 'high' }}
+          ORCH_CODEX_NETWORK_ACCESS: ${{ vars.ORCH_CODEX_NETWORK_ACCESS != '' && vars.ORCH_CODEX_NETWORK_ACCESS || 'true' }}
+          ORCH_CODEX_DISABLE_MCP: ${{ vars.ORCH_CODEX_DISABLE_MCP != '' && vars.ORCH_CODEX_DISABLE_MCP || '1' }}
+          ORCH_DFA_ENABLE: ${{ vars.ORCH_DFA_ENABLE != '' && vars.ORCH_DFA_ENABLE || '0' }}
+          ORCH_DFA_ALLOW_REPOS: ${{ vars.ORCH_DFA_ALLOW_REPOS != '' && vars.ORCH_DFA_ALLOW_REPOS || github.repository }}
+          ORCH_DFA_ALLOW_BRANCH_PREFIX: ${{ vars.ORCH_DFA_ALLOW_BRANCH_PREFIX != '' && vars.ORCH_DFA_ALLOW_BRANCH_PREFIX || 'codex/issue-' }}
           ORCH_SETUP_CMDS: ""
           ORCH_TEST_CMDS: ""
         run: bash ./.orch/scripts/orch.sh
