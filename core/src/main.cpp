@@ -197,6 +197,12 @@ int main() {
                 loaded_texture_id = texture_manager.reload_texture(path);
                 break;
             default:
+                std::cerr
+                    << "Warning: Unknown AssetCommandType received in initial asset processing. "
+                    << "request_id=" << command.request_id
+                    << ", type=" << static_cast<int>(command.type_)
+                    << ", path=" << path
+                    << std::endl;
                 break;
         }
         g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
@@ -274,6 +280,12 @@ int main() {
                         loaded_texture_id = texture_manager.reload_texture(path);
                         break;
                     default:
+                        std::cerr
+                            << "Warning: Unknown AssetCommandType received during frame asset processing. "
+                            << "request_id=" << command.request_id
+                            << ", type=" << static_cast<int>(command.type_)
+                            << ", path=" << path
+                            << std::endl;
                         break;
                 }
                 g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
