@@ -89,6 +89,13 @@ static void process_asset_commands(
                 loaded_texture_id = texture_manager.reload_texture(path);
                 break;
             default:
+                std::cerr
+                    << "Warning: Unknown AssetCommandType received during "
+                    << (clear_when_empty ? "initial asset processing" : "frame asset processing")
+                    << ". request_id=" << command.request_id
+                    << ", type=" << static_cast<int>(command.type_)
+                    << ", path=" << path
+                    << std::endl;
                 break;
         }
         g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
@@ -269,6 +276,7 @@ int main() {
 
         {
             MIYABI_PROFILE_SCOPE("AssetProcessing");
+            process_asset_commands(miyabi_game, texture_manager, false);
             process_asset_commands(miyabi_game, texture_manager, false);
         }
 
