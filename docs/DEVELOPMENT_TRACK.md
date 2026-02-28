@@ -27,6 +27,8 @@
   - `docs/CORE_SAVE_SUBSYSTEM.md`
 - アセット import/reimport 手順:
   - `docs/ASSET_IMPORT_REIMPORT.md`
+- logic公開API棚卸し:
+  - `docs/LOGIC_PUBLIC_API_INVENTORY.md`
 
 ## 4. 運用ルール
 
