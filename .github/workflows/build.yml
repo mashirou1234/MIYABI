@@ -18,6 +18,9 @@ jobs:
         run: |
           brew install glfw freetype
 
+      - name: Architecture guard (core must not depend on sample_game)
+        run: ./scripts/check_core_no_sample_game_dependency.sh
+
       - name: Configure
         run: cmake -S . -B build -DMIYABI_PERFORMANCE_TEST=ON
 
