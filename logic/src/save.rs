@@ -212,4 +212,33 @@ mod tests {
             _ => panic!("expected defaulted state"),
         }
     }
+
+    #[test]
+    fn load_version_mismatch_returns_error() {
+        let dir = temp_dir_path();
+        let path = dir.join("save_data.json");
+        let mismatch_version = SAVE_SCHEMA_VERSION + 1;
+        let envelope = SaveEnvelope {
+            save_version: mismatch_version,
+            payload: TestData { value: 7 },
+        };
+        let serialized = serde_json::to_vec(&envelope).unwrap();
+        fs::write(&path, serialized).unwrap();
+
+        let err = load_or_default::<TestData>(&path).expect_err("expected version mismatch");
+
+        match err {
+            SaveError::VersionMismatch { found, expected } => {
+                assert_eq!(found, mismatch_version);
+                assert_eq!(expected, SAVE_SCHEMA_VERSION);
+            }
+            _ => panic!("expected version mismatch error"),
+        }
+
+        assert!(path.exists(), "mismatch should not be treated as corrupt");
+        assert!(
+            !path.with_extension("json.bak").exists(),
+            "mismatch should not create backup file"
+        );
+    }
 }
