@@ -1,6 +1,7 @@
 use crate::{ffi, ComponentType, InternalWorld, Material, Sprite};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::process::Command;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +41,7 @@ pub struct PerfScenarioResult {
 pub struct PerfReport {
     pub schema_version: u32,
     pub generated_unix_epoch_sec: u64,
+    pub git_commit: String,
     pub config: PerfConfig,
     pub scenarios: Vec<PerfScenarioResult>,
 }
@@ -53,7 +55,8 @@ pub fn run_performance_baseline(config: PerfConfig) -> PerfReport {
     });
 
     let ui_samples = benchmark_samples(config.warmup_iterations, config.iterations, || {
-        let _text_commands = build_ui_text_commands(config.ui_items_per_row, config.ui_items_per_col);
+        let _text_commands =
+            build_ui_text_commands(config.ui_items_per_row, config.ui_items_per_col);
     });
 
     let scene_samples = benchmark_samples(config.warmup_iterations, config.iterations, || {
@@ -64,10 +67,12 @@ pub fn run_performance_baseline(config: PerfConfig) -> PerfReport {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
+    let git_commit = resolve_git_commit();
 
     PerfReport {
         schema_version: 1,
         generated_unix_epoch_sec,
+        git_commit,
         config,
         scenarios: vec![
             summarize_samples("sprite_renderable_build", &sprite_samples),
@@ -75,6 +80,37 @@ pub fn run_performance_baseline(config: PerfConfig) -> PerfReport {
             summarize_samples("scene_construct_destruct", &scene_samples),
         ],
     }
+}
+
+fn resolve_git_commit() -> String {
+    let github_sha = std::env::var("GITHUB_SHA").ok();
+    let git_short_head = resolve_git_short_head();
+    choose_git_commit(github_sha.as_deref(), git_short_head.as_deref())
+}
+
+fn resolve_git_short_head() -> Option<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8(output.stdout)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn choose_git_commit(github_sha: Option<&str>, git_short_head: Option<&str>) -> String {
+    let github_sha = github_sha.map(str::trim).filter(|value| !value.is_empty());
+    let git_short_head = git_short_head
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    github_sha
+        .or(git_short_head)
+        .unwrap_or("unknown")
+        .to_string()
 }
 
 fn benchmark_samples<F>(warmup_iterations: u32, iterations: u32, mut func: F) -> Vec<f64>
@@ -222,6 +258,29 @@ fn build_ui_text_commands(items_per_row: usize, items_per_col: usize) -> Vec<ffi
     }
 
     text_commands
+}
+
+#[cfg(test)]
+mod tests {
+    use super::choose_git_commit;
+
+    #[test]
+    fn choose_git_commit_prefers_github_sha() {
+        let commit = choose_git_commit(Some("abcdef123456"), Some("deadbee"));
+        assert_eq!(commit, "abcdef123456");
+    }
+
+    #[test]
+    fn choose_git_commit_uses_git_when_github_sha_missing() {
+        let commit = choose_git_commit(None, Some("deadbee"));
+        assert_eq!(commit, "deadbee");
+    }
+
+    #[test]
+    fn choose_git_commit_falls_back_to_unknown() {
+        let commit = choose_git_commit(Some("   "), Some(""));
+        assert_eq!(commit, "unknown");
+    }
 }
 
 fn run_scene_construct_destruct_cycle(entity_count: usize) -> usize {
