@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import subprocess
 import tempfile
@@ -7,6 +8,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "tools" / "check_perf_regression.py"
+SPEC = importlib.util.spec_from_file_location("check_perf_regression", SCRIPT_PATH)
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC and SPEC.loader
+SPEC.loader.exec_module(MODULE)
 
 
 class CheckPerfRegressionCliTest(unittest.TestCase):
@@ -34,7 +39,11 @@ class CheckPerfRegressionCliTest(unittest.TestCase):
     def test_fail_report_includes_recovery_guidance(self) -> None:
         baseline = {
             "scenarios": [
-                {"name": "sprite_renderable_build", "baseline_avg_ms": 100, "max_regression_pct": 10}
+                {
+                    "name": "sprite_renderable_build",
+                    "baseline_avg_ms": 100,
+                    "max_regression_pct": 10,
+                }
             ]
         }
         current = {"scenarios": [{"name": "sprite_renderable_build", "avg_ms": 200}]}
@@ -50,7 +59,11 @@ class CheckPerfRegressionCliTest(unittest.TestCase):
     def test_pass_report_does_not_include_recovery_guidance(self) -> None:
         baseline = {
             "scenarios": [
-                {"name": "sprite_renderable_build", "baseline_avg_ms": 100, "max_regression_pct": 10}
+                {
+                    "name": "sprite_renderable_build",
+                    "baseline_avg_ms": 100,
+                    "max_regression_pct": 10,
+                }
             ]
         }
         current = {"scenarios": [{"name": "sprite_renderable_build", "avg_ms": 105}]}
@@ -59,6 +72,44 @@ class CheckPerfRegressionCliTest(unittest.TestCase):
 
         self.assertEqual(proc.returncode, 0)
         self.assertNotIn("## Next Actions", proc.stdout)
+
+
+class CheckPerfRegressionWarnTest(unittest.TestCase):
+    def test_warn_for_current_only_scenario(self) -> None:
+        baseline = {
+            "scenarios": [
+                {
+                    "name": "baseline_scenario",
+                    "baseline_avg_ms": 10.0,
+                    "max_regression_pct": 10,
+                }
+            ]
+        }
+        current = {
+            "scenarios": [
+                {"name": "baseline_scenario", "avg_ms": 10.5},
+                {"name": "new_scenario", "avg_ms": 8.0},
+            ]
+        }
+
+        rows, all_passed = MODULE.compare(baseline, current)
+
+        self.assertTrue(all_passed)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[1]["name"], "new_scenario")
+        self.assertEqual(rows[1]["status"], "WARN (not in baseline)")
+        self.assertEqual(rows[1]["current_avg_ms"], 8.0)
+        self.assertIsNone(rows[1]["baseline_avg_ms"])
+
+    def test_only_additional_scenarios_keeps_exit_success(self) -> None:
+        baseline = {"scenarios": []}
+        current = {"scenarios": [{"name": "new_only", "avg_ms": 1.23}]}
+
+        rows, all_passed = MODULE.compare(baseline, current)
+
+        self.assertTrue(all_passed)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "WARN (not in baseline)")
 
 
 if __name__ == "__main__":
