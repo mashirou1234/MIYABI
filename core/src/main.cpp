@@ -69,6 +69,36 @@ void apply_fullscreen_mode(
 // VTable is now linked statically, we just need to get it.
 extern "C" MiyabiVTable get_miyabi_vtable();
 
+static void process_asset_commands(
+    Game* miyabi_game,
+    TextureManager& texture_manager,
+    bool clear_when_empty
+) {
+    AssetCommandSlice asset_commands = g_vtable.get_asset_commands(miyabi_game);
+    for (const auto& command : asset_commands) {
+        const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
+        std::string path(c_path);
+        g_vtable.free_cstring((char*)c_path);
+
+        uint32_t loaded_texture_id = 0;
+        switch (command.type_) {
+            case AssetCommandType::LoadTexture:
+                loaded_texture_id = texture_manager.load_texture(path);
+                break;
+            case AssetCommandType::ReloadTexture:
+                loaded_texture_id = texture_manager.reload_texture(path);
+                break;
+            default:
+                break;
+        }
+        g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
+    }
+
+    if (clear_when_empty || asset_commands.len > 0) {
+        g_vtable.clear_asset_commands(miyabi_game);
+    }
+}
+
 int main() {
     g_vtable = get_miyabi_vtable();
     if (g_vtable.abi_version != MIYABI_ABI_VERSION) {
@@ -181,27 +211,8 @@ int main() {
         );
     }
 
-    // Process any initial asset load commands
-    AssetCommandSlice asset_commands = g_vtable.get_asset_commands(miyabi_game);
-    for (const auto& command : asset_commands) {
-        const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
-        std::string path(c_path);
-        g_vtable.free_cstring((char*)c_path);
-
-        uint32_t loaded_texture_id = 0;
-        switch (command.type_) {
-            case AssetCommandType::LoadTexture:
-                loaded_texture_id = texture_manager.load_texture(path);
-                break;
-            case AssetCommandType::ReloadTexture:
-                loaded_texture_id = texture_manager.reload_texture(path);
-                break;
-            default:
-                break;
-        }
-        g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
-    }
-    g_vtable.clear_asset_commands(miyabi_game);
+    // Process any initial asset load commands.
+    process_asset_commands(miyabi_game, texture_manager, true);
 
     InputState input_state;
 
@@ -258,29 +269,7 @@ int main() {
 
         {
             MIYABI_PROFILE_SCOPE("AssetProcessing");
-            // Process asset commands from Rust
-            asset_commands = g_vtable.get_asset_commands(miyabi_game);
-            for (const auto& command : asset_commands) {
-                const char* c_path = g_vtable.get_asset_command_path_cstring(&command);
-                std::string path(c_path);
-                g_vtable.free_cstring((char*)c_path);
-
-                uint32_t loaded_texture_id = 0;
-                switch (command.type_) {
-                    case AssetCommandType::LoadTexture:
-                        loaded_texture_id = texture_manager.load_texture(path);
-                        break;
-                    case AssetCommandType::ReloadTexture:
-                        loaded_texture_id = texture_manager.reload_texture(path);
-                        break;
-                    default:
-                        break;
-                }
-                g_vtable.notify_asset_loaded(miyabi_game, command.request_id, loaded_texture_id);
-            }
-            if (asset_commands.len > 0) {
-                g_vtable.clear_asset_commands(miyabi_game);
-            }
+            process_asset_commands(miyabi_game, texture_manager, false);
         }
 
         {
