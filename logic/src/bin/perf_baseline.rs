@@ -17,6 +17,7 @@ fn parse_usize_arg(flag: &str, value: Option<String>) -> Result<usize, Box<dyn E
 fn main() -> Result<(), Box<dyn Error>> {
     let mut config = PerfConfig::default();
     let mut output_path = PathBuf::from("build/perf/current_baseline.json");
+    let mut json_compact = false;
 
     let mut args = env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -45,6 +46,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             "--scene-entities" => {
                 config.scene_entity_count = parse_usize_arg("--scene-entities", args.next())?;
             }
+            "--json-compact" => {
+                json_compact = true;
+            }
             "--help" | "-h" => {
                 print_help();
                 return Ok(());
@@ -60,7 +64,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let json = serde_json::to_string_pretty(&report)?;
+    let json = if json_compact {
+        serde_json::to_string(&report)?
+    } else {
+        serde_json::to_string_pretty(&report)?
+    };
     fs::write(&output_path, json)?;
 
     println!("[perf] report={}", output_path.display());
@@ -88,4 +96,5 @@ fn print_help() {
     println!("  --ui-rows <n>           UI行数 (default: 30)");
     println!("  --ui-cols <n>           UI列数 (default: 40)");
     println!("  --scene-entities <n>    シーン構築破棄のエンティティ数 (default: 5000)");
+    println!("  --json-compact          1行JSONで出力する");
 }
