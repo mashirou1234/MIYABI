@@ -86,6 +86,7 @@ python3 tools/check_perf_regression.py \
 
 - `.github/workflows/build.yml` で上記2コマンドを自動実行する。
 - 判定ロジック: `current_avg_ms <= baseline_avg_ms * (1 + max_regression_pct / 100)`。
+- `tools/check_perf_regression.py` の終了コード: `0` は全シナリオが閾値内、`1` は回帰またはシナリオ欠落あり。
 - レポートは CI アーティファクト `perf-report-<run_id>` に保存する。
 
 ### 4.3 初期ベースライン値（macos-14）
