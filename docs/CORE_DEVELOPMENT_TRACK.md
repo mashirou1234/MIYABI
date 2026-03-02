@@ -1,6 +1,14 @@
 # MIYABI コア開発トラック（システム開発）
 
-最終更新: 2026-02-23
+最終更新: 2026-03-03
+
+## 0. 現在地と次タスクの導線
+
+- 現在ステージと次ゲートの判定は `docs/CORE_DEVELOPMENT_TRACK.md`（本書）が正
+- 次に着手する作業順は `PLAN.md` を参照
+- 直近スレッドの変更内容は `docs/CODEX_MIGRATION_STATUS.md` を参照
+
+`PLAN.md` は実装順、`docs/CORE_DEVELOPMENT_TRACK.md` は到達判定、`docs/CODEX_MIGRATION_STATUS.md` は変更履歴を扱う。
 
 ## 1. 目的
 

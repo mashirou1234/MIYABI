@@ -1,5 +1,11 @@
 # MIYABI 開発フローマップ
 
+## 現在地と次タスクの導線
+
+- 現在地と次ゲート（到達判定）は `docs/CORE_DEVELOPMENT_TRACK.md` を参照
+- 今このあと着手するタスク順は `PLAN.md`（本書）を参照
+- 直近スレッドで何を変更したかは `docs/CODEX_MIGRATION_STATUS.md` を参照
+
 ## 序文
 
 このドキュメントは、MIYABIエンジンの開発を体系的かつ段階的に進めるための具体的な作業手順（フローマップ）を定義します。場当たり的な開発を避け、一貫した方針でマイルストーンを達成することを目的とします。
@@ -8,6 +14,7 @@
 
 本ファイルは「作業タスク管理」を目的とする。  
 到達判定は、コア開発とゲーム開発で分離して管理する。
+`PLAN.md` は実装順を管理し、`docs/CORE_DEVELOPMENT_TRACK.md` はステージ到達判定を管理し、`docs/CODEX_MIGRATION_STATUS.md` はスレッド単位の変更履歴を管理する。
 
 - コア到達判定（成果物・DoD）: `docs/CORE_DEVELOPMENT_TRACK.md`
 - ゲーム到達判定（成果物・DoD）: `docs/GAME_DEVELOPMENT_TRACK.md`

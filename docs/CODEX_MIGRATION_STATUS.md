@@ -13,6 +13,7 @@
 
 - コア到達判定の正: `docs/CORE_DEVELOPMENT_TRACK.md`
 - ゲーム到達判定の正: `docs/GAME_DEVELOPMENT_TRACK.md`
+- 作業タスク管理の正: `PLAN.md`
 - 現在ステージ:
   - コア: C0（Core Runtime）
   - ゲーム: G1（2Dプレイアブルループ）
@@ -21,7 +22,7 @@
   - ゲーム: G2（2D Vertical Slice 完成）
 - 本ドキュメントの役割: 「今スレッドで何を変更したか」を管理する
 
-`PLAN.md` は「これから着手する作業順と未完了タスク」の管理を担当し、本ドキュメントは「実際に変更した内容と影響範囲」の記録に限定する。計画変更は `PLAN.md`、実施結果は `docs/CODEX_MIGRATION_STATUS.md` に追記する。
+`PLAN.md` は実装順、`docs/CORE_DEVELOPMENT_TRACK.md` はステージ到達判定、本ドキュメントはスレッド単位の変更履歴を管理する。
 
 ## 0.1 スレッド完了時チェックリスト（移行ステータス更新）
 
