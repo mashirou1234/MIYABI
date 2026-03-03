@@ -180,6 +180,19 @@ mod tests {
     }
 
     #[test]
+    fn save_success_removes_tmp_file() {
+        let dir = temp_dir_path();
+        let path = dir.join("save_data.json");
+        let tmp_path = temp_path_for(&path);
+        let data = TestData { value: 7 };
+
+        save_to_path(&path, &data).unwrap();
+
+        assert!(path.exists());
+        assert!(!tmp_path.exists());
+    }
+
+    #[test]
     fn load_missing_returns_default() {
         let dir = temp_dir_path();
         let path = dir.join("not_found.json");
