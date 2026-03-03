@@ -145,3 +145,8 @@ This workflow ensures a seamless transition between library versions with no mem
 8.  **Deserialize State:** C++ calls `new_vtable.deserialize_world(json_state)`. This uses the new library's code to construct a new `World` from the old state. It returns a `new_world` pointer.
 9.  **Free Serialized State:** C++ calls `new_vtable.free_serialized_string((char*)json_state)`. The temporary JSON string is now deallocated by the new library.
 10. **Continue:** The main loop proceeds with the `new_world` pointer and the `new_vtable`. The hot-reload is complete.
+
+## 6. Input FFI Boundary Contract
+
+- `update_input_state(game, input)` は `game == null` または `input == null` のとき何も変更せず早期 return する。
+- 空入力フレーム（`InputState::default()` 相当）は有効入力として受理し、`update_game` 呼び出しでクラッシュしないことをテストで固定する。
