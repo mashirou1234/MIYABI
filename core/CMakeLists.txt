@@ -52,12 +52,18 @@ target_include_directories(miyabi_runtime PUBLIC
     src
 )
 
-# HACK: Explicitly propagate include directories from the CXX bridge.
-# For some reason, this is not happening automatically via target_link_libraries.
-get_target_property(MIYABI_LOGIC_CXX_INCLUDES miyabi_logic_cxx INTERFACE_INCLUDE_DIRECTORIES)
-if(MIYABI_LOGIC_CXX_INCLUDES)
-    target_include_directories(miyabi_runtime PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
-    target_include_directories(miyabi PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
+# HACK: CXX bridge include の伝播可否を明示し、対象ターゲット不在時は警告する。
+if(TARGET miyabi_logic_cxx)
+    get_target_property(MIYABI_LOGIC_CXX_INCLUDES miyabi_logic_cxx INTERFACE_INCLUDE_DIRECTORIES)
+    if(MIYABI_LOGIC_CXX_INCLUDES)
+        message(STATUS "miyabi_logic_cxx include propagation enabled")
+        target_include_directories(miyabi_runtime PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
+        target_include_directories(miyabi PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
+    else()
+        message(WARNING "miyabi_logic_cxx exists but INTERFACE_INCLUDE_DIRECTORIES is empty")
+    endif()
+else()
+    message(WARNING "miyabi_logic_cxx target not found; skip bridge include propagation and dependency wiring")
 endif()
 
 target_link_libraries(miyabi_runtime PUBLIC
@@ -77,9 +83,11 @@ if(APPLE)
     target_link_options(miyabi PRIVATE "LINKER:-no_warn_duplicate_libraries")
 endif()
 
-# Ensure cxx bridge headers are generated before compiling core sources.
-add_dependencies(miyabi miyabi_logic_cxx)
-add_dependencies(miyabi_runtime miyabi_logic_cxx)
+# CXX bridge ターゲットがある場合のみ依存を張る。
+if(TARGET miyabi_logic_cxx)
+    add_dependencies(miyabi miyabi_logic_cxx)
+    add_dependencies(miyabi_runtime miyabi_logic_cxx)
+endif()
 
 # Set the rpath for the executable
 set_target_properties(miyabi PROPERTIES
