@@ -67,6 +67,24 @@
         -   回帰判定: `tools/check_perf_regression.py`
         -   CIアーティファクト: `build/perf/current_baseline.json`, `build/perf/regression_report.md`
 
+### 3.2 性能計測ドキュメント配置ルール（Bench-80-28）
+
+- `PERFORMANCE_TEST.md` に置く情報:
+  - 計測の目的、判定基準、実行コマンド、運用手順のような「共通ルール」
+  - 将来も参照される固定的な方針（閾値判定の考え方、復旧フロー）
+- `docs/perf/` に置く情報:
+  - 実測値やベースラインJSONなどの「成果物」
+  - 実行環境ごとの差分が出る記録（OS別、マシン別、日付別の結果）
+  - 個別Runの補足メモや比較レポート
+
+判断目安:
+- 複数Runで共通に使う説明なら `PERFORMANCE_TEST.md`
+- 1回または特定環境に依存する結果なら `docs/perf/`
+
+命名規則（最小例）:
+- ベースライン: `baseline_<os><major>.json`（例: `baseline_macos14.json`）
+- Run別記録: `report_<yyyyMMdd>_<env>.md`（例: `report_20260303_macos14.md`）
+
 ---
 
 ## 4. 運用手順（2026-02-23）

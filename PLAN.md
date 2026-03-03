@@ -5,6 +5,7 @@
 - 現在地と次ゲート（到達判定）は `docs/CORE_DEVELOPMENT_TRACK.md` を参照
 - 今このあと着手するタスク順は `PLAN.md`（本書）を参照
 - 直近スレッドで何を変更したかは `docs/CODEX_MIGRATION_STATUS.md` を参照
+- 性能計測の運用方針と記録先は `PERFORMANCE_TEST.md` / `docs/perf/` を参照
 
 ## 序文
 
