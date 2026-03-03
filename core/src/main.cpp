@@ -6,7 +6,7 @@
 #include <thread>
 #include <atomic>
 #include <cstdio>
-#include <algorithm> // For std::sort
+#include <unordered_map>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -19,6 +19,7 @@
 #include "renderer/TextureManager.hpp"
 #include "renderer/FontManager.hpp"
 #include "renderer/TextRenderer.hpp"
+#include "renderer/RenderBatching.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "profiler/Profiler.hpp"
@@ -165,8 +166,7 @@ int main() {
         return -1;
     }
     uint32_t quad_mesh_id = mesh_manager.create_quad_mesh();
-    
-    uint32_t textured_material_id = material_manager.create_material(textured_shader_id);
+    material_manager.create_material(textured_shader_id);
 
     const GLMesh* quad_mesh = mesh_manager.get_mesh(quad_mesh_id);
     if (!quad_mesh) {
@@ -277,7 +277,6 @@ int main() {
         {
             MIYABI_PROFILE_SCOPE("AssetProcessing");
             process_asset_commands(miyabi_game, texture_manager, false);
-            process_asset_commands(miyabi_game, texture_manager, false);
         }
 
         {
@@ -289,48 +288,77 @@ int main() {
             RenderableObjectSlice renderables_slice = g_vtable.get_renderables(miyabi_game);
             std::vector<RenderableObject> renderables(renderables_slice.ptr, renderables_slice.ptr + renderables_slice.len);
 
-            // Group renderables by texture
-            std::unordered_map<uint32_t, std::vector<RenderableObject>> textured_batches;
-            for (const auto& obj : renderables) {
-                textured_batches[obj.texture_id].push_back(obj);
-            }
-            
-            // For now, we only have one material and one mesh
-            Material* material = material_manager.get_material(textured_material_id);
-            shader_manager.use_shader(material->shader_id);
-            uint32_t program_id = shader_manager.get_program_id(material->shader_id);
+            sort_renderables_for_batching(renderables);
+            const std::vector<MaterialMeshBatch> material_mesh_batches =
+                build_material_mesh_batches(renderables);
 
-            // Set uniforms that are the same for all batches
-            glm::mat4 projection = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
-            glm::mat4 view = glm::mat4(1.0f);
-            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, &projection[0][0]);
-            glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, &view[0][0]);
-            glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0); // Set texture sampler to unit 0
+            for (const auto& material_mesh_batch : material_mesh_batches) {
+                Material* material = material_manager.get_material(material_mesh_batch.material_id);
+                if (!material) {
+                    continue;
+                }
+                shader_manager.use_shader(material->shader_id);
+                uint32_t program_id = shader_manager.get_program_id(material->shader_id);
 
-            mesh_manager.bind_mesh(quad_mesh_id);
+                glm::mat4 projection = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
+                glm::mat4 view = glm::mat4(1.0f);
+                glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, &projection[0][0]);
+                glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, &view[0][0]);
+                glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0);
 
-            for (auto const& [texture_id, batch] : textured_batches) {
-                if (batch.empty()) continue;
+                const GLMesh* batch_mesh = mesh_manager.get_mesh(material_mesh_batch.mesh_id);
+                if (!batch_mesh) {
+                    continue;
+                }
+                mesh_manager.bind_mesh(material_mesh_batch.mesh_id);
 
-                std::vector<glm::mat4> model_matrices;
-                model_matrices.reserve(batch.size());
-                for (const auto& obj : batch) {
-                    glm::mat4 model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(obj.transform.position.x, obj.transform.position.y, obj.transform.position.z));
-                    // Add rotation and scale later
-                    model = glm::scale(model, glm::vec3(obj.transform.scale.x, obj.transform.scale.y, obj.transform.scale.z));
-                    model_matrices.push_back(model);
+                const size_t batch_end =
+                    material_mesh_batch.start_index + material_mesh_batch.instance_count;
+                std::unordered_map<uint32_t, std::vector<const RenderableObject*>> textured_batches;
+                for (size_t i = material_mesh_batch.start_index; i < batch_end; ++i) {
+                    textured_batches[renderables[i].texture_id].push_back(&renderables[i]);
                 }
 
-                // Update instance VBO
-                glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-                glBufferData(GL_ARRAY_BUFFER, batch.size() * sizeof(glm::mat4), model_matrices.data(), GL_DYNAMIC_DRAW);
-                
-                // Bind texture for this batch
-                texture_manager.bind_texture(texture_id, GL_TEXTURE0);
+                for (const auto& [texture_id, textured_batch] : textured_batches) {
+                    if (textured_batch.empty()) {
+                        continue;
+                    }
 
-                // Draw instanced
-                glDrawElementsInstanced(GL_TRIANGLES, quad_mesh->element_count, GL_UNSIGNED_INT, 0, batch.size());
+                    std::vector<glm::mat4> model_matrices;
+                    model_matrices.reserve(textured_batch.size());
+                    for (const auto* obj : textured_batch) {
+                        glm::mat4 model = glm::mat4(1.0f);
+                        model = glm::translate(
+                            model,
+                            glm::vec3(
+                                obj->transform.position.x,
+                                obj->transform.position.y,
+                                obj->transform.position.z));
+                        // Add rotation and scale later
+                        model = glm::scale(
+                            model,
+                            glm::vec3(
+                                obj->transform.scale.x,
+                                obj->transform.scale.y,
+                                obj->transform.scale.z));
+                        model_matrices.push_back(model);
+                    }
+
+                    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+                    glBufferData(
+                        GL_ARRAY_BUFFER,
+                        textured_batch.size() * sizeof(glm::mat4),
+                        model_matrices.data(),
+                        GL_DYNAMIC_DRAW);
+
+                    texture_manager.bind_texture(texture_id, GL_TEXTURE0);
+                    glDrawElementsInstanced(
+                        GL_TRIANGLES,
+                        batch_mesh->element_count,
+                        GL_UNSIGNED_INT,
+                        0,
+                        textured_batch.size());
+                }
             }
             
             glBindVertexArray(0);
