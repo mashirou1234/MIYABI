@@ -2,6 +2,13 @@
 
 最終更新: 2026-03-03
 
+## 更新ルール（最小記載）
+
+- 更新日: `YYYY-MM-DD` を必ず記載する
+- 変更種別: `実装` / `ビルド` / `CI` / `ドキュメント` などを明記する
+- 関連ファイル: 変更に関係するファイルを2件以上、相対パスで列挙する
+- 変更概要: 次回担当者が差分意図を追えるよう、1〜3行で要点を記載する
+
 ## 0. 開発動線との紐付け
 
 - コア到達判定の正: `docs/CORE_DEVELOPMENT_TRACK.md`
@@ -14,6 +21,8 @@
   - ゲーム: G2（2D Vertical Slice 完成）
 - 本ドキュメントの役割: 「今スレッドで何を変更したか」を管理する
 
+`PLAN.md` は「これから着手する作業順と未完了タスク」の管理を担当し、本ドキュメントは「実際に変更した内容と影響範囲」の記録に限定する。計画変更は `PLAN.md`、実施結果は `docs/CODEX_MIGRATION_STATUS.md` に追記する。
+
 ## 1. 現在の到達点
 
 - `cmake -S . -B build -DMIYABI_PERFORMANCE_TEST=ON`
@@ -23,10 +32,13 @@
 
 ## 2. この移行で反映した内容
 
-- cxx生成ヘッダ参照を `miyabi_logic_cxx/lib.h` に統一
-  - `core/include/miyabi/miyabi.h`
-  - `core/src/miyabi_bridge.cpp`
-  - `core/src/physics/PhysicsManager.cpp`
+- 更新日: 2026-03-03
+  - 変更種別: ビルド
+  - 関連ファイル:
+    - `core/include/miyabi/miyabi.h`
+    - `core/src/miyabi_bridge.cpp`
+    - `core/src/physics/PhysicsManager.cpp`
+  - 変更概要: cxx生成ヘッダ参照を `miyabi_logic_cxx/lib.h` に統一し、参照揺れを解消した。
 - `core` から `miyabi_logic_cxx` の直接リンクを外し、重複シンボルを回避
   - `core/CMakeLists.txt`
 - Rust警告の解消（`Box::from_raw` / `CString::from_raw` の戻り値処理など）
