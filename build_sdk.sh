@@ -1,11 +1,54 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Building MIYABI SDK..."
 
 SDK_DIR="sdk"
 BUILD_DIR="build"
 ZIP_NAME="MIYABI_SDK.zip"
+PATHS_RS_FILE="logic/src/paths.rs"
+PATHS_RS_BACKUP="$(mktemp)"
+
+REQUIRED_ARTIFACTS=(
+    "bin/miyabi"
+    "lib/libmiyabi_logic.a"
+    "lib/libmiyabi_logic_cxx.a"
+    "lib/libmiyabi_runtime.a"
+    "lib/libbox2d.a"
+    "include/miyabi/miyabi.h"
+    "cmake/MIYABIConfig.cmake"
+    "cmake/MIYABIConfigVersion.cmake"
+    "examples/main.cpp"
+    "docs/SDK_DEFINITION.md"
+)
+
+restore_paths_rs() {
+    if [ -f "$PATHS_RS_BACKUP" ]; then
+        cp "$PATHS_RS_BACKUP" "$PATHS_RS_FILE"
+        rm -f "$PATHS_RS_BACKUP"
+    fi
+}
+
+validate_required_artifacts() {
+    local missing=()
+    local rel_path=""
+    for rel_path in "${REQUIRED_ARTIFACTS[@]}"; do
+        if [ ! -e "$SDK_DIR/$rel_path" ]; then
+            missing+=("$rel_path")
+        fi
+    done
+
+    if [ "${#missing[@]}" -gt 0 ]; then
+        echo "ERROR: Required SDK artifacts are missing:"
+        for rel_path in "${missing[@]}"; do
+            echo "  - $rel_path"
+        done
+        return 1
+    fi
+}
+
+cp "$PATHS_RS_FILE" "$PATHS_RS_BACKUP"
+trap restore_paths_rs EXIT
 
 # Clean up previous SDK directory
 if [ -d "$SDK_DIR" ]; then
@@ -74,6 +117,14 @@ cp sdk_template_CMakeLists.txt "$SDK_DIR"/template_CMakeLists.txt
 echo "Copying template source and SDK docs..."
 cp sdk_template_main.cpp "$SDK_DIR"/examples/main.cpp
 cp docs/SDK_DEFINITION.md "$SDK_DIR"/docs/SDK_DEFINITION.md
+
+echo "Validating required SDK artifacts..."
+validate_required_artifacts
+
+if [ "${MIYABI_SDK_VALIDATE_ONLY:-0}" = "1" ]; then
+    echo "Validation only mode enabled. Skipping zip creation."
+    exit 0
+fi
 
 # 9. Create Zip archive
 echo "Creating SDK archive..."
