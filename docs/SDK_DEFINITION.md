@@ -110,4 +110,5 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 
 1. ABIに関わるPRでは `core/include/miyabi/miyabi.h` のバージョン定数更新有無をレビュー項目に含める。
 2. SDK配布時は `sdk/examples/main.cpp` で `vtable.abi_version` の比較を維持する。
-3. `major` 変更時は `docs/CODEX_MIGRATION_STATUS.md` に移行手順（影響範囲/変更点）を明記する。
+3. CIでは `.github/workflows/build.yml` の `SDK ABI smoke` ステップで `sdk_template_main.cpp` 相当の `vtable.abi_version == MIYABI_ABI_VERSION` 判定を実行し、失敗時はジョブを fail させる。
+4. `major` 変更時は `docs/CODEX_MIGRATION_STATUS.md` に移行手順（影響範囲/変更点）を明記する。
