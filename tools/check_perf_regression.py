@@ -79,6 +79,21 @@ def compare(baseline: dict, current: dict) -> Tuple[List[dict], bool]:
             }
         )
 
+    for name, current_item in sorted(current_map.items()):
+        if name in baseline_map:
+            continue
+        current_avg = current_item.get("avg_ms")
+        rows.append(
+            {
+                "name": name,
+                "baseline_avg_ms": None,
+                "current_avg_ms": float(current_avg) if current_avg is not None else None,
+                "threshold_ms": None,
+                "delta_pct": None,
+                "status": "WARN (not in baseline)",
+            }
+        )
+
     return rows, all_passed
 
 
