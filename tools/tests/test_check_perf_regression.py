@@ -51,6 +51,7 @@ class CheckPerfRegressionCliTest(unittest.TestCase):
         proc = self.run_cli(baseline, current)
 
         self.assertEqual(proc.returncode, 1)
+        self.assertIn("## Summary", proc.stdout)
         self.assertIn("## Next Actions", proc.stdout)
         self.assertIn("python3 tools/check_perf_regression.py", proc.stdout)
         self.assertIn("baseline を更新しない", proc.stdout)
@@ -71,6 +72,7 @@ class CheckPerfRegressionCliTest(unittest.TestCase):
         proc = self.run_cli(baseline, current)
 
         self.assertEqual(proc.returncode, 0)
+        self.assertIn("## Summary", proc.stdout)
         self.assertNotIn("## Next Actions", proc.stdout)
 
 
@@ -110,6 +112,69 @@ class CheckPerfRegressionWarnTest(unittest.TestCase):
         self.assertTrue(all_passed)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["status"], "WARN (not in baseline)")
+
+
+class CheckPerfRegressionSummaryTest(unittest.TestCase):
+    def test_summary_counts_match_mixed_rows(self) -> None:
+        rows = [
+            {
+                "name": "ok",
+                "baseline_avg_ms": 1.0,
+                "current_avg_ms": 1.0,
+                "threshold_ms": 1.2,
+                "delta_pct": 0.0,
+                "status": "PASS",
+            },
+            {
+                "name": "ng",
+                "baseline_avg_ms": 1.0,
+                "current_avg_ms": 1.5,
+                "threshold_ms": 1.2,
+                "delta_pct": 50.0,
+                "status": "FAIL",
+            },
+            {
+                "name": "missing",
+                "baseline_avg_ms": 1.0,
+                "current_avg_ms": None,
+                "threshold_ms": None,
+                "delta_pct": None,
+                "status": "FAIL (missing scenario)",
+            },
+        ]
+
+        summary = MODULE.summarize_rows(rows)
+        self.assertEqual(summary, {"total": 3, "pass": 1, "fail": 2})
+
+        markdown = MODULE.render_markdown(rows, "baseline.json", "current.json")
+        self.assertIn("- total: 3", markdown)
+        self.assertIn("- PASS: 1", markdown)
+        self.assertIn("- FAIL: 2", markdown)
+
+    def test_report_generation_succeeds_with_existing_baseline_shape(self) -> None:
+        baseline_path = REPO_ROOT / "docs" / "perf" / "baseline_macos14.json"
+        baseline = MODULE.load_json(str(baseline_path))
+
+        current = {
+            "schema_version": 1,
+            "platform": "macos-14",
+            "scenarios": [
+                {"name": item["name"], "avg_ms": item["baseline_avg_ms"]}
+                for item in baseline["scenarios"]
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            current_path = Path(tmp_dir) / "current.json"
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+
+            rows, all_passed = MODULE.compare(baseline, current)
+            report = MODULE.render_markdown(rows, str(baseline_path), str(current_path))
+
+        self.assertTrue(all_passed)
+        self.assertIn("# Performance Regression Report", report)
+        self.assertIn("## Summary", report)
+        self.assertIn("| scenario | baseline_avg_ms | current_avg_ms |", report)
 
 
 if __name__ == "__main__":
