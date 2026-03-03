@@ -23,6 +23,14 @@
 ./scripts/package_macos_game.sh
 ```
 
+事前診断のみを行う場合:
+
+```bash
+./scripts/package_macos_game.sh --preflight-only
+```
+
+`--preflight-only` では依存コマンド、必須アセット、書き込み可能性を検証し、ビルドとZIP生成は行わない。
+
 実行結果:
 
 - `dist/MIYABI_GAME_macOS_<timestamp>.zip` を生成
