@@ -4,6 +4,16 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+pub const PERF_SCENARIO_SPRITE_RENDERABLE_BUILD: &str = "sprite_renderable_build";
+pub const PERF_SCENARIO_UI_TEXT_COMMAND_BUILD: &str = "ui_text_command_build";
+pub const PERF_SCENARIO_SCENE_CONSTRUCT_DESTRUCT: &str = "scene_construct_destruct";
+
+pub const PERF_SCENARIO_KEYS: [&str; 3] = [
+    PERF_SCENARIO_SPRITE_RENDERABLE_BUILD,
+    PERF_SCENARIO_UI_TEXT_COMMAND_BUILD,
+    PERF_SCENARIO_SCENE_CONSTRUCT_DESTRUCT,
+];
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerfConfig {
     pub warmup_iterations: u32,
@@ -75,9 +85,9 @@ pub fn run_performance_baseline(config: PerfConfig) -> PerfReport {
         git_commit,
         config,
         scenarios: vec![
-            summarize_samples("sprite_renderable_build", &sprite_samples),
-            summarize_samples("ui_text_command_build", &ui_samples),
-            summarize_samples("scene_construct_destruct", &scene_samples),
+            summarize_samples(PERF_SCENARIO_SPRITE_RENDERABLE_BUILD, &sprite_samples),
+            summarize_samples(PERF_SCENARIO_UI_TEXT_COMMAND_BUILD, &ui_samples),
+            summarize_samples(PERF_SCENARIO_SCENE_CONSTRUCT_DESTRUCT, &scene_samples),
         ],
     }
 }
@@ -258,6 +268,70 @@ fn build_ui_text_commands(items_per_row: usize, items_per_col: usize) -> Vec<ffi
     }
 
     text_commands
+}
+
+#[cfg(test)]
+mod baseline_key_tests {
+    use super::PERF_SCENARIO_KEYS;
+    use serde_json::Value;
+    use std::collections::BTreeSet;
+
+    fn collect_key_diff(
+        expected_keys: &BTreeSet<String>,
+        actual_keys: &BTreeSet<String>,
+    ) -> (Vec<String>, Vec<String>) {
+        let missing: Vec<String> = expected_keys.difference(actual_keys).cloned().collect();
+        let extra: Vec<String> = actual_keys.difference(expected_keys).cloned().collect();
+        (missing, extra)
+    }
+
+    #[test]
+    fn baseline_scenario_keys_match_perf_report_keys() {
+        let baseline_raw = include_str!("../../docs/perf/baseline_macos14.json");
+        let baseline: Value =
+            serde_json::from_str(baseline_raw).expect("baseline_macos14.json must be valid JSON");
+
+        let baseline_scenarios = baseline
+            .get("scenarios")
+            .and_then(Value::as_array)
+            .expect("baseline_macos14.json must have scenarios array");
+
+        let mut baseline_keys = BTreeSet::new();
+        for scenario in baseline_scenarios {
+            let scenario_name = scenario
+                .get("name")
+                .and_then(Value::as_str)
+                .expect("each scenario must have name");
+            baseline_keys.insert(scenario_name.to_string());
+        }
+
+        let expected_keys: BTreeSet<String> =
+            PERF_SCENARIO_KEYS.iter().map(|item| item.to_string()).collect();
+        let (missing, extra) = collect_key_diff(&expected_keys, &baseline_keys);
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "perf baseline keys mismatch: missing={missing:?} extra={extra:?}"
+        );
+    }
+
+    #[test]
+    fn detect_missing_and_extra_scenario_keys() {
+        let expected_keys: BTreeSet<String> =
+            PERF_SCENARIO_KEYS.iter().map(|item| item.to_string()).collect();
+        let actual_keys = BTreeSet::from([
+            "sprite_renderable_build".to_string(),
+            "unknown_extra_key".to_string(),
+        ]);
+        let (missing, extra) = collect_key_diff(&expected_keys, &actual_keys);
+        assert_eq!(
+            missing,
+            vec![
+                "scene_construct_destruct".to_string(),
+                "ui_text_command_build".to_string()
+            ]
+        );
+        assert_eq!(extra, vec!["unknown_extra_key".to_string()]);
+    }
 }
 
 #[cfg(test)]
