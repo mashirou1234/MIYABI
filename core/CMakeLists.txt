@@ -26,6 +26,7 @@ find_package(Freetype REQUIRED)
 add_executable(miyabi
     src/main.cpp
     src/glad.c
+    src/renderer/RenderBatching.cpp
     src/renderer/ShaderManager.cpp
     src/renderer/MeshManager.cpp
     src/renderer/MaterialManager.cpp
@@ -87,6 +88,27 @@ endif()
 if(TARGET miyabi_logic_cxx)
     add_dependencies(miyabi miyabi_logic_cxx)
     add_dependencies(miyabi_runtime miyabi_logic_cxx)
+endif()
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(render_batching_test
+        tests/render_batching_test.cpp
+        src/renderer/RenderBatching.cpp
+    )
+    target_include_directories(render_batching_test PRIVATE
+        include
+        src
+    )
+    if(MIYABI_LOGIC_CXX_INCLUDES)
+        target_include_directories(
+            render_batching_test PRIVATE ${MIYABI_LOGIC_CXX_INCLUDES}
+        )
+    endif()
+    if(TARGET miyabi_logic_cxx)
+        add_dependencies(render_batching_test miyabi_logic_cxx)
+    endif()
+    add_test(NAME render_batching_test COMMAND render_batching_test)
 endif()
 
 # Set the rpath for the executable
