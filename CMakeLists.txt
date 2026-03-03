@@ -67,8 +67,6 @@ FetchContent_MakeAvailable(box2d)
 FetchContent_GetProperties(box2d
     SOURCE_DIR box2d_SOURCE_DIR
 )
-set(BOX2D_INCLUDE_DIR ${box2d_SOURCE_DIR}/include)
-configure_file(logic/src/paths.rs.in ${CMAKE_CURRENT_SOURCE_DIR}/logic/src/paths.rs @ONLY)
 
 add_subdirectory(logic)
 add_subdirectory(core)
