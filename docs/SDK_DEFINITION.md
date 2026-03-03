@@ -67,6 +67,13 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 ./scripts/check_sdk_artifacts.sh /path/to/extracted/sdk
 ```
 
+補助検証として Python チェッカーも利用できる。
+
+```bash
+python3 tools/check_sdk_bundle.py --sdk-dir ./sdk
+```
+
+不足がある場合は非0で終了し、不足項目一覧を表示する。
 ## 5. リンク契約
 
 `find_package(MIYABI CONFIG REQUIRED)` により `MIYABI::SDK` を利用する。
