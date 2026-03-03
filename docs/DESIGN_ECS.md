@@ -49,6 +49,19 @@ pub enum ComponentType {
 -   **`COMPONENT_TYPE`:** We use a simple, explicit `enum` for identifying component types.
     -   **Pros:** Fast, simple, no `TypeId` hashing required for lookups.
     -   **Cons:** Requires manually adding a new variant for every new component. This is a deliberate trade-off for simplicity and performance in the early stages.
+    -   **Operational rule:** When adding a new `ComponentType`, follow the single flow in [2.2.1 ComponentType Addition Checklist](#221-componenttype-addition-checklist).
+
+### 2.2.1. ComponentType Addition Checklist
+
+Use this checklist for every `ComponentType` addition. The target files are explicit so the implementation path stays consistent.
+
+- [ ] **Enum variant:** Add the new variant to `ComponentType` in `logic/src/lib.rs` (`pub enum ComponentType`).
+- [ ] **Component type and binding:** Define the component struct (or reuse an existing one) and add `impl Component for ... { const COMPONENT_TYPE: ... }` in `logic/src/lib.rs`.
+- [ ] **Archetype storage registration:** Update `World::get_or_create_archetype` in `logic/src/lib.rs` and add the `types.contains(...)` branch that inserts `Box::new(Vec::<YourComponent>::new())` into `archetype.storage`.
+- [ ] **Serialization compatibility:** Confirm the new component type derives `Serialize`/`Deserialize` and is represented safely in save/load paths (`logic/src/lib.rs` world state and `logic/src/save.rs` save pipeline).
+- [ ] **Runtime readers/writers:** Search and update component-specific logic that pattern matches `ComponentType` or accesses `archetype.storage` (for example `logic/src/perf.rs`, `logic/src/ui.rs`, and system code in `logic/src/lib.rs`).
+- [ ] **Design sync:** Reflect any ECS contract changes in this document and keep links valid from [3.1 Algorithm: `world.spawn()`](#31-algorithm-worldspawn) and [3.3 Algorithm: Changing an Entity (e.g., `add_component`)](#33-algorithm-changing-an-entity-eg-add_component).
+- [ ] **Regression check:** Run `rg "ComponentType|COMPONENT_TYPE" logic/src/lib.rs logic/src/perf.rs logic/src/ui.rs docs/DESIGN_ECS.md` and verify a known component (for example `Button` or `Sprite`) still follows this same flow end-to-end.
 
 ### 2.3. `Archetype`: The Data Store
 
@@ -123,7 +136,7 @@ Spawning an entity is the process of adding a new entity and its components to t
 1.  **Get Component Signature:** Call `B::get_component_types()` to get the `HashSet<ComponentType>` for the bundle.
 2.  **Find or Create Archetype:** Call `self.get_or_create_archetype(types)` with the signature.
     -   **Internal Logic:** This function iterates through `self.archetypes`. If an `archetype.types` exactly matches the input signature, it returns its `archetype.id`.
-    -   **Creation Path:** If no match is found, a new `Archetype` is created. A new `id` is assigned (which is `self.archetypes.len()`). The `types` signature is stored. Crucially, for each `ComponentType` in the signature, the `storage` map is populated with an empty, but correctly typed, `Box::new(Vec::<T>::new())`. This requires a match statement to map the enum variant to the concrete type. This is a known bottleneck for adding new components, but is explicit and required. The new archetype is pushed to `self.archetypes`, and its ID is returned.
+    -   **Creation Path:** If no match is found, a new `Archetype` is created. A new `id` is assigned (which is `self.archetypes.len()`). The `types` signature is stored. Crucially, for each `ComponentType` in the signature, the `storage` map is populated with an empty, but correctly typed, `Box::new(Vec::<T>::new())`. This requires a match statement to map the enum variant to the concrete type. This is a known bottleneck for adding new components, but is explicit and required. The new archetype is pushed to `self.archetypes`, and its ID is returned. For update points when introducing a new type, use [2.2.1 ComponentType Addition Checklist](#221-componenttype-addition-checklist).
 3.  **Generate Entity ID:** A new `Entity` is created using `self.next_entity`, and the counter is incremented.
 4.  **Add to Archetype:**
     -   Retrieve the target `&mut Archetype` using the `archetype_id`.
@@ -168,7 +181,7 @@ This is the most complex operation, as it requires moving an entity between arch
     -   This is effectively a `despawn` from the source followed by a `spawn` to the target, but we must transfer the data.
     -   Perform a "swap-and-pop" on the **source** archetype for the entity. This returns the component data for the entity being moved. Don't forget to update the location of the swapped entity.
     -   Push the retrieved component data into the storage vectors of the **target** archetype.
-    -   Push the *new* component into its storage vector in the target archetype.
+    -   Push the *new* component into its storage vector in the target archetype. Keep this aligned with [2.2.1 ComponentType Addition Checklist](#221-componenttype-addition-checklist) so storage registration and runtime access stay consistent.
 5.  **Update Location Map:** Update the `EntityLocation` for the original entity in `world.entities` to point to its new home in the target archetype.
 
 ## 4. Query System: The Ergonomic Access Layer
