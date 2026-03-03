@@ -54,10 +54,18 @@ target_include_directories(miyabi_runtime PUBLIC
 
 # HACK: Explicitly propagate include directories from the CXX bridge.
 # For some reason, this is not happening automatically via target_link_libraries.
-get_target_property(MIYABI_LOGIC_CXX_INCLUDES miyabi_logic_cxx INTERFACE_INCLUDE_DIRECTORIES)
-if(MIYABI_LOGIC_CXX_INCLUDES)
-    target_include_directories(miyabi_runtime PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
-    target_include_directories(miyabi PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
+if(TARGET miyabi_logic_cxx)
+    message(STATUS "miyabi_logic_cxx target detected. Applying bridge include workaround.")
+    get_target_property(MIYABI_LOGIC_CXX_INCLUDES miyabi_logic_cxx INTERFACE_INCLUDE_DIRECTORIES)
+    if(MIYABI_LOGIC_CXX_INCLUDES)
+        target_include_directories(miyabi_runtime PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
+        target_include_directories(miyabi PUBLIC ${MIYABI_LOGIC_CXX_INCLUDES})
+        message(STATUS "Bridge include workaround applied with INTERFACE_INCLUDE_DIRECTORIES.")
+    else()
+        message(WARNING "miyabi_logic_cxx exists, but INTERFACE_INCLUDE_DIRECTORIES is empty. Bridge include workaround skipped.")
+    endif()
+else()
+    message(WARNING "miyabi_logic_cxx target not found. Bridge include workaround skipped.")
 endif()
 
 target_link_libraries(miyabi_runtime PUBLIC
@@ -78,8 +86,13 @@ if(APPLE)
 endif()
 
 # Ensure cxx bridge headers are generated before compiling core sources.
-add_dependencies(miyabi miyabi_logic_cxx)
-add_dependencies(miyabi_runtime miyabi_logic_cxx)
+if(TARGET miyabi_logic_cxx)
+    add_dependencies(miyabi miyabi_logic_cxx)
+    add_dependencies(miyabi_runtime miyabi_logic_cxx)
+    message(STATUS "Added miyabi_logic_cxx as a build dependency for miyabi and miyabi_runtime.")
+else()
+    message(WARNING "Skipping miyabi_logic_cxx build dependency because target is missing.")
+endif()
 
 # Set the rpath for the executable
 set_target_properties(miyabi PROPERTIES
