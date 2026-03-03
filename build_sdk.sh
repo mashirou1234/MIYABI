@@ -1,11 +1,67 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Building MIYABI SDK..."
 
-SDK_DIR="sdk"
-BUILD_DIR="build"
-ZIP_NAME="MIYABI_SDK.zip"
+SDK_DIR="${SDK_DIR:-sdk}"
+BUILD_DIR="${BUILD_DIR:-build}"
+ZIP_NAME="${ZIP_NAME:-MIYABI_SDK.zip}"
+VALIDATE_ONLY="${MIYABI_SDK_VALIDATE_ONLY:-0}"
+PATHS_RS_FILE="logic/src/paths.rs"
+PATHS_RS_BACKUP=""
+
+REQUIRED_ARTIFACTS=(
+    "bin/miyabi"
+    "lib/libmiyabi_logic.a"
+    "lib/libmiyabi_logic_cxx.a"
+    "lib/libmiyabi_runtime.a"
+    "lib/libbox2d.a"
+    "include/miyabi/miyabi.h"
+    "include/miyabi/bridge.h"
+    "cmake/MIYABIConfig.cmake"
+    "cmake/MIYABIConfigVersion.cmake"
+    "examples/main.cpp"
+    "docs/SDK_DEFINITION.md"
+    "template_CMakeLists.txt"
+)
+
+restore_paths_rs() {
+    if [ -n "${PATHS_RS_BACKUP}" ] && [ -f "${PATHS_RS_BACKUP}" ]; then
+        cp "${PATHS_RS_BACKUP}" "${PATHS_RS_FILE}"
+        rm -f "${PATHS_RS_BACKUP}"
+    fi
+}
+
+validate_required_artifacts() {
+    local missing=()
+    local rel=""
+    for rel in "${REQUIRED_ARTIFACTS[@]}"; do
+        if [ ! -e "${SDK_DIR}/${rel}" ]; then
+            missing+=("${rel}")
+        fi
+    done
+
+    if [ "${#missing[@]}" -gt 0 ]; then
+        echo "ERROR: Required SDK artifacts are missing:"
+        for rel in "${missing[@]}"; do
+            echo "  - ${rel}"
+        done
+        return 1
+    fi
+
+    echo "Required SDK artifacts check passed."
+}
+
+if [ "${VALIDATE_ONLY}" = "1" ]; then
+    validate_required_artifacts
+    exit 0
+fi
+
+if [ -f "${PATHS_RS_FILE}" ]; then
+    PATHS_RS_BACKUP="$(mktemp "${TMPDIR:-/tmp}/miyabi-paths-rs.XXXXXX")"
+    cp "${PATHS_RS_FILE}" "${PATHS_RS_BACKUP}"
+    trap restore_paths_rs EXIT
+fi
 
 # Clean up previous SDK directory
 if [ -d "$SDK_DIR" ]; then
@@ -75,7 +131,9 @@ echo "Copying template source and SDK docs..."
 cp sdk_template_main.cpp "$SDK_DIR"/examples/main.cpp
 cp docs/SDK_DEFINITION.md "$SDK_DIR"/docs/SDK_DEFINITION.md
 
-# 9. Verify required SDK artifacts against docs/SDK_DEFINITION.md
+validate_required_artifacts
+
+# Verify required SDK artifacts against docs/SDK_DEFINITION.md
 echo "Checking required SDK artifacts..."
 ./scripts/check_sdk_artifacts.sh "$SDK_DIR"
 
