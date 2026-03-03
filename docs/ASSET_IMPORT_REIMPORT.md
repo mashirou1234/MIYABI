@@ -47,11 +47,11 @@
 ## 5. 失敗時の診断ログ
 
 - レジストリ不整合:
-  - `[asset] integrity: registry inconsistency detected`
+  - `[asset] integrity: asset_integrity_tick=<tick> registry inconsistency detected`
 - 未登録ハンドル参照:
-  - `[asset] integrity: missing registry for texture_handle=<handle>`
+  - `[asset] integrity: asset_integrity_tick=<tick> missing registry for texture_handle=<handle>`
 - 未解決参照の再キュー:
-  - `[asset] integrity: unresolved reference handle=<handle> asset_id=<id> path=<path> queued_reimport=<true|false>`
+  - `[asset] integrity: asset_integrity_tick=<tick> unresolved reference handle=<handle> asset_id=<id> path=<path> queued_reimport=<true|false>`
 
 ## 6. 復旧手順（運用）
 

@@ -1074,6 +1074,30 @@ impl Game {
         handles
     }
 
+    fn asset_integrity_registry_inconsistency_log(tick: u32) -> String {
+        format!(
+            "[asset] integrity: asset_integrity_tick={tick} registry inconsistency detected"
+        )
+    }
+
+    fn asset_integrity_missing_registry_log(tick: u32, handle: u32) -> String {
+        format!(
+            "[asset] integrity: asset_integrity_tick={tick} missing registry for texture_handle={handle}"
+        )
+    }
+
+    fn asset_integrity_unresolved_reference_log(
+        tick: u32,
+        handle: u32,
+        asset_id: u64,
+        path: &str,
+        queued: bool,
+    ) -> String {
+        format!(
+            "[asset] integrity: asset_integrity_tick={tick} unresolved reference handle={handle} asset_id={asset_id} path={path} queued_reimport={queued}"
+        )
+    }
+
     fn run_asset_integrity_check(&mut self) {
         self.asset_integrity_tick = self.asset_integrity_tick.wrapping_add(1);
         if self.asset_integrity_tick % ASSET_INTEGRITY_CHECK_INTERVAL_FRAMES != 0 {
@@ -1088,7 +1112,10 @@ impl Game {
 
         let registry_consistent = self.asset_server.is_registry_consistent();
         if !registry_consistent && !self.reported_registry_inconsistency {
-            eprintln!("[asset] integrity: registry inconsistency detected");
+            eprintln!(
+                "{}",
+                Self::asset_integrity_registry_inconsistency_log(self.asset_integrity_tick)
+            );
             self.reported_registry_inconsistency = true;
         } else if registry_consistent && self.reported_registry_inconsistency {
             self.reported_registry_inconsistency = false;
@@ -1101,7 +1128,10 @@ impl Game {
                 .map(str::to_string)
             else {
                 if self.reported_missing_texture_handles.insert(handle) {
-                    eprintln!("[asset] integrity: missing registry for texture_handle={handle}");
+                    eprintln!(
+                        "{}",
+                        Self::asset_integrity_missing_registry_log(self.asset_integrity_tick, handle)
+                    );
                 }
                 continue;
             };
@@ -1119,8 +1149,14 @@ impl Game {
                 let queued = self.asset_server.reimport_texture(&path);
                 if self.reported_unresolved_texture_handles.insert(handle) || queued {
                     eprintln!(
-                        "[asset] integrity: unresolved reference handle={handle} asset_id={asset_id} path={} queued_reimport={queued}",
-                        path
+                        "{}",
+                        Self::asset_integrity_unresolved_reference_log(
+                            self.asset_integrity_tick,
+                            handle,
+                            asset_id,
+                            &path,
+                            queued,
+                        )
                     );
                 }
             } else if has_loaded_texture {
@@ -2208,6 +2244,44 @@ impl Game {
             });
             request.dispatched = true;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Game;
+
+    #[test]
+    fn asset_integrity_registry_log_includes_tick() {
+        let message = Game::asset_integrity_registry_inconsistency_log(30);
+        assert_eq!(
+            message,
+            "[asset] integrity: asset_integrity_tick=30 registry inconsistency detected"
+        );
+    }
+
+    #[test]
+    fn asset_integrity_missing_registry_log_includes_tick_and_handle() {
+        let message = Game::asset_integrity_missing_registry_log(60, 42);
+        assert_eq!(
+            message,
+            "[asset] integrity: asset_integrity_tick=60 missing registry for texture_handle=42"
+        );
+    }
+
+    #[test]
+    fn asset_integrity_unresolved_reference_log_includes_tick_and_context() {
+        let message = Game::asset_integrity_unresolved_reference_log(
+            90,
+            42,
+            77,
+            "assets/player.png",
+            true,
+        );
+        assert_eq!(
+            message,
+            "[asset] integrity: asset_integrity_tick=90 unresolved reference handle=42 asset_id=77 path=assets/player.png queued_reimport=true"
+        );
     }
 }
 
