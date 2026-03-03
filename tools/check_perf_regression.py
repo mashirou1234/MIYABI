@@ -8,7 +8,8 @@ from typing import Dict, List, Tuple
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="MIYABI performance baseline regression checker"
+        description="MIYABI performance baseline regression checker",
+        epilog="Exit codes: 0=all scenarios within threshold, 1=regression or missing scenario detected.",
     )
     parser.add_argument("--baseline", required=True, help="baseline JSON path")
     parser.add_argument("--current", required=True, help="current report JSON path")
