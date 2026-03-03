@@ -8,10 +8,72 @@ PACKAGE_DIR="$DIST_ROOT/miyabi_game_macos"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 ARCHIVE_NAME="MIYABI_GAME_macOS_${TIMESTAMP}.zip"
 ARCHIVE_PATH="$DIST_ROOT/$ARCHIVE_NAME"
+PRECHECK_ONLY=0
+
+if [ "${1:-}" = "--preflight-only" ]; then
+  PRECHECK_ONLY=1
+elif [ $# -gt 0 ]; then
+  echo "[package] ERROR: unknown option: $1"
+  echo "usage: $0 [--preflight-only]"
+  exit 2
+fi
+
+require_command() {
+  local cmd="$1"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "[preflight] ERROR: required command not found: $cmd"
+    return 1
+  fi
+}
+
+preflight_diagnostics() {
+  local failed=0
+  echo "[preflight] start"
+
+  for cmd in cmake zip shasum; do
+    require_command "$cmd" || failed=1
+  done
+
+  if [ ! -d "$ROOT_DIR/assets" ]; then
+    echo "[preflight] ERROR: assets directory not found: $ROOT_DIR/assets"
+    failed=1
+  fi
+
+  for asset in player.png test.png test_sound.wav; do
+    if [ ! -f "$ROOT_DIR/assets/$asset" ]; then
+      echo "[preflight] ERROR: required asset not found: $ROOT_DIR/assets/$asset"
+      failed=1
+    fi
+  done
+
+  if [ ! -w "$ROOT_DIR" ]; then
+    echo "[preflight] ERROR: root directory is not writable: $ROOT_DIR"
+    failed=1
+  fi
+
+  mkdir -p "$DIST_ROOT"
+  if [ ! -w "$DIST_ROOT" ]; then
+    echo "[preflight] ERROR: dist directory is not writable: $DIST_ROOT"
+    failed=1
+  fi
+
+  if [ "$failed" -ne 0 ]; then
+    echo "[preflight] failed"
+    return 1
+  fi
+
+  echo "[preflight] ok"
+}
 
 echo "[package] root: $ROOT_DIR"
 echo "[package] build dir: $BUILD_DIR"
 echo "[package] output: $ARCHIVE_PATH"
+
+preflight_diagnostics
+if [ "$PRECHECK_ONLY" -eq 1 ]; then
+  echo "[package] preflight-only mode: build/packaging skipped"
+  exit 0
+fi
 
 rm -rf "$BUILD_DIR" "$PACKAGE_DIR"
 mkdir -p "$PACKAGE_DIR/bin" "$PACKAGE_DIR/docs"
