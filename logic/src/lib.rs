@@ -1,3 +1,4 @@
+pub mod camera;
 pub mod perf;
 pub mod save;
 use crate::ui::Button;
