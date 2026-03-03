@@ -23,6 +23,16 @@
 
 `PLAN.md` は「これから着手する作業順と未完了タスク」の管理を担当し、本ドキュメントは「実際に変更した内容と影響範囲」の記録に限定する。計画変更は `PLAN.md`、実施結果は `docs/CODEX_MIGRATION_STATUS.md` に追記する。
 
+## 0.1 スレッド完了時チェックリスト（移行ステータス更新）
+
+スレッドを閉じる前に、以下を上から順に確認する。
+
+- [ ] このスレッドでの変更内容を `docs/CODEX_MIGRATION_STATUS.md` の「2. この移行で反映した内容」に追記した
+- [ ] 実装タスクの進捗を `PLAN.md` に反映し、未着手/完了の状態を更新した
+- [ ] 到達判定やDoDに影響がある場合、`docs/CORE_DEVELOPMENT_TRACK.md` と `docs/GAME_DEVELOPMENT_TRACK.md` を更新した
+- [ ] 仕様や運用手順を変更した場合、該当設計書（例: `docs/SDK_DEFINITION.md`, `PERFORMANCE_TEST.md`）を更新した
+- [ ] 実行した最小検証（ビルド/テスト/動作確認）の内容を、Issue または PR 説明に記録した
+
 ## 1. 現在の到達点
 
 - `cmake -S . -B build -DMIYABI_PERFORMANCE_TEST=ON`
