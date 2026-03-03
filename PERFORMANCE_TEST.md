@@ -88,7 +88,14 @@ python3 tools/check_perf_regression.py \
 - 判定ロジック: `current_avg_ms <= baseline_avg_ms * (1 + max_regression_pct / 100)`。
 - レポートは CI アーティファクト `perf-report-<run_id>` に保存する。
 
-### 4.3 初期ベースライン値（macos-14）
+### 4.3 回帰検知時の復旧導線
+
+- `tools/check_perf_regression.py` は FAIL 時に `Next Actions` を出力し、再計測コマンドと調査導線を提示する。
+- `FAIL (missing scenario)` は入力不整合の可能性が高いため、baseline 更新ではなく計測入力の整合修正を優先する。
+- 閾値超過 `FAIL` は原因調査を先行し、意図的変更であることを合意できる場合のみ baseline 更新を検討する。
+- 根本原因の確認前に baseline を更新しない。
+
+### 4.4 初期ベースライン値（macos-14）
 
 | scenario | baseline_avg_ms | max_regression_pct |
 | --- | ---: | ---: |
