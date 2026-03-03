@@ -14,6 +14,7 @@
 - コア到達判定の正: `docs/CORE_DEVELOPMENT_TRACK.md`
 - ゲーム到達判定の正: `docs/GAME_DEVELOPMENT_TRACK.md`
 - 作業タスク管理の正: `PLAN.md`
+- SDK更新時の同期チェック: `docs/SDK_DEFINITION.md` の「4.1 SDK更新時チェックリスト」
 - 現在ステージ:
   - コア: C0（Core Runtime）
   - ゲーム: G1（2Dプレイアブルループ）

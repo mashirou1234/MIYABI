@@ -74,6 +74,23 @@ python3 tools/check_sdk_bundle.py --sdk-dir ./sdk
 ```
 
 不足がある場合は非0で終了し、不足項目一覧を表示する。
+
+### 4.1 SDK更新時チェックリスト（`build_sdk.sh` 変更時）
+
+`build_sdk.sh` を更新した場合は、配布物定義と実装の同期漏れを防ぐために、以下を必ず確認する。
+
+1. 配布物一覧の同期
+   - `build_sdk.sh` の `REQUIRED_ARTIFACTS` と本書「4. 配布物定義」の列挙が一致していること。
+2. コピー処理の同期
+   - 追加/削除した配布物に対応する `cp` / `mkdir -p` / `find` の処理が `build_sdk.sh` に存在すること。
+3. CMakeパッケージ同梱の同期
+   - `cmake/MIYABIConfig.cmake` と `cmake/MIYABIConfigVersion.cmake` の同梱処理が維持されていること。
+4. サンプルとテンプレート同梱の同期
+   - `examples/main.cpp` と `template_CMakeLists.txt` が継続して同梱されること。
+5. 定義書同梱の同期
+   - `docs/SDK_DEFINITION.md` 自体が SDK に同梱され、配布物定義の正として参照可能なこと。
+6. 同梱物検証の実行
+   - `./scripts/check_sdk_artifacts.sh <sdk_dir>` が成功し、欠落項目が 0 件であること。
 ## 5. リンク契約
 
 `find_package(MIYABI CONFIG REQUIRED)` により `MIYABI::SDK` を利用する。
