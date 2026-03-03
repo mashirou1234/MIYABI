@@ -77,6 +77,8 @@ cp docs/SDK_DEFINITION.md "$SDK_DIR"/docs/SDK_DEFINITION.md
 
 # 9. Create Zip archive
 echo "Creating SDK archive..."
-zip -r "$ZIP_NAME" "$SDK_DIR"
+# Remove Finder metadata before packaging to keep artifacts reproducible.
+find "$SDK_DIR" -type f -name '.DS_Store' -delete
+zip -r "$ZIP_NAME" "$SDK_DIR" -x '*/.DS_Store'
 
 echo "SDK Build complete. Packaged into $ZIP_NAME"
