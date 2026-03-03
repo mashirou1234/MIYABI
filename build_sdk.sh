@@ -75,7 +75,11 @@ echo "Copying template source and SDK docs..."
 cp sdk_template_main.cpp "$SDK_DIR"/examples/main.cpp
 cp docs/SDK_DEFINITION.md "$SDK_DIR"/docs/SDK_DEFINITION.md
 
-# 9. Create Zip archive
+# 9. Verify required SDK artifacts against docs/SDK_DEFINITION.md
+echo "Checking required SDK artifacts..."
+./scripts/check_sdk_artifacts.sh "$SDK_DIR"
+
+# 10. Create Zip archive
 echo "Creating SDK archive..."
 zip -r "$ZIP_NAME" "$SDK_DIR"
 

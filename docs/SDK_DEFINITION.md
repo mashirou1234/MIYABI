@@ -57,6 +57,16 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 - `examples/main.cpp`
 - `docs/SDK_DEFINITION.md`
 
+照合対象の実行時チェックは `scripts/check_sdk_artifacts.sh` を正とする。
+このスクリプトは上記必須同梱物の欠落を検知し、`sdk/` 以外を検査する場合はディレクトリを引数で指定する。
+
+例:
+
+```bash
+./scripts/check_sdk_artifacts.sh
+./scripts/check_sdk_artifacts.sh /path/to/extracted/sdk
+```
+
 ## 5. リンク契約
 
 `find_package(MIYABI CONFIG REQUIRED)` により `MIYABI::SDK` を利用する。
