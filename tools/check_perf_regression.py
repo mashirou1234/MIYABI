@@ -109,6 +109,46 @@ def render_markdown(rows: List[dict], baseline_path: str, current_path: str) -> 
             f"| {row['name']} | {baseline_avg} | {current_avg} | {threshold_ms} | {delta_pct} | {row['status']} |"
         )
     lines.append("")
+
+    failing_rows = [row for row in rows if row["status"].startswith("FAIL")]
+    if failing_rows:
+        has_missing = any("missing scenario" in row["status"] for row in failing_rows)
+        has_threshold_regression = any(
+            row["status"] == "FAIL" for row in failing_rows
+        )
+        lines.append("## Next Actions")
+        lines.append("")
+        lines.append("1. まず再計測で再現確認")
+        lines.append("```bash")
+        lines.append(
+            "cargo run --release --manifest-path logic/Cargo.toml --bin perf_baseline -- \\"
+        )
+        lines.append(f"  --output {current_path}")
+        lines.append("python3 tools/check_perf_regression.py \\")
+        lines.append(f"  --baseline {baseline_path} \\")
+        lines.append(f"  --current {current_path} \\")
+        lines.append("  --output build/perf/regression_report.md")
+        lines.append("```")
+        lines.append("")
+        lines.append("2. 原因に応じて分岐")
+        if has_missing:
+            lines.append(
+                "- `FAIL (missing scenario)` がある場合: baseline更新前に計測入力/シナリオ名の不整合を修正する。"
+            )
+        if has_threshold_regression:
+            lines.append(
+                "- 閾値超過 (`FAIL`) の場合: 先に回帰原因を調査し、意図的な変更と合意できる場合のみ baseline 更新を検討する。"
+            )
+        lines.append("")
+        lines.append(
+            "> 注意: 根本原因が未確認の段階で baseline を更新しないでください。"
+        )
+        lines.append("")
+        lines.append(
+            "詳細手順: `PERFORMANCE_TEST.md` の「4. 運用手順（2026-02-23）」を参照。"
+        )
+        lines.append("")
+
     return "\n".join(lines)
 
 
