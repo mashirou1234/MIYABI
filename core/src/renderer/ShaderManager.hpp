@@ -22,9 +22,14 @@ public:
     uint32_t get_program_id(uint32_t shader_id) const;
 
 private:
-    std::string read_file(const char* file_path);
-    uint32_t compile_shader(uint32_t type, const std::string& source);
-    uint32_t create_program(uint32_t vertex_shader, uint32_t fragment_shader);
+    std::string read_file(const std::string& file_path);
+    uint32_t compile_shader(uint32_t type, const std::string& source, const std::string& source_path);
+    uint32_t create_program(
+        uint32_t vertex_shader,
+        uint32_t fragment_shader,
+        const std::string& vertex_path,
+        const std::string& fragment_path
+    );
 
     uint32_t m_next_shader_id;
     std::unordered_map<uint32_t, uint32_t> m_shader_id_to_program_id;

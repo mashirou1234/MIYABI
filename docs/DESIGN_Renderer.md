@@ -72,6 +72,10 @@ To support the ID-based system (`mesh_id`, `material_id`), we need simple asset 
     -   `uint32_t load_shader(const std::string& vs_path, const std::string& fs_path);`
     -   `void use_shader(uint32_t shader_id);`
 -   **Storage:** `std::map<uint32_t, GLuint> shader_programs;`
+-   **Failure Log Format (minimum):**
+    -   `ERROR::SHADER::READ::... path="<file-path>"` (read failure)
+    -   `ERROR::SHADER::COMPILE::FAILED shader_type=<VERTEX|FRAGMENT> path="<file-path>" gl_errors=<...>`
+    -   `ERROR::SHADER::LINK::FAILED vertex_path="<vs-path>" fragment_path="<fs-path>" gl_errors=<...>`
 
 ### 4.3. `MaterialManager`
 
