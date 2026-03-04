@@ -20,6 +20,7 @@ std::vector<MaterialMeshBatch> build_material_mesh_batches(
     if (sorted_renderables.empty()) {
         return batches;
     }
+    batches.reserve(sorted_renderables.size());
 
     size_t batch_start = 0;
     uint32_t current_material = sorted_renderables[0].material_id;

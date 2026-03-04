@@ -14,6 +14,27 @@ int main() {
             return object;
         };
 
+    {
+        std::vector<RenderableObject> empty_renderables;
+        const std::vector<MaterialMeshBatch> empty_batches =
+            build_material_mesh_batches(empty_renderables);
+        assert(empty_batches.empty());
+    }
+
+    {
+        std::vector<RenderableObject> single_renderable = {
+            make_renderable(1, 42, 7),
+        };
+        sort_renderables_for_batching(single_renderable);
+        const std::vector<MaterialMeshBatch> single_batches =
+            build_material_mesh_batches(single_renderable);
+        assert(single_batches.size() == 1);
+        assert(single_batches[0].material_id == 7);
+        assert(single_batches[0].mesh_id == 42);
+        assert(single_batches[0].start_index == 0);
+        assert(single_batches[0].instance_count == 1);
+    }
+
     std::vector<RenderableObject> renderables = {
         make_renderable(4, 3, 2),
         make_renderable(2, 1, 1),
