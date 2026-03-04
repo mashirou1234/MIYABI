@@ -113,6 +113,19 @@ class CheckPerfRegressionWarnTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["status"], "WARN (not in baseline)")
 
+    def test_warn_only_report_counts_warn_without_fail(self) -> None:
+        baseline = {"scenarios": []}
+        current = {"scenarios": [{"name": "new_only", "avg_ms": 1.23}]}
+
+        rows, all_passed = MODULE.compare(baseline, current)
+        summary = MODULE.summarize_rows(rows)
+        markdown = MODULE.render_markdown(rows, "baseline.json", "current.json")
+
+        self.assertTrue(all_passed)
+        self.assertEqual(summary, {"total": 1, "pass": 0, "fail": 0, "warn": 1})
+        self.assertIn("- FAIL: 0", markdown)
+        self.assertIn("- WARN: 1", markdown)
+
 
 class CheckPerfRegressionSummaryTest(unittest.TestCase):
     def test_summary_counts_match_mixed_rows(self) -> None:
@@ -144,12 +157,13 @@ class CheckPerfRegressionSummaryTest(unittest.TestCase):
         ]
 
         summary = MODULE.summarize_rows(rows)
-        self.assertEqual(summary, {"total": 3, "pass": 1, "fail": 2})
+        self.assertEqual(summary, {"total": 3, "pass": 1, "fail": 2, "warn": 0})
 
         markdown = MODULE.render_markdown(rows, "baseline.json", "current.json")
         self.assertIn("- total: 3", markdown)
         self.assertIn("- PASS: 1", markdown)
         self.assertIn("- FAIL: 2", markdown)
+        self.assertIn("- WARN: 0", markdown)
 
     def test_report_generation_succeeds_with_existing_baseline_shape(self) -> None:
         baseline_path = REPO_ROOT / "docs" / "perf" / "baseline_macos14.json"

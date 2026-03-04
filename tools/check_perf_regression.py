@@ -100,8 +100,14 @@ def compare(baseline: dict, current: dict) -> Tuple[List[dict], bool]:
 def summarize_rows(rows: List[dict]) -> Dict[str, int]:
     total = len(rows)
     pass_count = sum(1 for row in rows if row.get("status") == "PASS")
-    fail_count = total - pass_count
-    return {"total": total, "pass": pass_count, "fail": fail_count}
+    fail_count = sum(1 for row in rows if str(row.get("status", "")).startswith("FAIL"))
+    warn_count = sum(1 for row in rows if str(row.get("status", "")).startswith("WARN"))
+    return {
+        "total": total,
+        "pass": pass_count,
+        "fail": fail_count,
+        "warn": warn_count,
+    }
 
 
 def render_markdown(rows: List[dict], baseline_path: str, current_path: str) -> str:
@@ -114,6 +120,7 @@ def render_markdown(rows: List[dict], baseline_path: str, current_path: str) -> 
     lines.append(f"- total: {summary['total']}")
     lines.append(f"- PASS: {summary['pass']}")
     lines.append(f"- FAIL: {summary['fail']}")
+    lines.append(f"- WARN: {summary['warn']}")
     lines.append("")
     lines.append(f"- baseline: `{baseline_path}`")
     lines.append(f"- current: `{current_path}`")
