@@ -9,6 +9,42 @@
 - 抽出コマンド: `rg "^pub " logic/src/lib.rs`
 - 本書は「現状の公開面」を記録し、即時の可視性変更は行わない
 
+## 更新チェック手順（公開API棚卸し）
+
+`logic/src/lib.rs` の `pub` 宣言に差分が出たときは、次の手順で更新する。
+
+1. 公開面差分の抽出
+   - `rg "^pub " logic/src/lib.rs`
+   - 変更がある箇所を本書の一覧へ反映する
+2. SDK契約の確認
+   - `docs/SDK_DEFINITION.md` のエントリポイントと齟齬がないか確認する
+   - `extern "C"` 変更時は互換性影響（破壊/非破壊）を明記する
+3. 進捗と計画の同期
+   - `docs/CODEX_MIGRATION_STATUS.md` に更新日・変更種別・関連ファイルを追記する
+   - `PLAN.md` の該当タスク状態を更新する
+4. 最小検証
+   - `cargo test --manifest-path logic/Cargo.toml --lib` を最低1回実行し回帰を確認する
+5. PR記録
+   - 実行コマンドと結果（PASS/FAIL）を Issue または PR 説明に記録する
+
+## 更新チェック手順（公開API棚卸し）
+
+`logic/src/lib.rs` の `pub` 宣言に差分が出たときは、次を上から順に実施する。
+
+1. 公開面差分を抽出する
+   - `rg "^pub " logic/src/lib.rs`
+   - 変更がある場合は本書の「公開面一覧」を同じ粒度（宣言単位）で更新する
+2. SDK契約への影響を確認する
+   - `docs/SDK_DEFINITION.md` のエントリポイントと齟齬がないか確認する
+   - `extern "C"` 宣言の追加・削除時は、互換性影響（既存利用者破壊の有無）を明記する
+3. 進捗と作業計画を同期する
+   - `docs/CODEX_MIGRATION_STATUS.md` に更新日・変更種別・関連ファイル・概要を追記する
+   - `PLAN.md` の対象タスク状態（未着手/進行中/完了）を反映する
+4. 最小検証を実行する
+   - 最低1回、`cargo test --manifest-path logic/Cargo.toml --lib` を実行し、回帰がないことを確認する
+5. PR記録を残す
+   - 実行コマンドと結果（PASS/FAIL）を Issue または PR 説明へ記録する
+
 ## 公開面一覧（`rg "^pub "` 準拠）
 
 ### A. SDK契約上の公開維持（ABI/FFIに直結）

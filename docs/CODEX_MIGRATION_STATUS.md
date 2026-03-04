@@ -91,9 +91,20 @@
 
 ## 2. この移行で反映した内容
 
+<<<<<<< HEAD
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
 - 2026-03-04 | 変更種別: ドキュメント | 関連ファイル: `logic/src/lib.rs`, `docs/LOGIC_PUBLIC_API_INVENTORY.md`, `docs/CODEX_MIGRATION_STATUS.md` | 変更概要: `rg "^pub "` の実測に合わせて公開API棚卸し（行番号・`camera` モジュール）を同期。
 - 2026-03-04 | 変更種別: ドキュメント | 関連ファイル: `docs/DESIGN_Build.md`, `docs/ASSET_IMPORT_REIMPORT.md` | 変更概要: ビルド設計書の冒頭にアセット障害時の診断ログ採取・復旧手順への導線を追加。
+- 2026-03-04 | 変更種別: ドキュメント | 関連ファイル: `docs/LOGIC_PUBLIC_API_INVENTORY.md`, `docs/CODEX_MIGRATION_STATUS.md`, `PLAN.md` | 変更概要: 公開API棚卸しの更新チェック手順を5ステップで定義し、差分抽出からPR記録までの導線を明文化。
+=======
+- 更新日: 2026-03-04
+  - 変更種別: ドキュメント
+  - 関連ファイル:
+    - `docs/LOGIC_PUBLIC_API_INVENTORY.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+    - `PLAN.md`
+  - 変更概要: 公開API棚卸しの更新チェック手順を 5 ステップで明文化し、差分抽出・SDK契約確認・計画同期・最小検証・PR記録までの再現可能な運用導線を追加した。
+>>>>>>> efea577 (docs: add public API inventory update checklist)
 - 更新日: 2026-03-03
   - 変更種別: ビルド
   - 関連ファイル:
