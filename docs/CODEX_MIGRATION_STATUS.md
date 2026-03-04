@@ -168,7 +168,7 @@
   - `docs/ASSET_IMPORT_REIMPORT.md`（診断ログと復旧手順を追加）
   - `PLAN.md`（タスク10.2へ反映）
 - CIで `configure/build/smoke` を自動実行
-  - `.github/workflows/build.yml`（Configure/Build/Smoke を実装）
+  - `.woodpecker.yml`（`miyabi-build` ステップで Configure/Build/Smoke を実装）
   - Smoke対象:
     - `logic` の `cargo test`
     - `sample_game` の `cargo test`（ユーザー開発側のコンパイル整合チェック）
@@ -182,7 +182,7 @@
   - `PERFORMANCE_TEST.md`（運用手順・初期値の記録）
   - `PLAN.md`（タスク10.3へ反映）
 - CIへ性能計測と回帰判定を統合
-  - `.github/workflows/build.yml`
+  - `.woodpecker.yml`（`miyabi-build`）
     - `Perf baseline (headless benchmark)`
     - `Perf regression check`
     - `Upload perf artifacts`
@@ -190,13 +190,13 @@
   - `.github/ISSUE_TEMPLATE/bug_report.md`
   - `PLAN.md`（タスク10.3へ反映）
 - PR 自動承認 + CI 成功時 auto-merge 導線を追加
-  - `.github/workflows/pr-auto-approve-merge.yml`
-    - `pull_request_target` で PR 自動承認
+  - `.woodpecker.yml` + `scripts/woodpecker_pr_automerge.sh`
+    - `pull_request` イベントで PR 自動承認
     - GitHub auto-merge（squash）を有効化
     - 同一リポジトリ由来かつ信頼済み権限（OWNER/MEMBER/COLLABORATOR）の PR のみ対象
     - `automerge:off` ラベル時はスキップ
   - `docs/CI_AUTOMERGE.md`
-    - GitHub 必須設定（Actions 権限・auto-merge・Branch protection Required checks）を明文化
+    - GitHub 必須設定（auto-merge・Branch protection Required checks・Woodpecker secret）を明文化
   - `PLAN.md`（タスク14.2へ反映）
 - macOS向け 1OS 配布手順を固定し、再現ビルド導線を追加
   - `scripts/package_macos_game.sh`（クリーンビルド→配布ZIP生成）

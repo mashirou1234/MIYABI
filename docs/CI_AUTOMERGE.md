@@ -8,8 +8,9 @@
 
 ## 2. 実装内容
 
-- ワークフロー: `.github/workflows/pr-auto-approve-merge.yml`
-- トリガ: `pull_request_target`（`opened/reopened/synchronize/ready_for_review/labeled/unlabeled`）
+- CI 設定: `.woodpecker.yml`
+- 自動承認スクリプト: `scripts/woodpecker_pr_automerge.sh`
+- トリガ: Woodpecker の `pull_request` イベント
 - 処理:
   - PR を自動承認
   - PR の auto-merge（`squash`）を有効化
@@ -23,16 +24,15 @@
 ## 3. GitHub 側の必須設定
 
 1. `Settings > General > Pull Requests > Allow auto-merge` を ON
-2. `Settings > Actions > General > Workflow permissions` を `Read and write permissions`
-3. `Settings > Actions > General > Allow GitHub Actions to create and approve pull requests` を ON
-4. `Settings > Branches` で `master`（または `main`）の Branch protection rule を設定し、Woodpecker の必須チェックを Required にする
+2. `Settings > Branches` で `master`（または `main`）の Branch protection rule を設定し、Woodpecker の必須チェックを Required にする
+3. Woodpecker の secret `github_token` に PR 承認/更新可能なトークンを設定する
 
-※ Required checks には、実際に GitHub 上へ報告されるチェック名を指定すること。
+※ Required checks は実際の報告名（例: `ci/woodpecker/pr/woodpecker`）に一致させること。
 
 ## 4. 運用フロー
 
 1. PR 作成/更新
-2. 本ワークフローが PR を自動承認し、auto-merge を有効化
+2. Woodpecker が PR 自動承認と auto-merge 有効化を実行
 3. Woodpecker が CI を実行
 4. Required checks がすべて成功した時点で GitHub が自動マージ
 

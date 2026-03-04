@@ -122,3 +122,55 @@ steps:
         Branch: ${CI_COMMIT_BRANCH}
         Pipeline: #${CI_PIPELINE_NUMBER}
         URL: ${CI_PIPELINE_URL}
+  - name: miyabi-build
+    image: rust:1
+    when:
+      - event: [pull_request]
+      - event: [push]
+        branch: [main, master]
+    commands:
+      - apt-get update
+      - apt-get install -y --no-install-recommends cmake python3 g++ pkg-config
+      - rm -rf /var/lib/apt/lists/*
+      - cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMIYABI_PERFORMANCE_TEST=ON
+      - cmake --build build -j2
+      - cargo test --manifest-path logic/Cargo.toml
+      - cargo test --manifest-path sample_game/Cargo.toml
+      - test -x build/core/miyabi
+      - grep -nE "vtable\\.abi_version[[:space:]]*!=[[:space:]]*MIYABI_ABI_VERSION" sdk_template_main.cpp
+      - |
+        python3 - <<'PY'
+        import pathlib
+        import re
+
+        header = pathlib.Path("core/include/miyabi/miyabi.h").read_text(encoding="utf-8")
+        major_m = re.search(r"#define\s+MIYABI_ABI_VERSION_MAJOR\s+(\d+)", header)
+        minor_m = re.search(r"#define\s+MIYABI_ABI_VERSION_MINOR\s+(\d+)", header)
+        patch_m = re.search(r"#define\s+MIYABI_ABI_VERSION_PATCH\s+(\d+)", header)
+        if not (major_m and minor_m and patch_m):
+            raise SystemExit("ABI version macros not found in core/include/miyabi/miyabi.h")
+        header_abi = (int(major_m.group(1)) << 16) | (int(minor_m.group(1)) << 8) | int(patch_m.group(1))
+
+        logic = pathlib.Path("logic/src/lib.rs").read_text(encoding="utf-8")
+        logic_m = re.search(r"const\s+MIYABI_ABI_VERSION\s*:\s*u32\s*=\s*(.*?);", logic)
+        if not logic_m:
+            raise SystemExit("MIYABI_ABI_VERSION not found in logic/src/lib.rs")
+        logic_expr = logic_m.group(1).replace("u32", "")
+        logic_abi = int(eval(logic_expr, {"__builtins__": {}}, {}))
+
+        print(f"header_abi={header_abi} logic_abi={logic_abi}")
+        if header_abi != logic_abi:
+            raise SystemExit("ABI mismatch detected")
+        PY
+
+  - name: github-pr-automerge
+    image: ghcr.io/cli/cli:2.67.0
+    when:
+      - event: [pull_request]
+    environment:
+      GH_TOKEN:
+        from_secret: github_token
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - sh ./scripts/woodpecker_pr_automerge.sh
