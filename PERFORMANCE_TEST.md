@@ -121,3 +121,30 @@ python3 tools/check_perf_regression.py \
 | `sprite_renderable_build` | 0.121 | 200 |
 | `ui_text_command_build` | 0.069 | 200 |
 | `scene_construct_destruct` | 1.364 | 200 |
+
+### 4.5 baseline 更新フロー（`docs/perf/baseline_macos14.json`）
+
+更新対象は `docs/perf/baseline_macos14.json` のみとし、計測入力と判定結果を `build/perf/` に残してから差し替える。
+
+1. 計測前提を固定する（`macos-14`、`--release`、バックグラウンド負荷が低い状態、`logic/src/bin/perf_baseline.rs` を使用）。
+2. 次のコマンドで再計測し、`build/perf/current_baseline.json` を生成する。
+   ```bash
+   cargo run --release --manifest-path logic/Cargo.toml --bin perf_baseline -- \
+     --output build/perf/current_baseline.json
+   ```
+3. 次のコマンドで既存 baseline と比較し、`build/perf/regression_report.md` を生成して差分理由を確認する。
+   ```bash
+   python3 tools/check_perf_regression.py \
+     --baseline docs/perf/baseline_macos14.json \
+     --current build/perf/current_baseline.json \
+     --output build/perf/regression_report.md
+   ```
+4. 意図した変更のみであることを確認後、`build/perf/current_baseline.json` の内容を `docs/perf/baseline_macos14.json` に反映し、`generated_on` を更新する。
+5. PR には `PERFORMANCE_TEST.md`、`docs/perf/baseline_macos14.json`、`build/perf/regression_report.md` の確認結果を記載する。
+
+### 4.6 baseline 更新レビューのチェックリスト
+
+- [ ] `PERFORMANCE_TEST.md` の手順どおりに `build/perf/current_baseline.json` と `build/perf/regression_report.md` を再生成している。
+- [ ] `docs/perf/baseline_macos14.json` の `platform` が `macos-14`、`baseline_source` が `logic/src/bin/perf_baseline.rs` のままである。
+- [ ] `scenarios[].name` の集合が変更されていない（欠落・追加がある場合は理由を PR に明記している）。
+- [ ] `baseline_avg_ms` の変化に対する根拠（コード変更または計測条件の差分）を PR に記載している。
