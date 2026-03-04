@@ -2,6 +2,8 @@
 
 > Status Note (2026-02-23): このドキュメントはホットリロード設計の履歴を含みます。現行実装は `staticlib` ベースで、`core/src/main.cpp` から `get_miyabi_vtable()` を静的リンクして利用します。運用上の正準手順は `docs/CODEX_MIGRATION_STATUS.md`、SDK境界の定義は `docs/SDK_DEFINITION.md` を参照してください。
 
+> Debug Log Note (2026-03-04): アセット import/reimport 障害時の診断ログ採取・復旧手順は `docs/ASSET_IMPORT_REIMPORT.md` の「5. 失敗時の診断ログ」「6. 復旧手順（運用）」を参照してください。
+
 ## 1. Document Purpose and Overview
 
 This document provides an exhaustive specification for the MIYABI build system and the technical mechanics of its hot-reloading workflow. A stable, understandable, and reproducible build process is critical for a hybrid C++/Rust project.
