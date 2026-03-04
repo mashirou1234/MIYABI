@@ -34,6 +34,14 @@ cmake --build build -j
 - [docs/CORE_DEVELOPMENT_TRACK.md](docs/CORE_DEVELOPMENT_TRACK.md): 現在ステージと次ゲート
 - [PLAN.md](PLAN.md): 着手順と優先タスク
 
+## FFI 入力境界テスト（最小手順）
+
+`sample_game` 側の FFI 入力ポインタ境界を確認する最小テストです。
+
+```bash
+cargo test --manifest-path sample_game/Cargo.toml --test ffi_input_boundary
+```
+
 ## AGENTS 運用メモ
 
 - 作業開始時に `artifacts/` を確認する
