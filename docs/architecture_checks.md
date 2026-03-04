@@ -28,6 +28,15 @@
   - 修正後に再実行し、`[OK]` になることを確認する
   - 仕様上必要な参照だった場合は、依存境界の見直しを issue 化して設計判断を残す
 
+実行例（違反あり）:
+
+```text
+[NG] core/ から sample_game への参照を検知しました。
+[NG] 該当箇所 (path:line):
+- core/render/example.cpp:42 | #include "sample_game/foo.h"
+[HINT] core/ から sample_game 参照を除去後、同コマンドを再実行してください。
+```
+
 注意: 文字列一致ベースのため、文脈に依存する誤検知/見逃しの可能性がある。
 
 ## scripts 参照導線
