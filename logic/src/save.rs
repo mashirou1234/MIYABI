@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn load_corrupt_file_uses_numbered_backup_when_bak_exists() {
+    fn load_corrupt_file_avoids_existing_backup_name_collision() {
         let dir = temp_dir_path();
         let path = dir.join("save_data.json");
         let first_backup = path.with_extension("json.bak");
@@ -305,7 +305,7 @@ mod tests {
         assert!(first_backup.exists(), "existing backup should be preserved");
         assert!(
             expected_numbered_backup.exists(),
-            "numbered backup should be created"
+            "numbered backup should be created when .bak already exists"
         );
     }
 }
