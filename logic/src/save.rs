@@ -132,15 +132,42 @@ fn temp_path_for(path: &Path) -> PathBuf {
 }
 
 fn backup_corrupt_file(path: &Path) -> Result<PathBuf, SaveError> {
-    let mut backup_path = path.to_path_buf();
+    let backup_path = backup_path_for(path);
+    fs::rename(path, &backup_path)?;
+    Ok(backup_path)
+}
+
+fn backup_path_for(path: &Path) -> PathBuf {
+    let mut base_path = path.to_path_buf();
     let extension = path
         .extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| format!("{ext}.bak"))
         .unwrap_or_else(|| "bak".to_string());
-    backup_path.set_extension(extension);
-    fs::rename(path, &backup_path)?;
-    Ok(backup_path)
+    base_path.set_extension(extension);
+
+    if !base_path.exists() {
+        return base_path;
+    }
+
+    let stem = base_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("save.bak")
+        .to_string();
+    let parent = base_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(PathBuf::new);
+
+    let mut suffix: u32 = 1;
+    loop {
+        let candidate = parent.join(format!("{stem}.{suffix}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+        suffix = suffix.saturating_add(1);
+    }
 }
 
 #[cfg(test)]
@@ -252,6 +279,33 @@ mod tests {
         assert!(
             !path.with_extension("json.bak").exists(),
             "mismatch should not create backup file"
+        );
+    }
+
+    #[test]
+    fn load_corrupt_file_uses_numbered_backup_when_bak_exists() {
+        let dir = temp_dir_path();
+        let path = dir.join("save_data.json");
+        let first_backup = path.with_extension("json.bak");
+        let expected_numbered_backup = dir.join("save_data.json.bak.1");
+        fs::write(&path, b"this is not json").unwrap();
+        fs::write(&first_backup, b"existing backup").unwrap();
+
+        let loaded = load_or_default::<TestData>(&path).unwrap();
+
+        match loaded {
+            LoadState::Defaulted { data, backup_path } => {
+                assert_eq!(data, TestData::default());
+                assert_eq!(backup_path.as_deref(), Some(expected_numbered_backup.as_path()));
+            }
+            _ => panic!("expected defaulted state"),
+        }
+
+        assert!(!path.exists(), "corrupt file should be moved");
+        assert!(first_backup.exists(), "existing backup should be preserved");
+        assert!(
+            expected_numbered_backup.exists(),
+            "numbered backup should be created"
         );
     }
 }
