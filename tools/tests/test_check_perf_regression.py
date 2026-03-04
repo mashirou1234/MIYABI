@@ -154,16 +154,24 @@ class CheckPerfRegressionSummaryTest(unittest.TestCase):
                 "delta_pct": None,
                 "status": "FAIL (missing scenario)",
             },
+            {
+                "name": "warn_only",
+                "baseline_avg_ms": None,
+                "current_avg_ms": 0.8,
+                "threshold_ms": None,
+                "delta_pct": None,
+                "status": "WARN (not in baseline)",
+            },
         ]
 
         summary = MODULE.summarize_rows(rows)
-        self.assertEqual(summary, {"total": 3, "pass": 1, "fail": 2, "warn": 0})
+        self.assertEqual(summary, {"total": 4, "pass": 1, "fail": 2, "warn": 1})
 
         markdown = MODULE.render_markdown(rows, "baseline.json", "current.json")
-        self.assertIn("- total: 3", markdown)
+        self.assertIn("- total: 4", markdown)
         self.assertIn("- PASS: 1", markdown)
         self.assertIn("- FAIL: 2", markdown)
-        self.assertIn("- WARN: 0", markdown)
+        self.assertIn("- WARN: 1", markdown)
 
     def test_report_generation_succeeds_with_existing_baseline_shape(self) -> None:
         baseline_path = REPO_ROOT / "docs" / "perf" / "baseline_macos14.json"
