@@ -78,6 +78,21 @@ target_include_directories(miyabi PRIVATE
 )
 ```
 
+### 3.4. Build Artifact Naming Rules (Current Static-Link Operation)
+
+`build_sdk.sh` / `scripts/check_sdk_artifacts.sh` / `docs/SDK_DEFINITION.md` で使う名称を基準に、成果物の命名と配置を固定する。  
+この表の名前を変更する場合は、3ファイルを同一PRで更新すること。
+
+| Category | Filename / Directory | Generated At | Verification Source |
+| --- | --- | --- | --- |
+| Runtime executable | `miyabi` | `build/core/miyabi` | `build_sdk.sh` (`bin/miyabi` へコピー) |
+| Logic static library | `libmiyabi_logic.a` | `build/logic/libmiyabi_logic.a` | `scripts/check_sdk_artifacts.sh` |
+| CXX bridge static library | `libmiyabi_logic_cxx.a` | `build/logic/libmiyabi_logic_cxx.a` | `scripts/check_sdk_artifacts.sh` |
+| Runtime static library | `libmiyabi_runtime.a` | `build/core/libmiyabi_runtime.a` | `scripts/check_sdk_artifacts.sh` |
+| Physics static library | `libbox2d.a` | `build/**/libbox2d.a` | `build_sdk.sh` (`find ... -name 'libbox2d.a'`) |
+| SDK package directory | `sdk/` | repository root | `build_sdk.sh` |
+| SDK archive | `MIYABI_SDK.zip` | repository root | `scripts/test_build_sdk_excludes_ds_store.sh` |
+
 ## 4. Cargo and `build.rs` Configuration
 
 The `logic` crate is configured to produce a C-compatible dynamic library.
