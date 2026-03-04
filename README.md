@@ -24,6 +24,16 @@ cmake -S . -B build
 cmake --build build -j
 ```
 
+## 新規Contributor向け 最短ビルド確認（15分目安）
+
+1. 依存確認: `cmake --version` と `c++ --version` が実行できることを確認
+2. 設定生成: `cmake -S . -B build`
+3. ビルド実行: `cmake --build build -j`
+
+確認できれば、次は以下を参照:
+- [docs/CORE_DEVELOPMENT_TRACK.md](docs/CORE_DEVELOPMENT_TRACK.md): 現在ステージと次ゲート
+- [PLAN.md](PLAN.md): 着手順と優先タスク
+
 ## AGENTS 運用メモ
 
 - 作業開始時に `artifacts/` を確認する
