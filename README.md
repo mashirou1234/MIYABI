@@ -42,6 +42,14 @@ cmake --build build -j
 cargo test --manifest-path sample_game/Cargo.toml --test ffi_input_boundary
 ```
 
+## セーブ互換性チェック（最小手順）
+
+1. スキーマ版数を確認する: `logic/src/save.rs` の `SAVE_SCHEMA_VERSION` を参照する。
+2. 既存セーブを `save/save_data.json` に配置し、`save_version` が `SAVE_SCHEMA_VERSION` と一致することを確認する。
+3. 破損データ時の挙動を確認する: `save/save_data.json` を意図的に壊して起動し、`*.bak` へ退避されることを確認する。
+4. 最低限の回帰テストを実行する: `cargo test --manifest-path logic/Cargo.toml save::tests::load_version_mismatch_returns_error save::tests::load_corrupt_file_uses_next_backup_when_bak_exists`。
+5. 詳細仕様が必要な場合は `docs/CORE_SAVE_SUBSYSTEM.md` と `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md` を参照する。
+
 ## AGENTS 運用メモ
 
 - 作業開始時に `artifacts/` を確認する
