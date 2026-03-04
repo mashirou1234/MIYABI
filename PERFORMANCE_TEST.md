@@ -122,7 +122,19 @@ python3 tools/check_perf_regression.py \
 | `ui_text_command_build` | 0.069 | 200 |
 | `scene_construct_destruct` | 1.364 | 200 |
 
-### 4.5 baseline 更新フロー（`docs/perf/baseline_macos14.json`）
+### 4.5 ベースライン更新の事前条件（チェックリスト）
+
+ベースライン更新は「性能の悪化を隠さない」ための例外運用とし、次の条件を全て満たした場合のみ実施する。
+
+- [ ] `tools/check_perf_regression.py` の出力を確認し、`missing scenario` が 0 件である（入力不整合を解消済み）。
+- [ ] 回帰または変動の原因を特定し、意図的変更である根拠（対応PR/Issue・設計変更）を説明できる。
+- [ ] 同一コミットで再計測を最低2回実施し、更新候補値が許容範囲で再現する。
+- [ ] 計測条件（OS/ビルド種別/負荷状態）が既存 baseline と同等であることを確認した。
+- [ ] `build/perf/regression_report.md` の `Next Actions` に未対応項目がない。
+
+更新時は、PR説明に「更新理由」「再計測結果」「対象シナリオ」を明記し、レビュー時に追跡できるようにする。
+
+### 4.6 baseline 更新フロー（`docs/perf/baseline_macos14.json`）
 
 更新対象は `docs/perf/baseline_macos14.json` のみとし、計測入力と判定結果を `build/perf/` に残してから差し替える。
 
@@ -142,7 +154,7 @@ python3 tools/check_perf_regression.py \
 4. 意図した変更のみであることを確認後、`build/perf/current_baseline.json` の内容を `docs/perf/baseline_macos14.json` に反映し、`generated_on` を更新する。
 5. PR には `PERFORMANCE_TEST.md`、`docs/perf/baseline_macos14.json`、`build/perf/regression_report.md` の確認結果を記載する。
 
-### 4.6 baseline 更新レビューのチェックリスト
+### 4.7 baseline 更新レビューのチェックリスト
 
 - [ ] `PERFORMANCE_TEST.md` の手順どおりに `build/perf/current_baseline.json` と `build/perf/regression_report.md` を再生成している。
 - [ ] `docs/perf/baseline_macos14.json` の `platform` が `macos-14`、`baseline_source` が `logic/src/bin/perf_baseline.rs` のままである。
