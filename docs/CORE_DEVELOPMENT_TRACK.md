@@ -7,6 +7,7 @@
 - 現在ステージと次ゲートの判定は `docs/CORE_DEVELOPMENT_TRACK.md`（本書）が正
 - 次に着手する作業順は `PLAN.md` を参照
 - 直近スレッドの変更内容は `docs/CODEX_MIGRATION_STATUS.md` を参照
+- 初回のビルド確認手順は `README.md` の「新規Contributor向け 最短ビルド確認（15分目安）」を参照
 
 `PLAN.md` は実装順、`docs/CORE_DEVELOPMENT_TRACK.md` は到達判定、`docs/CODEX_MIGRATION_STATUS.md` は変更履歴を扱う。
 
