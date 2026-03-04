@@ -93,6 +93,7 @@
 
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
 - 2026-03-04 | 変更種別: ドキュメント | 関連ファイル: `logic/src/lib.rs`, `docs/LOGIC_PUBLIC_API_INVENTORY.md`, `docs/CODEX_MIGRATION_STATUS.md` | 変更概要: `rg "^pub "` の実測に合わせて公開API棚卸し（行番号・`camera` モジュール）を同期。
+- 2026-03-04 | 変更種別: ドキュメント | 関連ファイル: `docs/DESIGN_Build.md`, `docs/ASSET_IMPORT_REIMPORT.md` | 変更概要: ビルド設計書の冒頭にアセット障害時の診断ログ採取・復旧手順への導線を追加。
 - 更新日: 2026-03-03
   - 変更種別: ビルド
   - 関連ファイル:
