@@ -126,7 +126,36 @@ while (!glfwWindowShouldClose(window)) {
 }
 ```
 
-## 6. Implementation Steps
+## 6. Frame Performance Observation (Minimum Baseline)
+
+To detect regressions early without over-constraining iteration speed, the renderer defines a minimum set of frame-level observation metrics. These values are for trend monitoring and are treated as **provisional baselines** during active development.
+
+### 6.1. Metrics Table
+
+| Metric | Unit | Measurement Scope | Expected Direction | Why It Matters |
+| --- | --- | --- | --- | --- |
+| Draw call count | calls/frame | Total GPU draw submissions in one frame | Decrease or hold | Too many calls increase CPU driver overhead |
+| Batch count | batches/frame | Number of grouped mesh+material submissions | Decrease or hold | More batches usually mean weaker grouping efficiency |
+| Instance count | instances/frame | Total instances submitted via instancing | Increase per draw call, or hold total | Higher packing per call indicates better batching usage |
+
+### 6.2. Capture Timing in the Frame
+
+The metrics are captured at two fixed points to keep sampling consistent:
+
+1. **Frame start:** Reset per-frame counters (`draw_call_count`, `batch_count`, `instance_count`) to zero.
+2. **Frame end:** Finalize and emit the counters after all render passes for the frame complete.
+
+This timing model aligns with the existing loop (`get_renderables` -> build draw calls -> execute draw calls -> present), and does not change render behavior.
+
+### 6.3. Log Output Example
+
+```text
+[renderer.metrics] frame=1284 draw_calls=42 calls/frame batches=18 batches/frame instances=640 instances/frame trend=provisional
+```
+
+The `trend=provisional` marker indicates these are observation values for regression detection, not hard runtime limits.
+
+## 7. Implementation Steps
 
 1.  **Refactor FFI:** Update `cxx::bridge` in `logic/lib.rs` to include `RenderableObject` and the `get_renderables` function. Remove the old command buffer logic.
 2.  **Implement Asset Managers:** Create basic `MeshManager`, `ShaderManager`, and `MaterialManager` classes in C++.
