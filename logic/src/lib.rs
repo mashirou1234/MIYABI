@@ -2284,9 +2284,33 @@ mod tests {
             "[asset] integrity: asset_integrity_tick=90 unresolved reference handle=42 asset_id=77 path=assets/player.png queued_reimport=true"
         );
     }
+
+    #[test]
+    fn ffi_null_pointer_error_is_standardized() {
+        assert_eq!(
+            crate::ffi_null_pointer_error("update_input_state", "input"),
+            "[ffi][error] update_input_state: null pointer argument `input`"
+        );
+    }
+
+    #[test]
+    fn ffi_error_is_standardized() {
+        assert_eq!(
+            crate::ffi_error("deserialize_game", "JSON parse failed: invalid type"),
+            "[ffi][error] deserialize_game: JSON parse failed: invalid type"
+        );
+    }
 }
 
 // --- VTable Functions ---
+
+fn ffi_null_pointer_error(function: &str, arg: &str) -> String {
+    format!("[ffi][error] {function}: null pointer argument `{arg}`")
+}
+
+fn ffi_error(function: &str, detail: &str) -> String {
+    format!("[ffi][error] {function}: {detail}")
+}
 
 #[no_mangle]
 pub extern "C" fn create_game() -> *mut Game {
@@ -2307,21 +2331,59 @@ pub extern "C" fn destroy_game(game: *mut Game) {
 #[no_mangle]
 pub extern "C" fn serialize_game(game: *const Game) -> *mut c_char {
     if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("serialize_game", "game"));
         return ptr::null_mut();
     }
     let game = unsafe { &*game };
-    let serialized = serde_json::to_string(game).unwrap();
-    CString::new(serialized).unwrap().into_raw()
+    let serialized = match serde_json::to_string(game) {
+        Ok(serialized) => serialized,
+        Err(err) => {
+            eprintln!("{}", ffi_error("serialize_game", &format!("serialization failed: {err}")));
+            return ptr::null_mut();
+        }
+    };
+    match CString::new(serialized) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(err) => {
+            eprintln!(
+                "{}",
+                ffi_error(
+                    "serialize_game",
+                    &format!("serialization output contained NUL byte: {err}"),
+                )
+            );
+            ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
     if json.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("deserialize_game", "json"));
         return ptr::null_mut();
     }
     let c_str = unsafe { CStr::from_ptr(json) };
-    let r_str = c_str.to_str().unwrap();
-    let mut game: Game = serde_json::from_str(r_str).unwrap();
+    let r_str = match c_str.to_str() {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!(
+                "{}",
+                ffi_error("deserialize_game", &format!("invalid UTF-8 input: {err}"))
+            );
+            return ptr::null_mut();
+        }
+    };
+    let mut game: Game = match serde_json::from_str(r_str) {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!(
+                "{}",
+                ffi_error("deserialize_game", &format!("JSON parse failed: {err}"))
+            );
+            return ptr::null_mut();
+        }
+    };
     game.save_data = game.save_data.sanitized();
     game.total_play_count = game.save_data.progress.total_play_count;
     game.save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
@@ -2346,6 +2408,7 @@ pub extern "C" fn free_serialized_string(s: *mut c_char) {
 #[no_mangle]
 pub extern "C" fn update_game(game: *mut Game) -> GameState {
     if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("update_game", "game"));
         return GameState::Title;
     }
     let game = unsafe { &mut *game };
@@ -2356,6 +2419,7 @@ pub extern "C" fn update_game(game: *mut Game) -> GameState {
 #[no_mangle]
 pub extern "C" fn get_renderables(game: *mut Game) -> RenderableObjectSlice {
     if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("get_renderables", "game"));
         return RenderableObjectSlice {
             ptr: ptr::null(),
             len: 0,
@@ -2371,6 +2435,7 @@ pub extern "C" fn get_renderables(game: *mut Game) -> RenderableObjectSlice {
 #[no_mangle]
 pub extern "C" fn get_asset_commands(game: *mut Game) -> AssetCommandSlice {
     if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("get_asset_commands", "game"));
         return AssetCommandSlice {
             ptr: ptr::null(),
             len: 0,
@@ -2386,6 +2451,7 @@ pub extern "C" fn get_asset_commands(game: *mut Game) -> AssetCommandSlice {
 #[no_mangle]
 pub extern "C" fn clear_asset_commands(game: *mut Game) {
     if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("clear_asset_commands", "game"));
         return;
     }
     let game = unsafe { &mut *game };
@@ -2395,6 +2461,7 @@ pub extern "C" fn clear_asset_commands(game: *mut Game) {
 #[no_mangle]
 pub extern "C" fn notify_asset_loaded(game: *mut Game, request_id: u32, asset_id: u32) {
     if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("notify_asset_loaded", "game"));
         return;
     }
     let game = unsafe { &mut *game };
@@ -2407,7 +2474,12 @@ pub extern "C" fn notify_asset_loaded(game: *mut Game, request_id: u32, asset_id
 
 #[no_mangle]
 pub extern "C" fn update_input_state(game: *mut Game, input: *const ffi::InputState) {
-    if game.is_null() || input.is_null() {
+    if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("update_input_state", "game"));
+        return;
+    }
+    if input.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("update_input_state", "input"));
         return;
     }
     let game = unsafe { &mut *game };
@@ -2418,15 +2490,29 @@ pub extern "C" fn update_input_state(game: *mut Game, input: *const ffi::InputSt
 #[no_mangle]
 pub extern "C" fn get_asset_command_path_cstring(command: *const ffi::AssetCommand) -> *mut c_char {
     if command.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("get_asset_command_path_cstring", "command"));
         return ptr::null_mut();
     }
     let command = unsafe { &*command };
-    CString::new(command.path.as_str()).unwrap().into_raw()
+    match CString::new(command.path.as_str()) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(err) => {
+            eprintln!(
+                "{}",
+                ffi_error(
+                    "get_asset_command_path_cstring",
+                    &format!("command.path contained NUL byte: {err}"),
+                )
+            );
+            ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn get_text_commands(game: *mut Game) -> TextCommandSlice {
     if game.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("get_text_commands", "game"));
         return TextCommandSlice {
             ptr: ptr::null(),
             len: 0,
@@ -2442,10 +2528,23 @@ pub extern "C" fn get_text_commands(game: *mut Game) -> TextCommandSlice {
 #[no_mangle]
 pub extern "C" fn get_text_command_text_cstring(command: *const ffi::TextCommand) -> *mut c_char {
     if command.is_null() {
+        eprintln!("{}", ffi_null_pointer_error("get_text_command_text_cstring", "command"));
         return ptr::null_mut();
     }
     let command = unsafe { &*command };
-    CString::new(command.text.as_str()).unwrap().into_raw()
+    match CString::new(command.text.as_str()) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(err) => {
+            eprintln!(
+                "{}",
+                ffi_error(
+                    "get_text_command_text_cstring",
+                    &format!("command.text contained NUL byte: {err}"),
+                )
+            );
+            ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]
