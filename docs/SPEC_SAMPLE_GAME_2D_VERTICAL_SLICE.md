@@ -1,6 +1,6 @@
 # MIYABI 2D縦切り仕様書 (Phase 9.1)
 
-最終更新: 2026-02-23
+最終更新: 2026-03-04
 対象: Stage 1 (2D Vertical Slice)
 
 ## 1. 目的
@@ -15,6 +15,7 @@
 - プレイ単位: 1ラン（最大 30 分）
 - 目標: 30分間生存してクリアする
 
+<a id="spec-game-loop"></a>
 ## 3. ゲームループ（確定）
 
 1. タイトル画面で `ゲーム開始`
@@ -46,6 +47,7 @@
   - 障害物の生成頻度
   - 障害物の移動速度
 
+<a id="spec-scenes-ui"></a>
 ## 4. シーン構成と遷移（確定）
 
 ### 4.1 シーン一覧
@@ -99,6 +101,7 @@
 - 決定/UI操作: `Enter` / マウス左クリック
 - ポーズ: `ESC`
 
+<a id="spec-save-load"></a>
 ## 6. セーブ/ロード最小仕様（確定）
 
 ### 6.1 保存対象
@@ -157,6 +160,7 @@
 }
 ```
 
+<a id="spec-non-target"></a>
 ## 7. 非対象（Phase 9.1時点）
 
 - ネットワーク要素
@@ -165,6 +169,7 @@
 - マップエディタ
 - マルチプラットフォーム配布
 
+<a id="spec-acceptance"></a>
 ## 8. 受け入れ基準（Phase 9.2実装完了時に検証）
 
 1. タイトルからゲーム開始し、勝敗いずれかで必ずリザルトへ遷移する
@@ -173,10 +178,31 @@
 4. セーブデータが再起動後に反映される
 5. セーブ破損時にクラッシュせずデフォルト復旧する
 
-## 9. 関連ドキュメント
+<a id="spec-plan-phase9-10-map"></a>
+## 9. PLAN Phase 9/10 と縦切り仕様の対応表
+
+参照元: `PLAN.md` の「Phase 9/10 仕様対応」節
+
+### 9.1 Phase 9 タスクとの対応
+
+| PLANタスク | 仕様項目 | 対応状況 | 備考 |
+| --- | --- | --- | --- |
+| [タスク9.1](../PLAN.md#plan-task-9-1) | [3. ゲームループ](#spec-game-loop), [4. シーン構成と遷移](#spec-scenes-ui), [6. セーブ/ロード最小仕様](#spec-save-load) | 対応済み | 勝敗条件、UI遷移、最小セーブ仕様を固定 |
+| [タスク9.2](../PLAN.md#plan-task-9-2) | [3. ゲームループ](#spec-game-loop), [8. 受け入れ基準](#spec-acceptance) | 対応済み | 実装/検証で到達すべきプレイループ要件を定義 |
+| [タスク9.3](../PLAN.md#plan-task-9-3) | [8. 受け入れ基準](#spec-acceptance) | 部分対応 | 配布手順は `docs/DISTRIBUTION_1OS.md` が正本 |
+
+### 9.2 Phase 10 タスクとの対応
+
+| PLANタスク | 仕様項目 | 対応状況 | 備考 |
+| --- | --- | --- | --- |
+| [タスク10.1](../PLAN.md#plan-task-10-1) | [7. 非対象](#spec-non-target) | 未対応 | アニメーション/タイルマップ/入力マッピングは本仕様の対象外 |
+| [タスク10.2](../PLAN.md#plan-task-10-2) | [6. セーブ/ロード最小仕様](#spec-save-load) | 部分対応 | Saveの最小要件のみ対応。アセットパイプライン全体は別資料 |
+| [タスク10.3](../PLAN.md#plan-task-10-3) | [8. 受け入れ基準](#spec-acceptance) | 未対応 | CI/性能/不具合テンプレートは `PLAN.md` と運用資料側で管理 |
+
+## 10. 関連ドキュメント
 
 - `docs/DEVELOPMENT_TRACK.md`
 - `docs/GAME_DEVELOPMENT_TRACK.md`
 - `docs/CORE_DEVELOPMENT_TRACK.md`
-- `PLAN.md`
+- `PLAN.md`（Phase 9/10 対応: `PLAN.md#plan-phase9-10-spec-map`）
 - `docs/CODEX_MIGRATION_STATUS.md`
