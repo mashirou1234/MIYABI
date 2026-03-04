@@ -42,7 +42,26 @@
 - 外部 fork 由来 PR は対象外
 - 署名付きレビューや Code Owners など追加ルールがある場合は、その条件を満たさない限りマージされない
 
-## 6. 互換性破壊変更時の告知テンプレート
+## 6. 自動マージ除外ケース（手動レビュー必須）
+
+次の変更は、CI が成功しても `automerge:off` を付与して手動レビューを行う。
+
+1. 保存データ互換性に影響する変更
+   - 対象例: `logic/src/save.rs` の `SAVE_SCHEMA_VERSION` 更新、`save_version`/`payload` 契約の変更
+   - 根拠: `docs/CORE_SAVE_SUBSYSTEM.md`
+2. 性能ベースラインや回帰判定ルールに影響する変更
+   - 対象例: `docs/perf/baseline_macos14.json`、`tools/check_perf_regression.py`、`PERFORMANCE_TEST.md` の閾値/判定手順変更
+   - 根拠: `PERFORMANCE_TEST.md`
+3. CI 必須チェック定義そのものの変更
+   - 対象例: Branch protection の Required checks 名変更、`.github/workflows/build.yml` の判定ジョブ変更
+
+### 6.1 除外時の運用手順
+
+1. PR 作成時に `automerge:off` を付与する。
+2. PR 説明に「除外理由」「影響範囲」「復旧手順」を記載する。
+3. 手動レビュー完了後、必要に応じて `automerge:off` を外す。
+
+## 7. 互換性破壊変更時の告知テンプレート
 
 ABI 変更や公開手順の破壊的変更など、既存利用者へ影響する変更を含む PR では、`automerge:off` を付与したうえで以下テンプレートを PR 本文または Issue コメントに記載する。
 
