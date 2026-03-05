@@ -101,6 +101,43 @@
 - 決定/UI操作: `Enter` / マウス左クリック
 - ポーズ: `ESC`
 
+<a id="spec-input-latency"></a>
+## 5.1 入力遅延の計測観点（Phase 9.2 追加）
+
+### 5.1.1 目的
+
+- 操作体感の劣化を早期検知するため、`入力受付 -> 画面反映` を定量観測する
+- 計測手順は `PERFORMANCE_TEST.md` の運用方針と矛盾しない形で記録する
+
+### 5.1.2 計測対象イベント
+
+- `←/→/↑/↓` 押下時のプレイヤー移動開始
+- `ESC` 押下時の `InGame -> Pause` 遷移開始
+- `Enter` 押下時のメニュー決定反映（Title/Pause/Result）
+
+### 5.1.3 指標定義
+
+- `input_to_simulation_ms`:
+  - 入力を受理した時刻から、対応するゲーム状態更新が確定するまでの時間
+- `input_to_present_ms`:
+  - 入力を受理した時刻から、対応結果が画面に描画されるまでの時間
+- `input_delay_frames`:
+  - 入力受理フレームから画面反映フレームまでの差分フレーム数
+
+### 5.1.4 合格ライン（暫定）
+
+- 計測条件: 60FPS 相当、通常負荷（デバッグ表示のみ有効）
+- `input_delay_frames <= 2` を維持する
+- 95パーセンタイルの `input_to_present_ms <= 50ms` を維持する
+- 単発スパイクは許容するが、連続3回以上の閾値超過は失敗とする
+
+### 5.1.5 計測手順（最小）
+
+1. 計測モードで sample_game を起動する
+2. 対象イベントごとに30回入力し、`input_to_simulation_ms` / `input_to_present_ms` を記録する
+3. 95パーセンタイルと最大値、`input_delay_frames` の閾値超過回数を集計する
+4. 結果を PR または Issue コメントに添付し、必要なら `PERFORMANCE_TEST.md` の関連シナリオに追記する
+
 <a id="spec-save-load"></a>
 ## 6. セーブ/ロード最小仕様（確定）
 
@@ -204,5 +241,6 @@
 - `docs/DEVELOPMENT_TRACK.md`
 - `docs/GAME_DEVELOPMENT_TRACK.md`
 - `docs/CORE_DEVELOPMENT_TRACK.md`
+- `PERFORMANCE_TEST.md`
 - `PLAN.md`（Phase 9/10 対応: `PLAN.md#plan-phase9-10-spec-map`）
 - `docs/CODEX_MIGRATION_STATUS.md`
