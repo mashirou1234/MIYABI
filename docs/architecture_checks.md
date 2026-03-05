@@ -115,7 +115,30 @@ echo "exit_code=$?"
 
 注意: 文字列一致ベースのため、文脈に依存する誤検知/見逃しの可能性がある。
 
+### core/public ヘッダ include順依存チェック
+
+- 目的: `core/include/miyabi/*.h` が他ヘッダの先行 include に依存しないことを検証する。
+- 実行コマンド: `./scripts/check_core_public_header_include_order.sh`
+- 対象:
+  - `core/include/miyabi/*.h`
+  - 各ヘッダを「単体先頭 include」で `c++ -fsyntax-only` 検証
+- 除外:
+  - `core/include/miyabi/` 以外の private ヘッダ
+  - 実体が必要な生成物はスタブで代替（`rust/cxx.h`, `miyabi_logic_cxx/lib.h`）
+- 失敗時対応:
+  - 失敗ヘッダに不足 include を追加し、単体 include で再実行する
+  - 必要であれば forward declaration で依存を縮小する
+  - 修正後に同コマンドが `[OK]` になることを確認する
+
+実行例（違反あり）:
+
+```text
+[NG] include順依存または自己完結性欠如を検知: miyabi/bad.h
+  ... error: unknown type name 'uint32_t'
+```
+
 ## scripts 参照導線
 
 - 既存チェック実装: `scripts/check_core_no_sample_game_dependency.sh`
+- 既存チェック実装: `scripts/check_core_public_header_include_order.sh`
 - 新規チェックを増やす場合も、`scripts/` 配下に追加して本ドキュメントへ対応項目を追記する

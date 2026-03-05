@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include "rust/cxx.h"
 
 // Forward-declare types defined in Rust.
