@@ -2250,7 +2250,8 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use super::Game;
+    use super::{ffi, Archetype, ComponentBundle, ComponentType, Game};
+    use std::collections::HashSet;
 
     #[test]
     fn asset_integrity_registry_log_includes_tick() {
@@ -2299,6 +2300,36 @@ mod tests {
             crate::ffi_error("deserialize_game", "JSON parse failed: invalid type"),
             "[ffi][error] deserialize_game: JSON parse failed: invalid type"
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
+    fn component_pool_uninitialized_storage_reference_is_detected() {
+        let mut types = HashSet::new();
+        types.insert(ComponentType::Transform);
+        let mut archetype = Archetype::new(types);
+
+        // Component storage を初期化しないまま push すると未初期化参照になる。
+        (
+            ffi::Transform {
+                position: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            },
+        )
+            .push_to_storage(&mut archetype);
     }
 }
 
