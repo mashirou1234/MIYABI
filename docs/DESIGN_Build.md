@@ -95,6 +95,15 @@ target_include_directories(miyabi PRIVATE
 | SDK package directory | `sdk/` | repository root | `build_sdk.sh` |
 | SDK archive | `MIYABI_SDK.zip` | repository root | `scripts/test_build_sdk_excludes_ds_store.sh` |
 
+### 3.5. キャッシュ削除時の注意点
+
+ビルド不整合の調査でキャッシュを削除する場合は、再現性を保つために以下を守る。
+
+1. 削除対象は `build/` のみとし、`logic/Cargo.toml` や `core/include/` などの追跡ファイルは削除しない。
+2. 削除後は必ず `cmake -S . -B build` を再実行して構成を再生成する。
+3. 必要に応じて `cmake --build build -j` を実行し、最小回帰確認としてビルド成功を記録する。
+4. `sdk/` や `MIYABI_SDK.zip` を同時に削除する場合は、`build_sdk.sh` 実行で再生成できることを確認してから行う。
+
 ## 4. Cargo and `build.rs` Configuration
 
 The `logic` crate is configured to produce a C-compatible dynamic library.
