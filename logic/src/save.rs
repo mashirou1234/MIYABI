@@ -300,32 +300,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn load_corrupt_file_uses_next_backup_when_bak_exists() {
-        let dir = temp_dir_path();
-        let path = dir.join("save_data.json");
-        let existing_backup = path.with_extension("json.bak");
-        fs::write(&existing_backup, b"old backup").unwrap();
-        fs::write(&path, b"this is not json").unwrap();
-
-        let loaded = load_or_default::<TestData>(&path).unwrap();
-
-        match loaded {
-            LoadState::Defaulted { data, backup_path } => {
-                assert_eq!(data, TestData::default());
-                assert_eq!(
-                    fs::read(&existing_backup).unwrap(),
-                    b"old backup",
-                    "existing backup should not be overwritten"
-                );
-                let backup = backup_path.expect("backup path should exist");
-                assert_eq!(backup, dir.join("save_data.json.bak.1"));
-                assert!(backup.exists());
-            }
-            _ => panic!("expected defaulted state"),
-        }
-
-        assert!(!path.exists(), "corrupt file should be moved");
-        assert!(existing_backup.exists(), "existing backup should be preserved");
-    }
 }

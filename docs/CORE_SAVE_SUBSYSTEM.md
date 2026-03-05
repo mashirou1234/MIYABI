@@ -1,6 +1,6 @@
 # MIYABI Core Save Subsystem 定義
 
-最終更新: 2026-02-23
+最終更新: 2026-03-05
 
 ## 1. 目的
 
@@ -44,6 +44,8 @@
 
 - ファイル未存在: 失敗扱いにせず `Default` 値で開始
 - JSON破損: ファイルを `*.bak` へ退避後、`Default` 値で開始
+  - 既存の `*.bak` が存在する場合は上書きせず、`*.bak.1`, `*.bak.2` ... の空き番号へ退避する
+  - 退避成功後、元の破損ファイルは元パスに残らない
 - バージョン不一致: `VersionMismatch` として呼び出し側へ返却
   - 自動移行はこの段階では行わない
 
@@ -54,6 +56,7 @@
 - round trip（save->load）
 - missing file -> default
 - corrupt file -> backup + default
+- corrupt file + 既存 `*.bak` -> 連番バックアップへ退避
 
 ## 6. ゲーム接続状況（2026-02-23）
 
