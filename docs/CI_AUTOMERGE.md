@@ -54,11 +54,15 @@
    - 根拠: `PERFORMANCE_TEST.md`
 3. CI 必須チェック定義そのものの変更
    - 対象例: Branch protection の Required checks 名変更、`.github/workflows/build.yml` の判定ジョブ変更
+4. 自動マージ制御や権限境界に影響する変更
+   - 対象例: `scripts/woodpecker_pr_automerge.sh` の承認条件変更、`OWNER` / `MEMBER` / `COLLABORATOR` 判定ロジック変更、`github_token` の権限前提変更
+   - 根拠: 本ドキュメント「2. 実装内容」「3. GitHub 側の必須設定」
 
 ### 6.1 除外時の運用手順
 
 1. PR 作成時に `automerge:off` を付与する。
 2. PR 説明に「除外理由」「影響範囲」「復旧手順」を記載する。
+   - どの除外ケース（6章の番号）に該当するかを明記する。
 3. 手動レビュー完了後、必要に応じて `automerge:off` を外す。
 
 ## 7. 互換性破壊変更時の告知テンプレート
