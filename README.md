@@ -9,6 +9,14 @@ MIYABI は C++ ベースのゲーム/SDK 開発リポジトリです。
 - [docs/DEVELOPMENT_TRACK.md](docs/DEVELOPMENT_TRACK.md): 開発トラック運用
 - [docs/CODEX_MIGRATION_STATUS.md](docs/CODEX_MIGRATION_STATUS.md): Codex 移行状況
 
+## 主要ドキュメント逆引き
+
+- 進め方を把握したい: [PLAN.md](PLAN.md), [docs/DEVELOPMENT_TRACK.md](docs/DEVELOPMENT_TRACK.md)
+- 設計判断を確認したい: [DESIGN.md](DESIGN.md), [docs/DESIGN_Renderer.md](docs/DESIGN_Renderer.md), [docs/DESIGN_ECS.md](docs/DESIGN_ECS.md), [docs/DESIGN_FFI.md](docs/DESIGN_FFI.md)
+- 進捗や移行状況を追いたい: [docs/CODEX_MIGRATION_STATUS.md](docs/CODEX_MIGRATION_STATUS.md), [docs/CORE_DEVELOPMENT_TRACK.md](docs/CORE_DEVELOPMENT_TRACK.md), [docs/GAME_DEVELOPMENT_TRACK.md](docs/GAME_DEVELOPMENT_TRACK.md)
+- SDK/配布まわりを確認したい: [docs/SDK_DEFINITION.md](docs/SDK_DEFINITION.md), [docs/DISTRIBUTION_1OS.md](docs/DISTRIBUTION_1OS.md)
+- 品質・性能検証を確認したい: [PERFORMANCE_TEST.md](PERFORMANCE_TEST.md), [docs/perf/PERF_BASELINE.md](docs/perf/PERF_BASELINE.md)
+
 ## リポジトリ構成（概要）
 
 - `core/`: コアエンジン実装
