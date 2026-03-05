@@ -2,6 +2,7 @@
 
 この文書は、依存境界チェックを段階的に増やすための運用テンプレートです。
 新しいチェックを追加するときは、下記テンプレートをコピーして項目を埋めてください。
+ファイル名 `architecture_checks.md` に合わせ、検索確認では `architecture` 文字列を利用できます。
 
 ## ローカル再現ガイド（所要 10 分目安）
 
@@ -38,6 +39,50 @@ rg --line-number --no-heading --color=never --fixed-strings "sample_game" core
 
 - 上記コマンドは `scripts/check_core_no_sample_game_dependency.sh` 内部と同一条件です。
 - 出力された行を修正対象として扱います。
+
+### 2.5 ローカル実行失敗（環境要因）の切り分け（2 分）
+
+`exit_code=2` や `command not found` など、チェック以前で停止した場合は次を確認します。
+
+1. 実行ディレクトリ誤りの確認
+
+```bash
+pwd
+test -x ./scripts/check_core_no_sample_game_dependency.sh && echo ok || echo ng
+```
+
+- `ng` の場合: リポジトリルート（`MIYABI/`）へ移動して再実行します。
+
+2. `rg` 未導入/パス不備の確認
+
+```bash
+rg --version
+command -v rg
+```
+
+- 失敗する場合: `rg` を導入し、シェルを再起動して PATH を反映します。
+
+3. 実行権限の確認
+
+```bash
+ls -l ./scripts/check_core_no_sample_game_dependency.sh
+```
+
+- `x` 権限が無い場合:
+
+```bash
+chmod +x ./scripts/check_core_no_sample_game_dependency.sh
+```
+
+4. スクリプト単体の終了コード確認
+
+```bash
+bash -x ./scripts/check_core_no_sample_game_dependency.sh
+echo "exit_code=$?"
+```
+
+- `exit_code=0/1`: チェック自体は実行できています（以降は通常の違反切り分けへ）。
+- `exit_code=2`: 環境要因のため、上記 1-3 を再確認します。
 
 ### 3. 修正後の確認（1 分）
 
