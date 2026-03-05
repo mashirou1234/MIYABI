@@ -199,3 +199,23 @@ If any requirement fails, the renderer skips that draw call and emits an error l
 3.  **Refactor `main.cpp`:** Restructure the main loop according to the design above. Implement the sorting and batching logic.
 4.  **Update Shaders:** Modify the vertex shader to accept per-instance transformation matrices from an instanced vertex buffer.
 5.  **Update Rust Logic:** Modify the `World` in `logic` to generate `RenderableObject`s instead of `DrawTriangleCommand`s. Initially, all objects can share mesh_id `0` and material_id `0`.
+
+## 9. Renderer初期化失敗時のエラーコード対応表（現行）
+
+`core/src/main.cpp` の初期化処理は、現行では失敗時の終了コードを `-1` に統一している。  
+そのため、原因の切り分けは「失敗箇所」と「標準エラー出力の識別文字列」を組み合わせて行う。
+
+| フェーズ | 条件 | stderr 識別キー（例） | 終了コード |
+| --- | --- | --- | --- |
+| ABI整合性確認 | `g_vtable.abi_version != MIYABI_ABI_VERSION` | `ABI version mismatch. expected=` | `-1` |
+| GLFW初期化 | `!glfwInit()` | `Failed to initialize GLFW` | `-1` |
+| ウィンドウ作成 | `glfwCreateWindow(...) == NULL` | `Failed to create GLFW window` | `-1` |
+| GLAD初期化 | `!gladLoadGLLoader(...)` | `Failed to initialize GLAD` | `-1` |
+| シェーダロード | `shader_manager.load_shader(...) == 0` | `ERROR::SHADER::`（READ/COMPILE/LINK） | `-1` |
+| 描画メッシュ取得 | `mesh_manager.get_mesh(...) == nullptr` | （明示ログなし。直前処理から判定） | `-1` |
+
+### 9.1. 運用上の確認手順（最小）
+
+1. 実行時に終了コードが `-1` であることを確認する。  
+2. 併せて stderr を確認し、上表の識別キーで失敗フェーズを特定する。  
+3. シェーダ失敗時は `ERROR::SHADER::READ/COMPILE/LINK` の種類と `path=...` を記録する。
