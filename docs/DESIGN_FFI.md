@@ -150,3 +150,10 @@ This workflow ensures a seamless transition between library versions with no mem
 
 - `update_input_state(game, input)` は `game == null` または `input == null` のとき何も変更せず早期 return する。
 - 空入力フレーム（`InputState::default()` 相当）は有効入力として受理し、`update_game` 呼び出しでクラッシュしないことをテストで固定する。
+- 配列入力を受ける FFI（例: `inputs_ptr + inputs_len`）は以下の境界規約を必須とする。
+  - `inputs_ptr == null && inputs_len == 0`: 空配列として受理する（no-op）。
+  - `inputs_ptr == null && inputs_len > 0`: 不正入力として処理を中断し、エラー戻り値（またはログ）を返す。
+  - `inputs_ptr != null && inputs_len == 0`: 空配列として受理する（参照しない）。
+  - `inputs_ptr != null && inputs_len > 0`: `inputs_ptr[0..inputs_len)` のみを読み取り対象とする。
+- `inputs_len` は実装側で扱える上限（`MAX_INPUT_EVENTS_PER_FRAME` など）を超える場合、超過分を破棄またはエラー扱いとし、未定義動作にしない。
+- 入力バッファは「呼び出し中のみ有効な borrow」として扱い、FFI境界の外にポインタを保持しない。
