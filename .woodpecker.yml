@@ -145,15 +145,3 @@ steps:
         if header_abi != logic_abi:
             raise SystemExit("ABI mismatch detected")
         PY
-
-  - name: github-pr-automerge
-    image: ghcr.io/cli/cli:2.67.0
-    when:
-      - event: [pull_request]
-    environment:
-      GH_TOKEN:
-        from_secret: github_token
-      GITHUB_TOKEN:
-        from_secret: github_token
-    commands:
-      - sh ./scripts/woodpecker_pr_automerge.sh
