@@ -41,6 +41,33 @@
   - `SHA256SUMS.txt`
   - `docs/README.txt`
 
+### 3.1 最低同梱物チェック
+
+配布前に、展開ディレクトリ `dist/miyabi_game_macos` に次の必須同梱物があることを確認する。
+
+- `bin/miyabi`
+- `assets/player.png`
+- `assets/test.png`
+- `assets/test_sound.wav`
+- `run_miyabi.sh`
+- `SHA256SUMS.txt`
+- `docs/README.txt`
+
+確認コマンド例:
+
+```bash
+for p in \
+  bin/miyabi \
+  assets/player.png \
+  assets/test.png \
+  assets/test_sound.wav \
+  run_miyabi.sh \
+  SHA256SUMS.txt \
+  docs/README.txt; do
+  test -e "dist/miyabi_game_macos/$p" || { echo "missing: $p"; exit 1; }
+done
+```
+
 ## 4. クリーン再現確認（同一OS）
 
 1. `build_release_game` が都度削除されることを確認する（クリーンビルド）

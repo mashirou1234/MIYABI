@@ -620,6 +620,52 @@ impl InternalWorld {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemRegistrationMeta {
+    pub stage: String,
+    pub source: String,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct SystemRegistry {
+    systems: HashMap<String, SystemRegistrationMeta>,
+}
+
+impl SystemRegistry {
+    pub fn register(&mut self, name: &str, stage: &str, source: &str) -> Result<(), String> {
+        if let Some(existing) = self.systems.get(name) {
+            return Err(Self::duplicate_registration_log(
+                name,
+                stage,
+                source,
+                existing.stage.as_str(),
+                existing.source.as_str(),
+            ));
+        }
+
+        self.systems.insert(
+            name.to_string(),
+            SystemRegistrationMeta {
+                stage: stage.to_string(),
+                source: source.to_string(),
+            },
+        );
+        Ok(())
+    }
+
+    pub fn duplicate_registration_log(
+        name: &str,
+        new_stage: &str,
+        new_source: &str,
+        existing_stage: &str,
+        existing_source: &str,
+    ) -> String {
+        format!(
+            "[ecs][system_registry][duplicate] system={name} new_stage={new_stage} new_source={new_source} existing_stage={existing_stage} existing_source={existing_source}"
+        )
+    }
+}
+
 pub trait ComponentBundle {
     fn get_component_types() -> HashSet<ComponentType>
     where
@@ -2250,7 +2296,7 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use super::{ffi, Archetype, ComponentBundle, ComponentType, Game};
+    use super::{ffi, Archetype, ComponentBundle, ComponentType, Game, SystemRegistry};
     use std::collections::HashSet;
 
     #[test]
@@ -2330,6 +2376,23 @@ mod tests {
             },
         )
             .push_to_storage(&mut archetype);
+    }
+
+    #[test]
+    fn system_registry_duplicate_registration_log_includes_cause() {
+        let mut registry = SystemRegistry::default();
+        registry
+            .register("ui_system", "post_update", "logic/src/ui.rs")
+            .expect("initial registration must succeed");
+
+        let err = registry
+            .register("ui_system", "update", "logic/src/lib.rs")
+            .expect_err("duplicate registration must be rejected");
+
+        assert_eq!(
+            err,
+            "[ecs][system_registry][duplicate] system=ui_system new_stage=update new_source=logic/src/lib.rs existing_stage=post_update existing_source=logic/src/ui.rs"
+        );
     }
 }
 
