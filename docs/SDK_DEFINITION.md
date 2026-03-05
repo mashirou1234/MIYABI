@@ -64,6 +64,7 @@ SDK ZIP (`MIYABI_SDK.zip`) には最低限、以下を含める。
 
 ```bash
 ./scripts/check_sdk_artifacts.sh
+./scripts/check_sdk_artifacts.sh --dry-run
 ./scripts/check_sdk_artifacts.sh /path/to/extracted/sdk
 ```
 
@@ -74,6 +75,7 @@ python3 tools/check_sdk_bundle.py --sdk-dir ./sdk
 ```
 
 不足がある場合は非0で終了し、不足項目一覧を表示する。
+`--dry-run` 指定時は不足項目を表示しつつ終了コード 0 で返す。
 
 ### 4.1 SDK更新時チェックリスト（`build_sdk.sh` 変更時）
 
@@ -91,6 +93,17 @@ python3 tools/check_sdk_bundle.py --sdk-dir ./sdk
    - `docs/SDK_DEFINITION.md` 自体が SDK に同梱され、配布物定義の正として参照可能なこと。
 6. 同梱物検証の実行
    - `./scripts/check_sdk_artifacts.sh <sdk_dir>` が成功し、欠落項目が 0 件であること。
+
+### 4.2 ABI確認の最短手順
+
+SDK展開後、最短で ABI 整合を確認する手順を以下に固定する。
+
+1. 同梱漏れの一次診断（非破壊）
+   - `./scripts/check_sdk_artifacts.sh --dry-run <sdk_dir>`
+2. 同梱漏れの厳密検証（失敗時は非0）
+   - `./scripts/check_sdk_artifacts.sh <sdk_dir>`
+3. 実行時 ABI 判定の確認
+   - `sdk/examples/main.cpp` 相当で `vtable.abi_version == MIYABI_ABI_VERSION` を実行し、判定が true であることを確認する。
 ## 5. リンク契約
 
 `find_package(MIYABI CONFIG REQUIRED)` により `MIYABI::SDK` を利用する。
