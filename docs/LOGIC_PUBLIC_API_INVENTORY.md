@@ -113,6 +113,29 @@
 - A（公開維持）/B（内部化候補）の分類理由を追記し、変更理由を PR 説明または Issue コメントで追跡できること。
 - FFI 文字列管理や所有権規約に関わる変更がある場合、`docs/DESIGN_FFI.md` のメモリルール参照先を確認すること。
 
+### 欠番チェック手順（`extern "C"` API 棚卸し）
+
+`extern "C"` の棚卸し漏れ（欠番）を防ぐため、`logic/src/lib.rs` 実装と本書の A 群記載を関数名ベースで突合する。
+
+```bash
+rg 'pub extern "C" fn' logic/src/lib.rs -n \
+  | sed -E 's/.*fn ([A-Za-z0-9_]+).*/\1/' \
+  | sort -u > /tmp/miyabi_extern_actual.txt
+
+rg '`pub extern "C" fn [A-Za-z0-9_]+\\(' docs/LOGIC_PUBLIC_API_INVENTORY.md -o \
+  | sed -E 's/`pub extern "C" fn ([A-Za-z0-9_]+)\(/\1/' \
+  | sort -u > /tmp/miyabi_extern_inventory.txt
+
+# 欠番（実装にあるが棚卸しにない）
+comm -23 /tmp/miyabi_extern_actual.txt /tmp/miyabi_extern_inventory.txt
+
+# 余剰（棚卸しにあるが実装にない）
+comm -13 /tmp/miyabi_extern_actual.txt /tmp/miyabi_extern_inventory.txt
+```
+
+期待値:
+- どちらの `comm` 出力も空であること（空でなければ本書の A 群を更新する）。
+
 ## SDK定義書との対応関係
 
 | 公開API棚卸しの観点 | SDK定義書の参照先 | 確認内容 |

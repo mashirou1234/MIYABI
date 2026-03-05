@@ -116,6 +116,7 @@ steps:
       - rm -rf /var/lib/apt/lists/*
       - cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMIYABI_PERFORMANCE_TEST=ON
       - cmake --build build -j2
+      - ./scripts/check_core_public_header_include_order.sh
       - cargo test --manifest-path logic/Cargo.toml
       - cargo test --manifest-path sample_game/Cargo.toml
       - test -x build/core/miyabi
@@ -144,15 +145,3 @@ steps:
         if header_abi != logic_abi:
             raise SystemExit("ABI mismatch detected")
         PY
-
-  - name: github-pr-automerge
-    image: ghcr.io/cli/cli:2.67.0
-    when:
-      - event: [pull_request]
-    environment:
-      GH_TOKEN:
-        from_secret: github_token
-      GITHUB_TOKEN:
-        from_secret: github_token
-    commands:
-      - sh ./scripts/woodpecker_pr_automerge.sh

@@ -155,7 +155,44 @@ This timing model aligns with the existing loop (`get_renderables` -> build draw
 
 The `trend=provisional` marker indicates these are observation values for regression detection, not hard runtime limits.
 
-## 7. Implementation Steps
+## 7. Buffer Preconditions (Explicit Contract)
+
+To prevent interpretation drift between Rust scene output and C++ draw submission, buffer handling follows these preconditions:
+
+### 7.1. Creation and Ownership
+
+- `MeshManager` owns static geometry buffers (`VAO`, `VBO`, `EBO`) for each `mesh_id`.
+- The renderer owns a per-frame instance buffer (`instance_vbo`) used only for transform/material-instance payloads.
+- Buffer handles are created after OpenGL context initialization and destroyed before context teardown.
+
+### 7.2. Validity Requirements Before Draw
+
+For each generated `DrawCall`, all of the following must be true:
+
+1. `mesh_id` resolves to a registered mesh entry with valid `VAO` and index metadata.
+2. `material_id` resolves to a registered material entry with a valid linked shader program.
+3. `instance_count > 0`; zero-instance batches are skipped and not submitted.
+4. The instance payload size equals `instance_count * sizeof(InstanceData)` and fits within the currently allocated instance buffer capacity.
+
+If any requirement fails, the renderer skips that draw call and emits an error log with the failing identifier (`mesh_id` or `material_id`).
+
+### 7.3. Update Rules Per Frame
+
+- Per-frame counters and temporary batch data are reset at frame start.
+- Static mesh buffers are immutable during the draw phase of a frame.
+- The instance buffer is updated in batch units (`glBufferSubData` or mapped write) before the corresponding instanced draw call.
+- Reallocation of instance buffer storage is allowed only before draw submission begins for that frame.
+
+### 7.4. Layout Compatibility
+
+- `InstanceData` layout must be explicitly defined and shared with shader inputs (matrix rows/columns, alignment, and stride).
+- Vertex attribute pointer setup for instancing must be performed once per mesh pipeline setup and reused.
+- Any change to `InstanceData` requires synchronized updates in:
+  - C++ struct definition,
+  - vertex attribute declarations,
+  - shader input layout documentation.
+
+## 8. Implementation Steps
 
 1.  **Refactor FFI:** Update `cxx::bridge` in `logic/lib.rs` to include `RenderableObject` and the `get_renderables` function. Remove the old command buffer logic.
 2.  **Implement Asset Managers:** Create basic `MeshManager`, `ShaderManager`, and `MaterialManager` classes in C++.

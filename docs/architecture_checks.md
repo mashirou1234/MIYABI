@@ -2,6 +2,7 @@
 
 この文書は、依存境界チェックを段階的に増やすための運用テンプレートです。
 新しいチェックを追加するときは、下記テンプレートをコピーして項目を埋めてください。
+ファイル名 `architecture_checks.md` に合わせ、検索確認では `architecture` 文字列を利用できます。
 
 ## ローカル再現ガイド（所要 10 分目安）
 
@@ -38,6 +39,50 @@ rg --line-number --no-heading --color=never --fixed-strings "sample_game" core
 
 - 上記コマンドは `scripts/check_core_no_sample_game_dependency.sh` 内部と同一条件です。
 - 出力された行を修正対象として扱います。
+
+### 2.5 ローカル実行失敗（環境要因）の切り分け（2 分）
+
+`exit_code=2` や `command not found` など、チェック以前で停止した場合は次を確認します。
+
+1. 実行ディレクトリ誤りの確認
+
+```bash
+pwd
+test -x ./scripts/check_core_no_sample_game_dependency.sh && echo ok || echo ng
+```
+
+- `ng` の場合: リポジトリルート（`MIYABI/`）へ移動して再実行します。
+
+2. `rg` 未導入/パス不備の確認
+
+```bash
+rg --version
+command -v rg
+```
+
+- 失敗する場合: `rg` を導入し、シェルを再起動して PATH を反映します。
+
+3. 実行権限の確認
+
+```bash
+ls -l ./scripts/check_core_no_sample_game_dependency.sh
+```
+
+- `x` 権限が無い場合:
+
+```bash
+chmod +x ./scripts/check_core_no_sample_game_dependency.sh
+```
+
+4. スクリプト単体の終了コード確認
+
+```bash
+bash -x ./scripts/check_core_no_sample_game_dependency.sh
+echo "exit_code=$?"
+```
+
+- `exit_code=0/1`: チェック自体は実行できています（以降は通常の違反切り分けへ）。
+- `exit_code=2`: 環境要因のため、上記 1-3 を再確認します。
 
 ### 3. 修正後の確認（1 分）
 
@@ -115,7 +160,30 @@ echo "exit_code=$?"
 
 注意: 文字列一致ベースのため、文脈に依存する誤検知/見逃しの可能性がある。
 
+### core/public ヘッダ include順依存チェック
+
+- 目的: `core/include/miyabi/*.h` が他ヘッダの先行 include に依存しないことを検証する。
+- 実行コマンド: `./scripts/check_core_public_header_include_order.sh`
+- 対象:
+  - `core/include/miyabi/*.h`
+  - 各ヘッダを「単体先頭 include」で `c++ -fsyntax-only` 検証
+- 除外:
+  - `core/include/miyabi/` 以外の private ヘッダ
+  - 実体が必要な生成物はスタブで代替（`rust/cxx.h`, `miyabi_logic_cxx/lib.h`）
+- 失敗時対応:
+  - 失敗ヘッダに不足 include を追加し、単体 include で再実行する
+  - 必要であれば forward declaration で依存を縮小する
+  - 修正後に同コマンドが `[OK]` になることを確認する
+
+実行例（違反あり）:
+
+```text
+[NG] include順依存または自己完結性欠如を検知: miyabi/bad.h
+  ... error: unknown type name 'uint32_t'
+```
+
 ## scripts 参照導線
 
 - 既存チェック実装: `scripts/check_core_no_sample_game_dependency.sh`
+- 既存チェック実装: `scripts/check_core_public_header_include_order.sh`
 - 新規チェックを増やす場合も、`scripts/` 配下に追加して本ドキュメントへ対応項目を追記する

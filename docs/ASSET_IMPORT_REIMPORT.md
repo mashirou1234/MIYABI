@@ -1,6 +1,6 @@
 # MIYABI アセット import/reimport 手順（Texture）
 
-最終更新: 2026-02-23
+最終更新: 2026-03-05
 
 ## 1. 対象
 
@@ -55,16 +55,24 @@
 
 ## 6. 復旧手順（運用）
 
-1. ログに `missing registry` が出た場合:
+1. 初動（1分以内）:
+   - 失敗ログの種別を判定する（`missing registry` / `unresolved reference` / `registry inconsistency detected`）
+   - まず `U` キーで全テクスチャ reimport を 1 回実行する
+   - 30フレーム（1回の整合チェック周期）待って同一ログの再発有無を確認する
+2. `missing registry` が再発する場合:
    - 該当マテリアル生成時の `texture_handle` 設定を確認する
    - `load_texture` を経由しない手動ハンドル注入がないか確認する
-2. ログに `unresolved reference` が継続する場合:
-   - まず `U` キーで全テクスチャ reimport を実行する
-   - 対象 `path` の実ファイル存在と読み取り権限を確認する
-   - 画像破損の可能性がある場合は元アセットへ差し戻す
-3. `registry inconsistency detected` が継続する場合:
+   - 直近変更で手動注入が入っている場合は差し戻して再起動する
+3. `unresolved reference` が再発する場合:
+   - ログに出た `path` の実ファイル存在と読み取り権限を確認する
+   - 画像破損の可能性がある場合は直前の正常版アセットへ差し戻す
+   - 差し戻し後に `U` キーで再reimportし、再発しないことを確認する
+4. `registry inconsistency detected` が再発する場合:
    - `AssetServer` のマップ更新処理（load/reimport周辺）を点検する
-   - 必要に応じて再起動してレジストリを再構築する
+   - 再現中は `U` キー連打を避け、再起動してレジストリを再構築する
+5. 復旧完了の判定:
+   - 連続 2 周期（60フレーム）で上記 3 種の診断ログが再発しない
+   - 主要表示（プレイヤー/タイル/UI）でテクスチャ欠落や差し替え漏れがない
 
 ## 7. 失敗時挙動
 
