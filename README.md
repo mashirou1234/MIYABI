@@ -32,6 +32,14 @@ cmake -S . -B build
 cmake --build build -j
 ```
 
+## CMake Presets 最小ビルド手順
+
+```bash
+cmake --list-presets
+cmake --preset dev
+cmake --build --preset dev -j
+```
+
 ## 新規Contributor向け 最短ビルド確認（15分目安）
 
 1. 依存確認: `cmake --version` と `c++ --version` が実行できることを確認
