@@ -42,6 +42,16 @@
 - `logic` → `core` 実装詳細: `bridge.h` 以外の C++ ヘッダ/ソースを include しない。GL/GLFW/Freetype などプラットフォームライブラリへの直接依存を作らない。
 - `core` → `logic` 内部ファイル: Rust クレートの `.rs` を C++ から include する、`logic` が持つゲーム状態 (`Game`, `World`, UI) を C++ で改変する、といった境界破りを禁止する。
 
+#### 禁止依存の具体例（NG/代替）
+- NG: `core/src/*` から `sample_game/src/*` のゲーム状態を直接参照する。  
+  代替: `core` は `miyabi_bridge.cpp` 経由で `logic` の公開 API のみを呼ぶ。
+- NG: `sample_game` で `core/include/miyabi/bridge.h` を `include` して C++ 関数を直接呼ぶ。  
+  代替: `sample_game` は `miyabi_logic` の公開型・公開関数のみを利用する。
+- NG: `logic` から `core/src/renderer/*` など実装ディレクトリへ依存を張る。  
+  代替: `logic` からのランタイム呼び出しは `core/include/miyabi/bridge.h` の契約に限定する。
+- NG: `core` の CMake に `sample_game` ターゲットを追加し、`target_link_libraries` で直接リンクする。  
+  代替: 実行時の組み合わせは `core` + `logic` の ABI 境界で接続し、ゲーム固有処理は Rust 側で完結させる。
+
 ## 4. 「次に分離すべき箇所」の指針
 
 - `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
