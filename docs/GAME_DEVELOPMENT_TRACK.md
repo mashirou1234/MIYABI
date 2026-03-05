@@ -1,6 +1,6 @@
 # MIYABI ゲーム開発トラック（ユーザー開発）
 
-最終更新: 2026-02-23
+最終更新: 2026-03-05
 
 ## 1. 目的
 
@@ -47,3 +47,14 @@
 - 仕様: `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md`
 - 作業タスク: `PLAN.md`
 - 変更履歴: `docs/CODEX_MIGRATION_STATUS.md`
+
+## 5. 検証環境前提
+
+同一手順で再現できることを優先し、G1-G2 の検証は次の前提環境を満たす。
+
+- OS: macOS 14 系（Apple Silicon）
+- ビルドツール: `cmake` と `c++` が PATH から実行可能
+- 実行前提: `README.md` の最短ビルド確認手順（`cmake -S . -B build` / `cmake --build build -j`）が通ること
+- 検証ログ: 実施時は使用OS、コンパイラ版数、実行コマンドを PR または Issue コメントに記録する
+
+環境差がある場合は、先に差分（OS/コンパイラ/依存）を明記してから結果を比較する。
