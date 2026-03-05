@@ -184,6 +184,16 @@ This is the most complex operation, as it requires moving an entity between arch
     -   Push the *new* component into its storage vector in the target archetype. Keep this aligned with [2.2.1 ComponentType Addition Checklist](#221-componenttype-addition-checklist) so storage registration and runtime access stay consistent.
 5.  **Update Location Map:** Update the `EntityLocation` for the original entity in `world.entities` to point to its new home in the target archetype.
 
+### 3.4. Component Update Order: Operational Cautions
+
+Runtime behavior depends not only on component data, but also on the order in which systems mutate that data. To keep results deterministic and debuggable, follow these constraints whenever adding or changing systems.
+
+1.  **Treat system order as an explicit contract:** Define and maintain a single canonical system order in `run_logic` (or a scheduler abstraction once introduced). Do not rely on registration side effects or container iteration order.
+2.  **Never depend on `HashMap` iteration order:** `archetype.storage` is a `HashMap`, and its iteration order is intentionally non-deterministic. Cross-component updates must be driven by explicit `ComponentType` access paths, not by map traversal sequence.
+3.  **Single-writer rule per frame:** A given mutable component type should have one writer system per frame stage. If multiple systems need writes, split them into ordered stages and document read/write ownership.
+4.  **Read-after-write ordering must be documented:** If `SystemB` assumes writes performed by `SystemA` in the same frame, that dependency must be written next to the schedule definition and reflected in this design document when changed.
+5.  **Structural changes should run in a dedicated phase:** Entity moves such as `add_component`/`despawn` (swap-and-pop) can invalidate dense indices. Apply structural commands in a deferred phase after data-parallel component updates to avoid accidental stale-index access.
+
 ## 4. Query System: The Ergonomic Access Layer
 
 The current manual iteration in `run_logic` is brittle and inefficient. A formal query system is required.
