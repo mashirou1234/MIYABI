@@ -157,3 +157,20 @@ This workflow ensures a seamless transition between library versions with no mem
   - `inputs_ptr != null && inputs_len > 0`: `inputs_ptr[0..inputs_len)` のみを読み取り対象とする。
 - `inputs_len` は実装側で扱える上限（`MAX_INPUT_EVENTS_PER_FRAME` など）を超える場合、超過分を破棄またはエラー扱いとし、未定義動作にしない。
 - 入力バッファは「呼び出し中のみ有効な borrow」として扱い、FFI境界の外にポインタを保持しない。
+
+### 6.1 String Encoding Boundary Conditions
+
+- FFI 経由の文字列は `UTF-8 (BOM なし)` を唯一の正規フォーマットとする。`docs/SDK_DEFINITION.md` と `core/include/miyabi/miyabi.h` の契約にも同じ前提を適用する。
+- 境界で受ける文字列は `char* + len` と `NUL 終端 C 文字列` を明確に区別し、混在させない。
+  - `char* + len`:
+    - `ptr == null && len == 0` は空文字列として受理する。
+    - `ptr == null && len > 0` は不正入力として拒否する。
+    - `ptr != null` は `ptr[0..len)` のみを読み、終端 `\\0` を前提にしない。
+  - `NUL 終端 C 文字列`:
+    - `ptr == null` は不正入力として拒否する。
+    - 先頭から最初の `\\0` までを有効範囲とし、途中のバイト列は UTF-8 として検証する。
+- Rust 側で UTF-8 検証に失敗した場合は `String` 化せず、エラー戻り値（またはログ）で呼び出し側に通知する。置換文字による自動復元は行わない。
+- Rust が C++ へ返すシリアライズ文字列（`serialize_world` の戻り値）は UTF-8 JSON + 末尾 `\\0` とし、呼び出し側は `free_serialized_string` までの間だけ参照可能とする。
+- 境界条件の最小確認手順:
+  1. ASCII のみ、マルチバイト UTF-8（例: 日本語）、空文字列をそれぞれ往復し、同一内容を確認する。
+  2. 不正 UTF-8 バイト列、`null + len>0`、終端欠落 C 文字列を入力し、クラッシュせず拒否されることを確認する。
