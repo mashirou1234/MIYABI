@@ -1,6 +1,30 @@
 #!/bin/bash
 set -euo pipefail
 
+print_help() {
+    cat <<'EOF'
+Usage:
+  ./build_sdk.sh [--help|-h]
+
+Environment Variables:
+  SDK_DIR                    Output SDK directory (default: sdk)
+  BUILD_DIR                  CMake build directory (default: build)
+  ZIP_NAME                   SDK archive name (default: MIYABI_SDK.zip)
+  MIYABI_SDK_VALIDATE_ONLY   If set to 1, only validates generated SDK artifacts
+
+Prerequisites:
+  - cmake
+  - zip
+  - find
+  - standard POSIX utilities (cp, mkdir, rm, mktemp)
+EOF
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    print_help
+    exit 0
+fi
+
 echo "Building MIYABI SDK..."
 
 SDK_DIR="${SDK_DIR:-sdk}"
@@ -23,6 +47,11 @@ REQUIRED_ARTIFACTS=(
     "examples/main.cpp"
     "docs/SDK_DEFINITION.md"
     "template_CMakeLists.txt"
+)
+
+REQUIRED_TOOLS=(
+    "cmake"
+    "zip"
 )
 
 restore_paths_rs() {
@@ -52,10 +81,29 @@ validate_required_artifacts() {
     echo "Required SDK artifacts check passed."
 }
 
+require_tool() {
+    local tool="$1"
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "ERROR: Missing required tool: $tool"
+        echo "Install the tool and rerun build_sdk.sh."
+        return 1
+    fi
+}
+
+check_required_tools() {
+    local tool=""
+    for tool in "${REQUIRED_TOOLS[@]}"; do
+        require_tool "$tool" || return 1
+    done
+    echo "Required tools check passed."
+}
+
 if [ "${VALIDATE_ONLY}" = "1" ]; then
     validate_required_artifacts
     exit 0
 fi
+
+check_required_tools
 
 if [ -f "${PATHS_RS_FILE}" ]; then
     PATHS_RS_BACKUP="$(mktemp "${TMPDIR:-/tmp}/miyabi-paths-rs.XXXXXX")"

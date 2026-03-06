@@ -1,6 +1,6 @@
 # MIYABI Core Save Subsystem 定義
 
-最終更新: 2026-03-05
+最終更新: 2026-03-06
 
 ## 1. 目的
 
@@ -74,3 +74,27 @@
 未実装:
 
 1. 設定変更失敗時のUI通知（現状はログ出力のみ）
+
+## 7. セーブ失敗時の復旧手順（運用）
+
+本手順は `save::save_to_path` または `save::load_or_default` が失敗/異常を返した場合の最小復旧フローとする。
+
+### 7.1 判定条件
+
+- `save::save_to_path` が `Err` を返す
+- `save::load_or_default` が `VersionMismatch` を返す
+- 起動後に `save/save_data.json` が読み込まれず、`Default` 値にフォールバックしたことをログで確認した
+
+### 7.2 復旧フロー
+
+1. 失敗種別を特定する（保存失敗 / JSON破損 / バージョン不一致）。
+2. `save/` 配下を確認し、`save_data.json` と `*.bak` 系ファイルの有無を記録する。
+3. JSON破損で `Default` 起動になった場合は、最新の `*.bak` を退避コピーして解析用に保存する。
+4. バージョン不一致の場合は自動移行せず、`SAVE_SCHEMA_VERSION` と対象ファイルの `save_version` を比較して互換性判断を記録する。
+5. 復旧後に最小回帰として以下を実行し、再発しないことを確認する。
+   - `cargo test --manifest-path logic/Cargo.toml save::tests::load_version_mismatch_returns_error save::tests::load_corrupt_file_uses_next_backup_when_bak_exists`
+
+### 7.3 記録ルール
+
+- 復旧対応では「失敗種別」「退避ファイル名」「実施した回帰コマンド」「結果」を 1 セットで記録する。
+- 仕様判断で迷う場合は `README.md` の「セーブ互換性チェック（最小手順）」と `docs/CORE_DEVELOPMENT_TRACK.md` の DoD 記録要件を優先する。
