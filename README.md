@@ -40,6 +40,8 @@ cmake --preset dev
 cmake --build --preset dev -j
 ```
 
+SDK 生成スクリプトの前提依存を確認する場合は `./build_sdk.sh --help` を参照してください。
+
 ## 新規Contributor向け 最短ビルド確認（15分目安）
 
 1. 依存確認: `cmake --version` と `c++ --version` が実行できることを確認

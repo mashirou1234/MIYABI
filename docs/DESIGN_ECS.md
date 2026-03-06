@@ -170,6 +170,18 @@ To avoid holes in our dense component arrays, we use a "swap-and-pop" strategy.
     -   Decrement `archetype.entity_count`.
     -   Remove the original `entity` from the `world.entities` map.
 
+### 3.2.1. Component Lifecycle Order (`remove` -> `reuse`)
+
+To avoid stale references and non-deterministic behavior, structural updates must follow this exact lifecycle order when using dense vectors.
+
+1.  **Remove first:** Execute `swap_remove(index)` on every component vector and `archetype.entities` before any insertion or reuse.
+2.  **Fix moved entity location immediately:** If `swap_remove` moved the tail entity, update its `EntityLocation` in `world.entities` in the same operation.
+3.  **Finalize removal state:** Decrement `entity_count` and delete the removed entity from `world.entities`.
+4.  **Reuse after removal is complete:** Only after steps 1-3 are complete may the vacated slot/index be treated as reusable by subsequent `spawn`/`add_component` flows.
+5.  **Do not interleave remove and reuse across archetypes:** Cross-archetype moves must complete the source-side remove sequence before target-side push/insert starts.
+
+Operationally, this means "remove -> update moved location -> finalize -> reuse" is a single invariant and must stay consistent with [3.2. Algorithm: `world.despawn()` (Swap-and-Pop)](#32-algorithm-worlddespawn-swap-and-pop) and [3.3. Algorithm: Changing an Entity (e.g., `add_component`)](#33-algorithm-changing-an-entity-eg-add_component).
+
 ### 3.3. Algorithm: Changing an Entity (e.g., `add_component`)
 
 This is the most complex operation, as it requires moving an entity between archetypes.
@@ -179,7 +191,7 @@ This is the most complex operation, as it requires moving an entity between arch
 3.  **Find or Create Target Archetype:** Get the `target_archetype_id` using the new signature.
 4.  **Move Component Data:**
     -   This is effectively a `despawn` from the source followed by a `spawn` to the target, but we must transfer the data.
-    -   Perform a "swap-and-pop" on the **source** archetype for the entity. This returns the component data for the entity being moved. Don't forget to update the location of the swapped entity.
+    -   Perform a "swap-and-pop" on the **source** archetype for the entity. This returns the component data for the entity being moved. Don't forget to update the location of the swapped entity. The source side must obey [3.2.1. Component Lifecycle Order (`remove` -> `reuse`)](#321-component-lifecycle-order-remove---reuse) before any target-side reuse.
     -   Push the retrieved component data into the storage vectors of the **target** archetype.
     -   Push the *new* component into its storage vector in the target archetype. Keep this aligned with [2.2.1 ComponentType Addition Checklist](#221-componenttype-addition-checklist) so storage registration and runtime access stay consistent.
 5.  **Update Location Map:** Update the `EntityLocation` for the original entity in `world.entities` to point to its new home in the target archetype.

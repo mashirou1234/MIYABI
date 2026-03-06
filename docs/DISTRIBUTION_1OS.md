@@ -68,6 +68,34 @@ for p in \
 done
 ```
 
+### 3.2 成果物署名確認（手動署名時）
+
+`scripts/package_macos_game.sh` は署名付与を行わないため、配布担当が手動署名した成果物のみ本手順で確認する。
+
+前提:
+
+- 検証対象: `dist/miyabi_game_macos/bin/miyabi`
+- 期待 Team ID（例）: `TEAMID1234`（配布チャンネルで固定した値を使用）
+
+確認手順:
+
+```bash
+codesign --verify --deep --strict --verbose=2 dist/miyabi_game_macos/bin/miyabi
+codesign -dv --verbose=4 dist/miyabi_game_macos/bin/miyabi 2>&1 | rg 'TeamIdentifier|Authority'
+spctl --assess --type execute --verbose=4 dist/miyabi_game_macos/bin/miyabi
+```
+
+判定条件:
+
+- `codesign --verify` が `valid on disk` と `satisfies its Designated Requirement` を返す
+- `codesign -dv` の `TeamIdentifier` がリリース計画で合意した値と一致する
+- `spctl --assess` が `accepted` を返す
+
+補足:
+
+- 未署名成果物を配布する場合は、`docs/README.txt` に「未署名配布」である旨を明記する。
+- 署名運用の範囲は [PLAN.md](../PLAN.md) の配布タスクに合わせて更新する。
+
 ## 4. クリーン再現確認（同一OS）
 
 1. `build_release_game` が都度削除されることを確認する（クリーンビルド）
@@ -82,5 +110,5 @@ done
 
 ## 5. 既知制約
 
-- 署名（codesign）/ notarization は未対応。
+- `scripts/package_macos_game.sh` は 署名（codesign）/ notarization を自動実行しない。
 - 本手順は「1OSでの再現可能配布手順固定」を対象とし、マルチOS配布は対象外。
