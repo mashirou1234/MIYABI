@@ -49,6 +49,11 @@ REQUIRED_ARTIFACTS=(
     "template_CMakeLists.txt"
 )
 
+REQUIRED_TOOLS=(
+    "cmake"
+    "zip"
+)
+
 restore_paths_rs() {
     if [ -n "${PATHS_RS_BACKUP}" ] && [ -f "${PATHS_RS_BACKUP}" ]; then
         cp "${PATHS_RS_BACKUP}" "${PATHS_RS_FILE}"
@@ -76,10 +81,29 @@ validate_required_artifacts() {
     echo "Required SDK artifacts check passed."
 }
 
+require_tool() {
+    local tool="$1"
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "ERROR: Missing required tool: $tool"
+        echo "Install the tool and rerun build_sdk.sh."
+        return 1
+    fi
+}
+
+check_required_tools() {
+    local tool=""
+    for tool in "${REQUIRED_TOOLS[@]}"; do
+        require_tool "$tool" || return 1
+    done
+    echo "Required tools check passed."
+}
+
 if [ "${VALIDATE_ONLY}" = "1" ]; then
     validate_required_artifacts
     exit 0
 fi
+
+check_required_tools
 
 if [ -f "${PATHS_RS_FILE}" ]; then
     PATHS_RS_BACKUP="$(mktemp "${TMPDIR:-/tmp}/miyabi-paths-rs.XXXXXX")"
