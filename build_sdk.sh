@@ -1,6 +1,30 @@
 #!/bin/bash
 set -euo pipefail
 
+print_help() {
+    cat <<'EOF'
+Usage:
+  ./build_sdk.sh [--help|-h]
+
+Environment Variables:
+  SDK_DIR                    Output SDK directory (default: sdk)
+  BUILD_DIR                  CMake build directory (default: build)
+  ZIP_NAME                   SDK archive name (default: MIYABI_SDK.zip)
+  MIYABI_SDK_VALIDATE_ONLY   If set to 1, only validates generated SDK artifacts
+
+Prerequisites:
+  - cmake
+  - zip
+  - find
+  - standard POSIX utilities (cp, mkdir, rm, mktemp)
+EOF
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    print_help
+    exit 0
+fi
+
 echo "Building MIYABI SDK..."
 
 SDK_DIR="${SDK_DIR:-sdk}"
