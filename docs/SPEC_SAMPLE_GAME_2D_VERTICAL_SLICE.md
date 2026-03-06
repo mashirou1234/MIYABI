@@ -138,6 +138,13 @@
 3. 95パーセンタイルと最大値、`input_delay_frames` の閾値超過回数を集計する
 4. 結果を PR または Issue コメントに添付し、必要なら `PERFORMANCE_TEST.md` の関連シナリオに追記する
 
+### 5.1.6 記録先と判定フロー（Bench-80）
+
+- 一次記録は PR または Issue コメントに残し、比較対象として直近2回分を併記する
+- 判定は「5.1.4 合格ライン（暫定）」を正本とし、`input_delay_frames` と95パーセンタイルを必須指標にする
+- `docs/perf/baseline_macos14.json` は自動回帰検知用ベースラインであり、入力遅延の手動計測値は直接上書きしない
+- 入力遅延の自動計測シナリオを追加する場合のみ、`PLAN.md#plan-task-10-3` の品質基盤タスクとして `baseline_macos14.json` に対応シナリオを追記する
+
 <a id="spec-save-load"></a>
 ## 6. セーブ/ロード最小仕様（確定）
 
@@ -234,7 +241,7 @@
 | --- | --- | --- | --- |
 | [タスク10.1](../PLAN.md#plan-task-10-1) | [7. 非対象](#spec-non-target) | 未対応 | アニメーション/タイルマップ/入力マッピングは本仕様の対象外 |
 | [タスク10.2](../PLAN.md#plan-task-10-2) | [6. セーブ/ロード最小仕様](#spec-save-load) | 部分対応 | Saveの最小要件のみ対応。アセットパイプライン全体は別資料 |
-| [タスク10.3](../PLAN.md#plan-task-10-3) | [8. 受け入れ基準](#spec-acceptance) | 未対応 | CI/性能/不具合テンプレートは `PLAN.md` と運用資料側で管理 |
+| [タスク10.3](../PLAN.md#plan-task-10-3) | [5.1 入力遅延の計測観点](#spec-input-latency), [8. 受け入れ基準](#spec-acceptance) | 部分対応 | 入力遅延の判定基準を定義済み。自動回帰検知への統合は `docs/perf/baseline_macos14.json` のシナリオ追加時に完了 |
 
 ## 10. 関連ドキュメント
 
@@ -243,4 +250,5 @@
 - `docs/CORE_DEVELOPMENT_TRACK.md`
 - `PERFORMANCE_TEST.md`
 - `PLAN.md`（Phase 9/10 対応: `PLAN.md#plan-phase9-10-spec-map`）
+- `docs/perf/baseline_macos14.json`（自動回帰検知のベースライン）
 - `docs/CODEX_MIGRATION_STATUS.md`
