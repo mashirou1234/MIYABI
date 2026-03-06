@@ -42,6 +42,27 @@
 - 外部 fork 由来 PR は対象外
 - 署名付きレビューや Code Owners など追加ルールがある場合は、その条件を満たさない限りマージされない
 
+## 5.1 自動マージが走らないときの確認ポイント（15〜45分）
+
+`scripts/woodpecker_pr_automerge.sh` のスキップ分岐に沿って、次の順で確認する。
+
+1. トークン設定を確認する
+   - `GH_TOKEN` または `GITHUB_TOKEN` が CI secret に設定されているか。
+2. PR 実行コンテキストを確認する
+   - `CI_REPO`（または `CI_REPO_OWNER` + `CI_REPO_NAME`）と `CI_COMMIT_PULL_REQUEST` が渡っているか。
+3. PR 属性を確認する
+   - Draft ではないか。
+   - base ブランチが `master` / `main` か。
+   - head が同一リポジトリ由来か（fork ではないか）。
+   - 作成者の `author_association` が `OWNER` / `MEMBER` / `COLLABORATOR` か。
+4. ラベル制御を確認する
+   - `automerge:off` が付いていないか。
+5. GitHub 側設定を確認する
+   - リポジトリ設定で `Allow auto-merge` が有効か。
+   - Branch protection の Required checks 名が実際の CI 報告名と一致しているか。
+
+補足: #169 は「適用除外条件」の整理が対象。本節は「スキップ時の切り分け手順」を追加し、同じ `automerge:off` を使う運用でも用途を分離している。
+
 ## 6. 自動マージ除外ケース（手動レビュー必須）
 
 次の変更は、CI が成功しても `automerge:off` を付与して手動レビューを行う。

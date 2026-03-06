@@ -1,6 +1,6 @@
 # logic 公開API棚卸し（Bench-80 #03）
 
-最終更新: 2026-03-04
+最終更新: 2026-03-06
 更新責任: `logic/src/lib.rs` の `pub` 追加・削除時に本書を同時更新する
 
 ## 対象と抽出方法
@@ -113,6 +113,20 @@
 - A（公開維持）/B（内部化候補）の分類理由を追記し、変更理由を PR 説明または Issue コメントで追跡できること。
 - FFI 文字列管理や所有権規約に関わる変更がある場合、`docs/DESIGN_FFI.md` のメモリルール参照先を確認すること。
 
+## deprecated 判定基準（在庫表の列定義）
+
+公開面一覧（A/B）または関連追跡表に `deprecated判定基準` 列を追加する場合は、次を判断条件として使う。
+
+| 対象 | deprecated判定基準 | 必須の追記先 |
+| --- | --- | --- |
+| FFI公開関数（`pub extern "C" fn`） | `docs/SDK_DEFINITION.md` の公開契約から外す方針が確定し、代替APIまたは移行手順を同時に提示できること | 本書の該当項目 + `docs/SDK_DEFINITION.md` 3.x/9 |
+| VTableエントリ | 関数ポインタ契約を将来削除予定として明示し、ABI影響（破壊/非破壊）と更新タイミングを定義できること | 本書の該当項目 + `docs/SDK_DEFINITION.md` 9 |
+| 内部化候補（B群） | 外部利用実績がなく、`pub(crate)` 化または削除の実施計画（Issue/PR）が存在すること | 本書のB群項目 + `PLAN.md` または関連Issue |
+
+注記:
+- `deprecated判定基準` 列は「非推奨化の根拠」を記録する列であり、単なる感覚的判断は記載しない。
+- 非推奨化を記載した場合は、PRまたはIssue本文に移行先・除去時期・影響範囲を必ず残す。
+
 ### 欠番チェック手順（`extern "C"` API 棚卸し）
 
 `extern "C"` の棚卸し漏れ（欠番）を防ぐため、`logic/src/lib.rs` 実装と本書の A 群記載を関数名ベースで突合する。
@@ -138,12 +152,12 @@ comm -13 /tmp/miyabi_extern_actual.txt /tmp/miyabi_extern_inventory.txt
 
 ## SDK定義書との対応関係
 
-| 公開API棚卸しの観点 | SDK定義書の参照先 | 確認内容 |
-| --- | --- | --- |
-| `get_miyabi_vtable()` を起点とする公開契約 | `docs/SDK_DEFINITION.md` 3.1 | ロジックAPI起点の説明と棚卸しA群（公開維持）が一致すること |
-| ランタイム連携の境界 | `docs/SDK_DEFINITION.md` 3.2 / 6 | `update_game` など実行フロー上の公開関数が最小実行契約から追跡可能であること |
-| ABI互換判定と更新判断 | `docs/SDK_DEFINITION.md` 3.3 / 9 | APIシグネチャ変更時に ABI 判定定数と更新ルールの確認漏れがないこと |
-| SDK配布物への反映 | `docs/SDK_DEFINITION.md` 4 | 公開ヘッダ/ライブラリ構成に影響する変更が配布物定義と矛盾しないこと |
+| 公開API棚卸しの観点 | SDK定義書の参照先 | deprecated判定基準 | 確認内容 |
+| --- | --- | --- | --- |
+| `get_miyabi_vtable()` を起点とする公開契約 | `docs/SDK_DEFINITION.md` 3.1 | 起点契約の置換先が確定し、移行導線を提示できる場合のみ `deprecated` 候補 | ロジックAPI起点の説明と棚卸しA群（公開維持）が一致すること |
+| ランタイム連携の境界 | `docs/SDK_DEFINITION.md` 3.2 / 6 | 実行契約を維持したまま代替経路へ切替可能で、利用側の手順が示せる場合のみ `deprecated` 候補 | `update_game` など実行フロー上の公開関数が最小実行契約から追跡可能であること |
+| ABI互換判定と更新判断 | `docs/SDK_DEFINITION.md` 3.3 / 9 | ABI更新方針に従って削除時期と互換性影響を明示できる場合のみ `deprecated` 候補 | APIシグネチャ変更時に ABI 判定定数と更新ルールの確認漏れがないこと |
+| SDK配布物への反映 | `docs/SDK_DEFINITION.md` 4 | 配布物から外す計画（ヘッダ/ライブラリ）と後方互換戦略を同時提示できる場合のみ `deprecated` 候補 | 公開ヘッダ/ライブラリ構成に影響する変更が配布物定義と矛盾しないこと |
 
 ## 次Issue向け TODO（着手粒度）
 
