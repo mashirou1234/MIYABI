@@ -1,6 +1,6 @@
 # MIYABI SDK定義 (v0.1)
 
-最終更新: 2026-02-23
+最終更新: 2026-03-06
 
 ## 1. 目的
 
@@ -159,3 +159,19 @@ SDK展開後、最短で ABI 整合を確認する手順を以下に固定する
 2. SDK配布時は `sdk/examples/main.cpp` で `vtable.abi_version` の比較を維持する。
 3. CIでは `.github/workflows/build.yml` の `SDK ABI smoke` ステップで `sdk_template_main.cpp` 相当の `vtable.abi_version == MIYABI_ABI_VERSION` 判定を実行し、失敗時はジョブを fail させる。
 4. `major` 変更時は `docs/CODEX_MIGRATION_STATUS.md` に移行手順（影響範囲/変更点）を明記する。
+
+### 9.1 破壊的変更（major更新）時のバージョニング規則
+
+`major` を更新する変更は、次の 3 条件をすべて満たした場合にのみリリース可能とする。
+
+1. 破壊的変更の根拠を明示
+   - 変更PRで、対象 API と非互換理由（構造体レイアウト変更 / 関数削除 / 引数型変更など）を明記する。
+2. バージョン値を正規化
+   - `core/include/miyabi/miyabi.h` の ABI 定数で `major` を +1 し、`minor` と `patch` を 0 に戻す。
+3. 移行情報を同時公開
+   - `docs/CODEX_MIGRATION_STATUS.md` に「影響範囲」「利用者側の必要修正」「検証手順」を追記する。
+
+補足ルール:
+
+- 破壊的変更を含む run では、`PLAN.md` の対象タスクに ABI 変更有無を追記し、後続 run が判断できる状態を維持する。
+- `major` 更新を伴う差分は、非破壊変更（`minor` / `patch`）と同一PRに混在させない。

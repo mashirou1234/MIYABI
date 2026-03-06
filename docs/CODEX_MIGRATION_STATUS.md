@@ -117,6 +117,20 @@
 - 未解決:
   - なし
 
+### 2026-03-06 run: issue-240 SDK破壊的変更時のバージョニング規則明文化
+
+- 背景:
+  - SDK ABI の破壊的変更時に、major更新の判断基準と移行情報公開範囲が曖昧だったため。
+- 変更:
+  - `docs/SDK_DEFINITION.md` に major 更新の判断条件、バージョン更新手順、移行情報公開要件を追記した。
+  - 関連ファイル:
+    - `docs/SDK_DEFINITION.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `rg "ABI|version|破壊的変更|major" docs/SDK_DEFINITION.md`
+- 未解決:
+  - なし
+
 - 2026-03-04 | 変更種別: ドキュメント | 関連ファイル: `logic/src/lib.rs`, `docs/LOGIC_PUBLIC_API_INVENTORY.md`, `docs/CODEX_MIGRATION_STATUS.md` | 変更概要: `rg "^pub "` の実測に合わせて公開API棚卸し（行番号・`camera` モジュール）を同期。
 - 2026-03-04 | 変更種別: ドキュメント | 関連ファイル: `docs/DESIGN_Build.md`, `docs/ASSET_IMPORT_REIMPORT.md` | 変更概要: ビルド設計書の冒頭にアセット障害時の診断ログ採取・復旧手順への導線を追加。
 - 更新日: 2026-03-04
