@@ -160,3 +160,15 @@ python3 tools/check_perf_regression.py \
 - [ ] `docs/perf/baseline_macos14.json` の `platform` が `macos-14`、`baseline_source` が `logic/src/bin/perf_baseline.rs` のままである。
 - [ ] `scenarios[].name` の集合が変更されていない（欠落・追加がある場合は理由を PR に明記している）。
 - [ ] `baseline_avg_ms` の変化に対する根拠（コード変更または計測条件の差分）を PR に記載している。
+
+### 4.8 ベースライン更新禁止条件
+
+次のいずれかに該当する場合、`docs/perf/baseline_macos14.json` は更新しない。
+
+- `tools/check_perf_regression.py` の結果に `FAIL (missing scenario)` が含まれる。
+- 回帰原因が未特定、または意図的変更である根拠（PR/Issue/設計変更）が提示できない。
+- 計測条件が既存 baseline と一致しない（OS・ビルド種別・負荷状態が異なる）。
+- 同一コミットでの再計測結果が再現せず、変動理由を説明できない。
+- `build/perf/regression_report.md` の `Next Actions` に未対応項目が残っている。
+
+禁止条件に該当した場合は baseline 更新を中止し、先に計測入力や実装差分の整合修正を行う。
