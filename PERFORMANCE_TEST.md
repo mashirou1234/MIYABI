@@ -178,3 +178,20 @@ python3 tools/check_perf_regression.py \
 - `build/perf/regression_report.md` の `Next Actions` に未対応項目が残っている。
 
 禁止条件に該当した場合は baseline 更新を中止し、先に計測入力や実装差分の整合修正を行う。
+
+### 4.9 `MIYABI_PERFORMANCE_TEST` の目的と運用
+
+- 目的: 性能計測専用のベンチマーク/テスト経路を有効化し、通常運用コードと計測コードを明確に分離する。
+- 既定値: `OFF`（通常の開発ビルド・リリースビルドでは無効）。
+- `ON` にする場面:
+  - `perf_baseline` 実行前の計測ビルド
+  - CI で性能計測シナリオを回すジョブ
+- `OFF` を維持する場面:
+  - 日常開発での機能実装/デバッグ
+  - 配布用ビルドや通常の動作確認
+
+最小例:
+
+```bash
+cmake -S . -B build -DMIYABI_PERFORMANCE_TEST=ON
+```
