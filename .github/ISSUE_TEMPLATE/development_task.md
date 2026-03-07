@@ -6,7 +6,8 @@ labels: ""
 assignees: ""
 ---
 
-> この Issue は `1 run 1 issue` 前提の実装タスクです。複数テーマに跨る場合は分割してください。
+> 手動で整形した段階では `codex:order` を付け、`docs/ISSUE_DESIGN.md` の `codex:queue` 条件を満たしたら `codex:queue` へ昇格してください。
+> 自動レーンへ流す Issue は `1 run 1 issue` 前提です。複数テーマに跨る場合は分割してください。
 
 ## 背景
 

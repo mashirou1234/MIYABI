@@ -101,6 +101,40 @@
 ## 2. この移行で反映した内容
 
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
+### 2026-03-07 run: manual 完成ロードマップを追加
+
+- 背景:
+  - `codex:order` で完成直結の開発 Issue を積むために、C0/G1 から G2/G3/C1 へ向かう優先順を 1 枚で固定する必要があった。
+- 変更:
+  - `docs/COMPLETION_ROADMAP.md` を追加し、Wave 0 から Wave 7 までの到達順、完了条件、直近 90 日の優先順を定義した。
+  - `README.md` に完成ロードマップへの導線を追加した。
+  - 関連ファイル:
+    - `docs/COMPLETION_ROADMAP.md`
+    - `README.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `rg -n "COMPLETION_ROADMAP|Wave 0|Wave 1|codex:order" docs/COMPLETION_ROADMAP.md README.md`
+- 未解決:
+  - GitHub 上の open Issue へ本ロードマップ番号を反映する作業は未実施。
+
+### 2026-03-07 run: manual 開発Issueラベル運用を codex:order 起点へ整理
+
+- 背景:
+  - 手動レーンで repo 文脈に合わせて開発 Issue を整形し、自動レーン投入前の状態と `codex:queue` を分離して扱いたくなった。
+- 変更:
+  - `docs/ISSUE_DESIGN.md` に `codex:order` / `codex:queue` / `codex:claimed` / `codex:blocked` の役割と推奨ライフサイクルを追加した。
+  - 開発 Issue テンプレートと運用メモに `codex:order` 起点の運用を追記した。
+  - 関連ファイル:
+    - `docs/ISSUE_DESIGN.md`
+    - `.github/ISSUE_TEMPLATE/development_task.md`
+    - `README.md`
+    - `AGENTS.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `rg -n "codex:order|codex:queue|codex:claimed|codex:blocked" docs/ISSUE_DESIGN.md .github/ISSUE_TEMPLATE/development_task.md README.md AGENTS.md`
+- 未解決:
+  - GitHub 側の実ラベル作成と既存 open Issue への付け替えは未実施。
+
 ### 2026-03-07 run: manual ローカル生成物の gitignore 追加
 
 - 背景:

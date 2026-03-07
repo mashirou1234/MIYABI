@@ -12,6 +12,7 @@ MIYABI は C++ ベースのゲーム/SDK 開発リポジトリです。
 ## 主要ドキュメント逆引き
 
 - 進め方を把握したい: [PLAN.md](PLAN.md), [docs/DEVELOPMENT_TRACK.md](docs/DEVELOPMENT_TRACK.md)
+- 完成までの優先順を把握したい: [docs/COMPLETION_ROADMAP.md](docs/COMPLETION_ROADMAP.md)
 - Issue設計と自動化向けテンプレートを確認したい: [docs/ISSUE_DESIGN.md](docs/ISSUE_DESIGN.md)
 - 設計判断を確認したい: [DESIGN.md](DESIGN.md), [docs/DESIGN_Renderer.md](docs/DESIGN_Renderer.md), [docs/DESIGN_ECS.md](docs/DESIGN_ECS.md), [docs/DESIGN_FFI.md](docs/DESIGN_FFI.md)
 - 進捗や移行状況を追いたい: [docs/CODEX_MIGRATION_STATUS.md](docs/CODEX_MIGRATION_STATUS.md), [docs/CORE_DEVELOPMENT_TRACK.md](docs/CORE_DEVELOPMENT_TRACK.md), [docs/GAME_DEVELOPMENT_TRACK.md](docs/GAME_DEVELOPMENT_TRACK.md)
@@ -88,3 +89,4 @@ cargo test --manifest-path sample_game/Cargo.toml --test ffi_input_boundary
 
 - 作業開始時に `artifacts/` を確認する
 - 自動実行は `1 run 1 issue` を守る
+- 手動で整形した開発 Issue は `codex:order`、自動レーン投入可能なものだけ `codex:queue` を付ける
