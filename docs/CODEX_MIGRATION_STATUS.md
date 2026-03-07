@@ -115,6 +115,20 @@
 - 未解決:
   - なし
 
+### 2026-03-08 run: issue-305 週次Git棚卸し 2026-03-06
+
+- 背景:
+  - `codex:queue` で投入された週次棚卸し Issue #305 の結果を、移行ログへ追記して次回比較の基準を維持する必要があった。
+- 変更:
+  - 2026-03-06 実行分の棚卸し結果（コミット推奨 0 / 保留 0 / `.gitignore` 候補 0）を反映した。
+  - 定常ノイズ再発頻度（`artifacts/` 未追跡: 2/4 repo、`api/.hypothesis/` 未追跡: 1/4 repo）を記録し、監視継続方針を明文化した。
+  - 関連ファイル:
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `rg -n "issue-305|artifacts/ 未追跡: 2/4 repo|api/.hypothesis/ 未追跡: 1/4 repo" docs/CODEX_MIGRATION_STATUS.md`
+- 未解決:
+  - なし
+
 ### 2026-03-08 run: manual issue-361 SDK外部サンプル再利用証跡を追加
 
 - 背景:
