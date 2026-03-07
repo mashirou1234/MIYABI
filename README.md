@@ -18,6 +18,7 @@ MIYABI は C++ ベースのゲーム/SDK 開発リポジトリです。
 - 進捗や移行状況を追いたい: [docs/CODEX_MIGRATION_STATUS.md](docs/CODEX_MIGRATION_STATUS.md), [docs/CORE_DEVELOPMENT_TRACK.md](docs/CORE_DEVELOPMENT_TRACK.md), [docs/GAME_DEVELOPMENT_TRACK.md](docs/GAME_DEVELOPMENT_TRACK.md)
 - SDK/配布まわりを確認したい: [docs/SDK_DEFINITION.md](docs/SDK_DEFINITION.md), [docs/DISTRIBUTION_1OS.md](docs/DISTRIBUTION_1OS.md)
 - 品質・性能検証を確認したい: [PERFORMANCE_TEST.md](PERFORMANCE_TEST.md)（3.2 命名規則）, [docs/perf/PERF_BASELINE.md](docs/perf/PERF_BASELINE.md)
+- 3D 開発体験の評価結果を確認したい: [docs/templates/CORE_3D_DEVEX_EVALUATION_TEMPLATE.md](docs/templates/CORE_3D_DEVEX_EVALUATION_TEMPLATE.md), [docs/reviews/CORE_3D_DEVEX_EVALUATION_2026-03-08.md](docs/reviews/CORE_3D_DEVEX_EVALUATION_2026-03-08.md)
 
 ## リポジトリ構成（概要）
 
