@@ -1,6 +1,6 @@
 # MIYABI SDK定義 (v0.1)
 
-最終更新: 2026-03-06
+最終更新: 2026-03-07
 
 ## 1. 目的
 
@@ -104,6 +104,18 @@ SDK展開後、最短で ABI 整合を確認する手順を以下に固定する
    - `./scripts/check_sdk_artifacts.sh <sdk_dir>`
 3. 実行時 ABI 判定の確認
    - `sdk/examples/main.cpp` 相当で `vtable.abi_version == MIYABI_ABI_VERSION` を実行し、判定が true であることを確認する。
+
+#### 4.2.1 `build_sdk.sh` 実行直後の検証例（運用ショートカット）
+
+`build_sdk.sh` 実行後に `sdk/` をそのまま検証する場合は、次の 2 コマンドを基準手順とする。
+
+```bash
+./scripts/check_sdk_artifacts.sh --dry-run ./sdk
+./scripts/check_sdk_artifacts.sh ./sdk
+```
+
+- 1 行目は不足項目を先に把握するための非破壊確認（不足があっても終了コード 0）。
+- 2 行目は配布前の合否判定（不足があると終了コード非0）。
 
 ### 4.3 `check_sdk_artifacts` JSON出力オプション設計メモ（運用差分）
 
