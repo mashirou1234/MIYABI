@@ -1164,6 +1164,11 @@ const ARENA_FLOOR_Y: f32 = -18.0;
 const ARENA_PLAYER_SIZE: f32 = 18.0;
 const ARENA_PLAYER_MOVE_SPEED: f32 = 120.0;
 const ARENA_CLEAR_TIME_SEC: f32 = 180.0;
+const ARENA_OBSTACLE_SIZE: f32 = 18.0;
+const ARENA_OBSTACLE_RESPAWN_Y: f32 = 42.0;
+const ARENA_OBSTACLE_FALL_SPEED: f32 = 72.0;
+const ARENA_OBSTACLE_LANE_X: f32 = 0.0;
+const ARENA_OBSTACLE_LANE_Z: f32 = 48.0;
 
 fn resolve_runtime_path(relative_path: &str) -> PathBuf {
     let direct = PathBuf::from(relative_path);
@@ -2047,6 +2052,12 @@ impl Game {
             Player,
         ));
 
+        self.spawn_3d_obstacle_at(
+            ARENA_OBSTACLE_LANE_X,
+            ARENA_OBSTACLE_RESPAWN_Y,
+            ARENA_OBSTACLE_LANE_Z,
+        );
+
         runtime_bridge::play_sound("assets/test_sound.wav");
     }
 
@@ -2080,6 +2091,38 @@ impl Game {
                 material_id: MATERIAL_ID_LIT_TEXTURED_3D,
                 is_3d: true,
             },
+        ));
+    }
+
+    fn spawn_3d_obstacle_at(&mut self, x: f32, y: f32, z: f32) {
+        self.world.spawn((
+            ffi::Transform {
+                position: ffi::Vec3 { x, y, z },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: ARENA_OBSTACLE_SIZE,
+                    y: ARENA_OBSTACLE_SIZE,
+                    z: ARENA_OBSTACLE_SIZE,
+                },
+            },
+            ffi::Velocity {
+                x: 0.0,
+                y: -ARENA_OBSTACLE_FALL_SPEED,
+                z: 0.0,
+            },
+            Material {
+                texture_handle: self.obstacle_texture_handle,
+            },
+            RenderMesh {
+                mesh_id: MESH_ID_ARENA_CUBE_3D,
+                material_id: MATERIAL_ID_LIT_TEXTURED_3D,
+                is_3d: true,
+            },
+            Obstacle,
         ));
     }
 
@@ -2381,6 +2424,147 @@ impl Game {
             archetype
                 .storage
                 .insert(ComponentType::Velocity, velocity_storage);
+        }
+    }
+
+    fn player_bounds_3d(&self) -> Option<(ffi::Vec3, ffi::Vec3)> {
+        for archetype in &self.world.archetypes {
+            if !(archetype.types.contains(&ComponentType::Player)
+                && archetype.types.contains(&ComponentType::Transform)
+                && archetype.types.contains(&ComponentType::RenderMesh))
+            {
+                continue;
+            }
+
+            let render_meshes = archetype
+                .storage
+                .get(&ComponentType::RenderMesh)
+                .and_then(|storage| storage.downcast_ref::<Vec<RenderMesh>>())
+                .expect("render mesh storage must be Vec<RenderMesh>");
+            let is_3d_player = render_meshes.first().map(|mesh| mesh.is_3d).unwrap_or(false);
+            if !is_3d_player {
+                continue;
+            }
+
+            let transforms = archetype
+                .storage
+                .get(&ComponentType::Transform)
+                .and_then(|storage| storage.downcast_ref::<Vec<ffi::Transform>>())
+                .expect("transform storage must be Vec<Transform>");
+            let Some(transform) = transforms.first() else {
+                continue;
+            };
+
+            let half = ffi::Vec3 {
+                x: transform.scale.x * 0.5,
+                y: transform.scale.y * 0.5,
+                z: transform.scale.z * 0.5,
+            };
+            return Some((
+                ffi::Vec3 {
+                    x: transform.position.x - half.x,
+                    y: transform.position.y - half.y,
+                    z: transform.position.z - half.z,
+                },
+                ffi::Vec3 {
+                    x: transform.position.x + half.x,
+                    y: transform.position.y + half.y,
+                    z: transform.position.z + half.z,
+                },
+            ));
+        }
+
+        None
+    }
+
+    fn update_3d_obstacles_and_collisions(&mut self, player_bounds: Option<(ffi::Vec3, ffi::Vec3)>) {
+        let obstacle_speed =
+            ARENA_OBSTACLE_FALL_SPEED + (self.difficulty_level.saturating_sub(1) as f32) * 12.0;
+        let mut hit_detected = false;
+
+        for archetype in &mut self.world.archetypes {
+            if !(archetype.types.contains(&ComponentType::Obstacle)
+                && archetype.types.contains(&ComponentType::Transform)
+                && archetype.types.contains(&ComponentType::Velocity)
+                && archetype.types.contains(&ComponentType::RenderMesh))
+            {
+                continue;
+            }
+
+            let render_meshes = archetype
+                .storage
+                .get(&ComponentType::RenderMesh)
+                .and_then(|storage| storage.downcast_ref::<Vec<RenderMesh>>())
+                .expect("render mesh storage must be Vec<RenderMesh>");
+            let has_3d_obstacle = render_meshes.first().map(|mesh| mesh.is_3d).unwrap_or(false);
+            if !has_3d_obstacle {
+                continue;
+            }
+
+            let mut transform_storage =
+                archetype.storage.remove(&ComponentType::Transform).unwrap();
+            let mut velocity_storage = archetype.storage.remove(&ComponentType::Velocity).unwrap();
+            let transforms = transform_storage
+                .downcast_mut::<Vec<ffi::Transform>>()
+                .unwrap();
+            let velocities = velocity_storage
+                .downcast_mut::<Vec<ffi::Velocity>>()
+                .unwrap();
+
+            for i in 0..archetype.entity_count {
+                velocities[i].x = 0.0;
+                velocities[i].y = -obstacle_speed;
+                velocities[i].z = 0.0;
+                transforms[i].position.y += velocities[i].y * FIXED_DT_SEC;
+
+                if let Some((player_min, player_max)) = player_bounds {
+                    let half = ffi::Vec3 {
+                        x: transforms[i].scale.x * 0.5,
+                        y: transforms[i].scale.y * 0.5,
+                        z: transforms[i].scale.z * 0.5,
+                    };
+                    let obstacle_min = ffi::Vec3 {
+                        x: transforms[i].position.x - half.x,
+                        y: transforms[i].position.y - half.y,
+                        z: transforms[i].position.z - half.z,
+                    };
+                    let obstacle_max = ffi::Vec3 {
+                        x: transforms[i].position.x + half.x,
+                        y: transforms[i].position.y + half.y,
+                        z: transforms[i].position.z + half.z,
+                    };
+                    let overlaps = player_min.x < obstacle_max.x
+                        && player_max.x > obstacle_min.x
+                        && player_min.y < obstacle_max.y
+                        && player_max.y > obstacle_min.y
+                        && player_min.z < obstacle_max.z
+                        && player_max.z > obstacle_min.z;
+                    if overlaps {
+                        if self.hp > 0 {
+                            self.hp -= 1;
+                        }
+                        transforms[i].position.y = ARENA_OBSTACLE_RESPAWN_Y;
+                        hit_detected = true;
+                        continue;
+                    }
+                }
+
+                if transforms[i].position.y < ARENA_FLOOR_Y - transforms[i].scale.y {
+                    transforms[i].position.y = ARENA_OBSTACLE_RESPAWN_Y;
+                    self.avoid_count = self.avoid_count.saturating_add(1);
+                }
+            }
+
+            archetype
+                .storage
+                .insert(ComponentType::Transform, transform_storage);
+            archetype
+                .storage
+                .insert(ComponentType::Velocity, velocity_storage);
+        }
+
+        if hit_detected {
+            runtime_bridge::play_sound("assets/test_sound.wav");
         }
     }
 
@@ -2888,9 +3072,13 @@ impl Game {
 
     fn update_in_game_3d(&mut self) {
         self.update_player_3d();
+        let player_bounds = self.player_bounds_3d();
+        self.update_3d_obstacles_and_collisions(player_bounds);
         self.survival_time_sec += FIXED_DT_SEC;
         self.difficulty_level = (self.survival_time_sec / 60.0).floor() as u32 + 1;
-        self.score = (self.survival_time_sec as u32).saturating_mul(10);
+        self.score = (self.survival_time_sec as u32)
+            .saturating_mul(10)
+            .saturating_add(self.avoid_count.saturating_mul(100));
 
         if self.hp <= 0 {
             self.result_is_clear = false;
@@ -3080,8 +3268,8 @@ mod tests {
 
     use super::{
         ffi, runtime_bridge, save, ui, Archetype, ComponentBundle, ComponentType, Game, GameState,
-        Material, MovementPreset, RunMode, SystemRegistry, ARENA_CLEAR_TIME_SEC, FIXED_DT_SEC,
-        MATERIAL_ID_LIT_TEXTURED_3D, MESH_ID_ARENA_CUBE_3D, MESH_ID_QUAD_2D,
+        Material, MovementPreset, RenderMesh, RunMode, SystemRegistry, ARENA_CLEAR_TIME_SEC,
+        FIXED_DT_SEC, MATERIAL_ID_LIT_TEXTURED_3D, MESH_ID_ARENA_CUBE_3D, MESH_ID_QUAD_2D,
     };
     use std::collections::HashSet;
     use std::path::PathBuf;
@@ -3307,6 +3495,50 @@ mod tests {
         }
 
         panic!("player transform not found");
+    }
+
+    fn obstacle_positions_3d(game: &Game) -> Vec<(i32, i32, i32)> {
+        let mut positions = Vec::new();
+
+        for archetype in &game.world.archetypes {
+            if !(archetype.types.contains(&ComponentType::Obstacle)
+                && archetype.types.contains(&ComponentType::Transform)
+                && archetype.types.contains(&ComponentType::RenderMesh))
+            {
+                continue;
+            }
+
+            let render_meshes = archetype
+                .storage
+                .get(&ComponentType::RenderMesh)
+                .and_then(|storage| storage.downcast_ref::<Vec<RenderMesh>>())
+                .expect("render mesh storage must be Vec<RenderMesh>");
+            if !render_meshes.first().map(|mesh| mesh.is_3d).unwrap_or(false) {
+                continue;
+            }
+
+            let transforms = archetype
+                .storage
+                .get(&ComponentType::Transform)
+                .expect("transform storage must exist")
+                .downcast_ref::<Vec<ffi::Transform>>()
+                .expect("transform storage must be Vec<Transform>");
+
+            for transform in transforms {
+                positions.push((
+                    transform.position.x.round() as i32,
+                    transform.position.y.round() as i32,
+                    transform.position.z.round() as i32,
+                ));
+            }
+        }
+
+        positions.sort_unstable();
+        positions
+    }
+
+    fn count_3d_obstacles(game: &Game) -> usize {
+        obstacle_positions_3d(game).len()
     }
 
     fn count_3d_renderables(game: &Game) -> usize {
@@ -3649,6 +3881,26 @@ mod tests {
     }
 
     #[test]
+    fn start_3d_arena_spawns_falling_obstacle_renderables() {
+        let mut game = new_game_for_test("3d-obstacle-spawn");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+        game.input_state = ffi::InputState::default();
+        game.update();
+
+        let positions = obstacle_positions_3d(&game);
+        assert_eq!(count_3d_obstacles(&game), 1);
+        assert!(positions
+            .iter()
+            .any(|(x, y, z)| *x == 0 && *z == 48 && *y > 0));
+
+        println!(
+            "[g4-03][spawn] obstacles={} positions={:?}",
+            count_3d_obstacles(&game),
+            positions
+        );
+    }
+
+    #[test]
     fn start_3d_arena_pause_and_back_to_title_flow_is_reachable() {
         let mut game = new_game_for_test("3d-pause-flow");
         click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
@@ -3728,6 +3980,109 @@ mod tests {
         println!(
             "[g4-02][clear-retry] result_texts={:?} retry_texts={:?}",
             result_texts, retry_texts
+        );
+    }
+
+    #[test]
+    fn start_3d_arena_obstacle_hits_can_reach_game_over() {
+        let mut game = new_game_for_test("3d-obstacle-game-over");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+
+        let mut frames = 0;
+        while game.current_state == GameState::InGame && frames < 600 {
+            game.input_state = ffi::InputState::default();
+            game.update();
+            frames += 1;
+        }
+
+        assert_eq!(game.current_state, GameState::Result);
+        assert_eq!(game.run_mode, RunMode::Arena3d);
+        assert!(!game.result_is_clear);
+        assert!(game.hp <= 0);
+
+        game.input_state = ffi::InputState::default();
+        game.update();
+        let texts = text_command_texts(&game);
+        assert!(texts.iter().any(|text| text == "GAME OVER"));
+        assert!(texts.iter().any(|text| text == "3D Arena Result"));
+
+        println!(
+            "[g4-03][fail] frames={} hp={} avoid_count={} texts={:?}",
+            frames, game.hp, game.avoid_count, texts
+        );
+    }
+
+    #[test]
+    fn start_3d_arena_obstacle_avoidance_can_reach_clear() {
+        let mut game = new_game_for_test("3d-obstacle-clear");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+
+        let mut frames = 0;
+        while game.current_state == GameState::InGame && frames < 11_000 {
+            game.input_state = ffi::InputState::default();
+            game.input_state.right = true;
+            game.update();
+            frames += 1;
+        }
+
+        assert_eq!(game.current_state, GameState::Result);
+        assert_eq!(game.run_mode, RunMode::Arena3d);
+        assert!(game.result_is_clear);
+        assert!(game.hp > 0);
+        assert!(game.survival_time_sec >= ARENA_CLEAR_TIME_SEC);
+        assert!(game.avoid_count > 0);
+        assert!(game.score > (ARENA_CLEAR_TIME_SEC as u32).saturating_mul(10));
+
+        game.input_state = ffi::InputState::default();
+        game.update();
+        let texts = text_command_texts(&game);
+        assert!(texts.iter().any(|text| text == "CLEAR"));
+        assert!(texts.iter().any(|text| text == "3D Arena Result"));
+
+        println!(
+            "[g4-03][clear] frames={} hp={} avoid_count={} score={} texts={:?}",
+            frames, game.hp, game.avoid_count, game.score, texts
+        );
+    }
+
+    #[test]
+    fn start_3d_arena_preserves_settings_across_result_and_retry() {
+        let mut game = new_game_for_test("3d-settings");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+
+        game.input_state = ffi::InputState::default();
+        game.input_state.p_key = true;
+        game.update();
+        game.input_state = ffi::InputState::default();
+        game.update();
+
+        assert_eq!(
+            game.save_data.settings.movement_preset,
+            MovementPreset::Wasd
+        );
+
+        game.hp = 0;
+        game.input_state = ffi::InputState::default();
+        game.update();
+        assert_eq!(game.current_state, GameState::Result);
+
+        click_button(&mut game, SampleGameButtonAction::RetryGame.action_id());
+        assert_eq!(game.current_state, GameState::InGame);
+        assert_eq!(
+            game.save_data.settings.movement_preset,
+            MovementPreset::Wasd
+        );
+
+        let before = player_position_3d(&game);
+        game.input_state = ffi::InputState::default();
+        game.input_state.w_key = true;
+        game.update();
+        let after = player_position_3d(&game);
+        assert!(after.z < before.z);
+
+        println!(
+            "[g4][settings] preset={:?} before={:?} after={:?}",
+            game.save_data.settings.movement_preset, before, after
         );
     }
 }

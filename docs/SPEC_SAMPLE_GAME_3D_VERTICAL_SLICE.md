@@ -70,11 +70,11 @@ G4 では、2D の `Box Survival` を 3D 空間へ拡張した最小デモを 1 
 
 ## 6. 受け入れ基準
 
-- [ ] Title -> InGame -> Pause -> Result -> Title の導線が 3D サンプルでも成立する
-- [ ] 3D アリーナ内で「奥行き」と「前後関係」が認識できる
-- [ ] 180 秒 survive で `CLEAR`、HP 0 で `GAME OVER` になる
-- [ ] 設定変更が 3D run の前後で保持される
-- [ ] G4 の最初の実装 Task をそのまま切り出せる
+- [x] Title -> InGame -> Pause -> Result -> Title の導線が 3D サンプルでも成立する
+- [x] 3D アリーナ内で「奥行き」と「前後関係」が認識できる
+- [x] 180 秒 survive で `CLEAR`、HP 0 で `GAME OVER` になる
+- [x] 設定変更が 3D run の前後で保持される
+- [x] G4 の最初の実装 Task をそのまま切り出せる
 
 ## 7. 最初に切る実装 Task
 
@@ -86,10 +86,11 @@ G4 では、2D の `Box Survival` を 3D 空間へ拡張した最小デモを 1 
    - 実装済み（2026-03-08）
 3. `G4-03`: 3D 障害物 1 系統
    - 落下物または巡回敵 1 種で clear / fail 条件を成立させる
+   - 実装済み（2026-03-08）
 
 補足:
-- 2026-03-08 時点で `Title -> Start 3D Arena -> Pause/Result -> Title` の最小導線と Retry による 3D run 再開までは実装済み。
-- 残件は障害物導入 (`G4-03`) による fail 要因の実プレイ化である。
+- 2026-03-08 時点で `Title -> Start 3D Arena -> Pause/Result -> Retry -> Title` の最小導線、落下障害物による fail 条件、180 秒 survive による clear 条件は実装済み。
+- G4 の残件はなく、次段は `docs/CORE_3D_PRODUCTION_BASELINE.md` と `docs/COMPLETION_ROADMAP.md` が定義する `C3` / `Wave 4` で継続する。
 
 ## 8. 明確に対象外とするもの
 

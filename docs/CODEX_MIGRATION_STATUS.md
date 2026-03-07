@@ -25,11 +25,11 @@
 - 作業タスク管理の正: `PLAN.md`
 - SDK更新時の同期チェック: `docs/SDK_DEFINITION.md` の「4.1 SDK更新時チェックリスト」
 - 現在ステージ:
-  - コア: C0（Core Runtime）
-  - ゲーム: G3（2D配布候補）
-- 次ゲート:
-  - コア: C1（2D Engine Baseline）
+  - コア: C2（3D Foundation）
   - ゲーム: G4（3D Vertical Slice）
+- 次ゲート:
+  - コア: C3（3D Engine Baseline）
+  - ゲーム: Wave 4（2D再利用性の成立）
 - 本ドキュメントの役割: 「今スレッドで何を変更したか」を管理する
 
 `PLAN.md` は実装順、`docs/CORE_DEVELOPMENT_TRACK.md` はステージ到達判定、本ドキュメントはスレッド単位の変更履歴を管理する。
@@ -229,7 +229,7 @@
   - `sample_game/src/lib.rs` と `sample_game/tests/flow_contract.rs` を更新し、`Start 3D Arena -> Result -> RetryGame` が 3D run へ戻る契約を固定した。
   - `logic/src/lib.rs` で `RunMode` と `SampleGameRunMode` の変換を追加し、Title / InGame / Pause / Result / deserialize 復元時に run mode を `SampleGameLoop` へ保持するようにした。
   - `logic/src/lib.rs` の 3D run 更新処理に、HP 0 の `GAME OVER`、`180.0 sec` 到達時の `CLEAR`、difficulty / score 更新、`3D Arena Result` 表示を追加した。
-  - `logic` の targeted test と `scripts/test_game_track_g4.sh` を追加し、Pause / GAME OVER / CLEAR / Retry の headless スモークを `artifacts/g4_02_3d_run_flow_latest.log` へ残せるようにした。
+  - `logic` の targeted test と `scripts/test_game_track_g4.sh` を追加し、Pause / GAME OVER / CLEAR / Retry の headless スモークを 1 コマンドで再実行できるようにした。
   - `README.md` / `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md` / `docs/GAME_DEVELOPMENT_TRACK.md` / `docs/COMPLETION_ROADMAP.md` / `docs/SAMPLE_GAME_CORE_BOUNDARY.md` / `PLAN.md` を更新し、`G4-02` 完了と残件 `G4-03` を同期した。
   - 関連ファイル:
     - `sample_game_runtime/src/lib.rs`
@@ -251,6 +251,34 @@
   - `./scripts/test_game_track_g4.sh`
 - 未解決:
   - `G4-03` の障害物導入までは、3D `GAME OVER` は headless test で `hp=0` を与える最小導線に留まる。
+
+### 2026-03-08 run: manual issue-365 3D 障害物 1 系統を実装
+
+- 背景:
+  - `G4-03` として、3D arena に実際の fail 要因を入れ、`GAME OVER` / `CLEAR` を headless state injection ではなく実障害物つき loop として成立させる必要があった。
+- 変更:
+  - `logic/src/lib.rs` に 3D falling obstacle の spawn / update / collision を追加し、`Start 3D Arena` 直後から cube obstacle が落下して HP を削り、回避時は `avoid_count` と score に反映するようにした。
+  - `logic/src/lib.rs` に `player_bounds_3d()` と 3D obstacle targeted test を追加し、spawn、実衝突による `GAME OVER`、回避による `CLEAR`、3D run 前後での settings 保持を headless で固定した。
+  - `scripts/test_game_track_g4.sh` を G4 全体 smoke へ拡張し、`Pause / GAME OVER / CLEAR / Retry` に加えて obstacle spawn/fail/clear と settings evidence を `artifacts/g4_vertical_slice_latest.log` へ残すようにした。
+  - `README.md` / `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md` / `docs/GAME_DEVELOPMENT_TRACK.md` / `docs/COMPLETION_ROADMAP.md` / `docs/SAMPLE_GAME_CORE_BOUNDARY.md` / `PLAN.md` を更新し、`G4-03` 完了とゲーム現在地 `G4` を同期した。
+  - 関連ファイル:
+    - `logic/src/lib.rs`
+    - `scripts/test_game_track_g4.sh`
+    - `README.md`
+    - `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
+    - `docs/GAME_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+    - `PLAN.md`
+- 検証:
+  - `cargo test --manifest-path logic/Cargo.toml --lib start_3d_arena_spawns_falling_obstacle_renderables -- --nocapture`
+  - `cargo test --manifest-path logic/Cargo.toml --lib start_3d_arena_obstacle_hits_can_reach_game_over -- --nocapture`
+  - `cargo test --manifest-path logic/Cargo.toml --lib start_3d_arena_obstacle_avoidance_can_reach_clear -- --nocapture`
+  - `cargo test --manifest-path logic/Cargo.toml --lib start_3d_arena_preserves_settings_across_result_and_retry -- --nocapture`
+  - `./scripts/test_game_track_g4.sh`
+- 未解決:
+  - ゲーム側の 3D 縦切り残件は解消した。次段は `#366` / `#367` と `Wave 4` の継続運用。
 
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 

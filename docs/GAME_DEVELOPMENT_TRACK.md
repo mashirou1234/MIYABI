@@ -30,17 +30,17 @@
 - 配布ビルド手順が固定され再現可能
 - 初回起動から終了までを第三者が再現できる
 
-### G4: 3D Vertical Slice（将来）
+### G4: 3D Vertical Slice
 
 - 3Dプレイアブルデモを1本完成
 - 3D向けUI/遷移/基本ループを成立
 
 ## 3. 現在地
 
-- 現在ステージ: **G3**
-- 次ゲート: **G4**
+- 現在ステージ: **G4**
+- 次ゲート: **C3 / Wave 4**
 - 直近不足:
-  - 3D 障害物 1 系統 (`G4-03`)
+  - なし（ゲーム側 3D 縦切りは到達済み）
 
 ## 4. 管理ドキュメント
 
@@ -122,17 +122,17 @@ Issue コメントまたは PR に残すテンプレート:
   - <Issue comment or PR URL>
 ```
 
-## 5.3 G4 着手前の固定事項
+## 5.3 G4 実装済みタスク
 
 - 正本: `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
-- 最初の実装 Task:
+- 実装 Task:
   - `G4-01`: 3D arena の最小起動（2026-03-08 実装済み）
   - `G4-02`: 3D run の勝敗導線（2026-03-08 実装済み）
-  - `G4-03`: 3D 障害物 1 系統
+  - `G4-03`: 3D 障害物 1 系統（2026-03-08 実装済み）
 
-## 5.4 G4-02 3D run 勝敗導線スモーク
+## 5.4 G4 3D vertical slice スモーク
 
-G4-02 証跡は、Pause / GAME OVER / CLEAR / Retry の headless 導線を 1 コマンドで再実行できることを優先する。
+G4 証跡は、Pause / GAME OVER / CLEAR / Retry、障害物 fail/clear、設定保持を 1 コマンドで再実行できることを優先する。
 
 - 最小再現コマンド:
   - `./scripts/test_game_track_g4.sh`
@@ -140,7 +140,11 @@ G4-02 証跡は、Pause / GAME OVER / CLEAR / Retry の headless 導線を 1 コ
   - `start_3d_arena_pause_and_back_to_title_flow_is_reachable` が PASS
   - `start_3d_arena_game_over_reaches_result_screen` が PASS
   - `start_3d_arena_clear_and_retry_stays_in_3d` が PASS
-  - `artifacts/g4_02_3d_run_flow_latest.log` に summary が出力される
+  - `start_3d_arena_spawns_falling_obstacle_renderables` が PASS
+  - `start_3d_arena_obstacle_hits_can_reach_game_over` が PASS
+  - `start_3d_arena_obstacle_avoidance_can_reach_clear` が PASS
+  - `start_3d_arena_preserves_settings_across_result_and_retry` が PASS
+  - `artifacts/g4_vertical_slice_latest.log` に summary が出力される
 
 ## 6. マイルストーン証跡リンク
 
@@ -153,7 +157,7 @@ G4-02 証跡は、Pause / GAME OVER / CLEAR / Retry の headless 導線を 1 コ
 | G1 | 本書「2. ステージ定義 / G1」 | https://github.com/mashirou1234/MIYABI/issues/341#issuecomment-4016476986 | 通しプレイ成立を示す Issue/PR を記録 |
 | G2 | 本書「2. ステージ定義 / G2」 | https://github.com/mashirou1234/MIYABI/issues/340#issuecomment-4016476977 | 30分連続プレイ結果を示す Issue/PR を記録 |
 | G3 | 本書「2. ステージ定義 / G3」 | https://github.com/mashirou1234/MIYABI/issues/342#issuecomment-4016476990 | 配布手順の再現結果を示す Issue/PR を記録 |
-| G4 | 本書「2. ステージ定義 / G4」 | 未設定 | 3D縦切り到達を示す Issue/PR を記録 |
+| G4 | 本書「2. ステージ定義 / G4」 | https://github.com/mashirou1234/MIYABI/pull/376 | 3D縦切り到達を示す Issue/PR を記録 |
 
 記入手順:
 1. ステージ更新時に、該当行の「証跡リンク」を `https://github.com/mashirou1234/MIYABI/...` 形式で更新する。
