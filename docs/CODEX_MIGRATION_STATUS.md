@@ -25,10 +25,10 @@
 - 作業タスク管理の正: `PLAN.md`
 - SDK更新時の同期チェック: `docs/SDK_DEFINITION.md` の「4.1 SDK更新時チェックリスト」
 - 現在ステージ:
-  - コア: C2（3D Foundation）
+  - コア: C3（3D Engine Baseline）
   - ゲーム: G4（3D Vertical Slice）
 - 次ゲート:
-  - コア: C3（3D Engine Baseline）
+  - コア: C4（Ecosystem Competitiveness）
   - ゲーム: Wave 4（2D再利用性の成立）
 - 本ドキュメントの役割: 「今スレッドで何を変更したか」を管理する
 
@@ -308,6 +308,33 @@
   - `cmake --build build -j`
 - 未解決:
   - `C3` の残件は `#367` の 3D アセット検証コマンド追加。
+
+### 2026-03-08 run: manual issue-367 3D アセット検証コマンドを追加
+
+- 背景:
+  - `C3` の残件として、3D mesh / texture / shader / material 契約の不整合を事前に検知し、壊れた asset を人間が読める形で診断できるコマンドが必要だった。
+- 変更:
+  - `tools/validate_3d_assets.py` を追加し、既定の 3D OBJ / texture / shader 存在確認、OBJ 構文検証、`logic` と `core` の mesh/material ID 契約一致確認を 1 コマンドで実行できるようにした。
+  - `tools/tests/test_validate_3d_assets.py` と `tools/tests/fixtures/invalid_missing_faces.obj.fixture` を追加し、正常系と `no drawable faces found` を返す異常系の両方を固定した。
+  - `scripts/test_core_c3_3d_asset_validation.sh` を追加し、正規 asset の PASS と invalid fixture の FAIL をまとめて再実行し、`artifacts/c3_3d_asset_validation_latest.log` へ summary を保存するようにした。
+  - `README.md` / `docs/CORE_3D_PRODUCTION_BASELINE.md` / `docs/CORE_DEVELOPMENT_TRACK.md` / `docs/COMPLETION_ROADMAP.md` / `PLAN.md` を更新し、`#367` 完了と Core 現在地 `C3` / 次ゲート `C4` を同期した。
+  - 関連ファイル:
+    - `tools/validate_3d_assets.py`
+    - `tools/tests/test_validate_3d_assets.py`
+    - `tools/tests/fixtures/invalid_missing_faces.obj.fixture`
+    - `scripts/test_core_c3_3d_asset_validation.sh`
+    - `README.md`
+    - `docs/CORE_3D_PRODUCTION_BASELINE.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `PLAN.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `python3 tools/validate_3d_assets.py`
+  - `python3 -m unittest tools.tests.test_validate_3d_assets`
+  - `./scripts/test_core_c3_3d_asset_validation.sh`
+- 未解決:
+  - `C4` の次段は `#368` の開発体験評価テンプレート整備で継続する。
 
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 
