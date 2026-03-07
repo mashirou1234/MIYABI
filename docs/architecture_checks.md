@@ -20,6 +20,38 @@ pwd
 rg --version
 ```
 
+### 0.5 CI 実行前提の確認（2 分）
+
+`architecture_checks` を CI に載せる/再現する場合は、`.woodpecker.yml` の `miyabi-build` と同じ前提で次を満たします。
+
+1. 実行シェルと作業ディレクトリ
+
+```bash
+echo "$SHELL"
+pwd
+test -f ./scripts/check_core_no_sample_game_dependency.sh && echo ok || echo ng
+```
+
+- `ng` の場合: CI の checkout 先がリポジトリルートになっているかを修正します。
+
+2. `rg` 利用可否（CI 失敗の主要因）
+
+```bash
+command -v rg
+rg --version
+```
+
+- 失敗する場合: CI イメージを `rg` 同梱イメージへ変更するか、ジョブ冒頭で `rg` を導入してから本チェックを実行します。
+
+3. CI で再現する最小実行コマンド
+
+```bash
+./scripts/check_core_no_sample_game_dependency.sh
+echo "exit_code=$?"
+```
+
+- `exit_code=2` の場合は、ローカルではなく CI 環境不足（`rg`/実行パス）を優先して切り分けます。
+
 ### 1. チェック実行（1 分）
 
 ```bash
