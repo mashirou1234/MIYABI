@@ -176,6 +176,9 @@
 
 - 破損または未存在時はデフォルト値で起動
 - 破損ファイルは `*.bak` に退避し、新規作成
+- 保存書き込み失敗（I/Oエラー・権限不足）時はゲーム進行を継続し、次回保存タイミングで再試行する
+- 保存書き込み失敗時は既存 `save_data.json` を破壊しない（原子的保存の前提を維持する）
+- 保存書き込み失敗を検知した場合は診断ログを残し、復旧手順は `docs/CORE_SAVE_SUBSYSTEM.md#7-セーブ失敗時の復旧手順運用` を参照する
 
 ### 6.5 ファイル仕様
 
@@ -248,6 +251,7 @@
 - `docs/DEVELOPMENT_TRACK.md`
 - `docs/GAME_DEVELOPMENT_TRACK.md`
 - `docs/CORE_DEVELOPMENT_TRACK.md`
+- `docs/CORE_SAVE_SUBSYSTEM.md`
 - `PERFORMANCE_TEST.md`
 - `PLAN.md`（Phase 9/10 対応: `PLAN.md#plan-phase9-10-spec-map`）
 - `docs/perf/baseline_macos14.json`（自動回帰検知のベースライン）
