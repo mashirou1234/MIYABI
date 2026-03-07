@@ -50,7 +50,7 @@
 - 現在ステージ: **C3**
 - 次ゲート: **C4**
 - 直近不足:
-  - 3D 開発体験の評価テンプレート (`#368`)
+  - C4 直結バックログ（デバッグ可視化 / マルチプラットフォーム検証 / チュートリアル体系化）の再分解
 
 ## 4. 管理ドキュメント
 
@@ -61,8 +61,8 @@
 
 - C2 の最小契約: `docs/CORE_3D_FOUNDATION_CONTRACT.md`
 - C3/C4 の基盤 / 評価軸: `docs/CORE_3D_PRODUCTION_BASELINE.md`
-- 2026-03-08 実装済み: `C2-01` / `C2-02` / `C2-03` / `C2-04` / `#366` / `#367`
-- 次段の残件: `#368`
+- 2026-03-08 実装済み: `C2-01` / `C2-02` / `C2-03` / `C2-04` / `#366` / `#367` / `#368`
+- 次段の残件: `4.2` の C4 直結バックログを再分解して継続
 
 ## 4.2 C1 証跡
 
@@ -76,6 +76,10 @@
 
 - `#366`: `scripts/test_core_c3_3d_perf_baseline.sh` で `arena3d_renderable_build` を含む perf baseline 採取と regression compare を 1 コマンドで再実行できるようにした
 - `#367`: `tools/validate_3d_assets.py` と `scripts/test_core_c3_3d_asset_validation.sh` で 3D mesh / texture / shader / material 契約診断と invalid fixture 検知を 1 コマンドで再実行できるようにした
+
+## 4.5 C4 証跡
+
+- `#368`: `docs/templates/CORE_3D_DEVEX_EVALUATION_TEMPLATE.md` と `docs/reviews/CORE_3D_DEVEX_EVALUATION_2026-03-08.md` を追加し、C4 の 6 評価軸を同じ表で採点し、次の Issue 候補まで切り出せる評価テンプレートを固定した
 
 ## 5. ステージ別 完了定義（DoD）
 

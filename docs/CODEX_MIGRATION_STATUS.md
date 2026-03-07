@@ -336,6 +336,29 @@
 - 未解決:
   - `C4` の次段は `#368` の開発体験評価テンプレート整備で継続する。
 
+### 2026-03-08 run: manual issue-368 3D 開発体験評価テンプレートを整備
+
+- 背景:
+  - `C4` の最初の task として、初期導入速度 / 反復速度 / デバッグ容易性 / 拡張性 / 運用性 / ドキュメント成熟度を同じ形式で評価し、次の issue 候補まで切り出せる文書が必要だった。
+- 変更:
+  - `docs/templates/CORE_3D_DEVEX_EVALUATION_TEMPLATE.md` を追加し、C4 の 6 評価軸、0-3 スコア定義、証跡リンク必須、`score <= 1` で next issue 候補を残す運用ルールを固定した。
+  - `docs/reviews/CORE_3D_DEVEX_EVALUATION_2026-03-08.md` を追加し、`#367` 完了直後の current state を試験記入して、次の C4 follow-up 候補（デバッグ可視化 / マルチプラットフォーム検証 / tutorial 体系化）を具体化した。
+  - `README.md` / `docs/CORE_3D_PRODUCTION_BASELINE.md` / `docs/CORE_DEVELOPMENT_TRACK.md` / `docs/COMPLETION_ROADMAP.md` / `PLAN.md` を更新し、テンプレートと試験記入への導線、および C4 残件の次段整理方針を同期した。
+  - 関連ファイル:
+    - `docs/templates/CORE_3D_DEVEX_EVALUATION_TEMPLATE.md`
+    - `docs/reviews/CORE_3D_DEVEX_EVALUATION_2026-03-08.md`
+    - `README.md`
+    - `docs/CORE_3D_PRODUCTION_BASELINE.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `PLAN.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `rg -n "CORE_3D_DEVEX_EVALUATION_TEMPLATE|CORE_3D_DEVEX_EVALUATION_2026-03-08|#368" README.md docs PLAN.md`
+  - `git diff --check`
+- 未解決:
+  - C4 は完了ではなく、試験記入で抽出した follow-up を次 issue として再分解して継続する。
+
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 
 - 背景:
