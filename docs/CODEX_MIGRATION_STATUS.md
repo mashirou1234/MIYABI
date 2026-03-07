@@ -129,6 +129,20 @@
 - 未解決:
   - なし
 
+### 2026-03-08 run: issue-306 週次Git棚卸し 2026-03-06
+
+- 背景:
+  - `codex:queue` で投入された週次棚卸し Issue #306 の結果を、移行ログへ反映して監視の継続条件を明文化する必要があった。
+- 変更:
+  - 2026-03-06 実行分の棚卸し結果（コミット推奨 0 / 保留 0 / `.gitignore` 候補 0）を追記した。
+  - 根拠コマンド `git status --porcelain=v1 --untracked-files=all` が空であることを記録し、次週も同一条件で差分確認する方針を維持した。
+  - 関連ファイル:
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `rg -n "issue-306|git status --porcelain=v1 --untracked-files=all" docs/CODEX_MIGRATION_STATUS.md`
+- 未解決:
+  - なし
+
 ### 2026-03-08 run: manual issue-361 SDK外部サンプル再利用証跡を追加
 
 - 背景:
