@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
+#include <string>
 #include <unordered_map>
 
 struct GLMesh {
@@ -18,6 +18,9 @@ public:
 
     // Creates a quad mesh with texture coordinates and returns its ID.
     uint32_t create_quad_mesh();
+
+    // Loads a Wavefront OBJ mesh into an explicit registry slot.
+    uint32_t load_obj_mesh(uint32_t mesh_id, const std::string& path);
 
     // Binds the VAO for the given mesh ID for drawing.
     void bind_mesh(uint32_t mesh_id) const;

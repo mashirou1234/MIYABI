@@ -202,6 +202,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "rand",
+ "sample_game_runtime",
  "serde",
  "serde_json",
 ]
@@ -270,8 +271,16 @@ dependencies = [
  "cxx",
  "cxx-build",
  "miyabi_logic",
+ "sample_game_runtime",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "sample_game_runtime"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

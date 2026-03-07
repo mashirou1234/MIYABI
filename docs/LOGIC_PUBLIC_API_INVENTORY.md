@@ -1,6 +1,6 @@
 # logic 公開API棚卸し（Bench-80 #03）
 
-最終更新: 2026-03-07
+最終更新: 2026-03-08
 更新責任: `logic/src/lib.rs` の `pub` 追加・削除時に本書を同時更新する
 
 ## 対象と抽出方法
@@ -49,29 +49,29 @@
 
 ### A. SDK契約上の公開維持（ABI/FFIに直結）
 
-- `logic/src/lib.rs:21` `pub struct RenderableObjectSlice`
-- `logic/src/lib.rs:27` `pub struct AssetCommandSlice`
-- `logic/src/lib.rs:33` `pub struct TextCommandSlice`
-- `logic/src/lib.rs:39` `pub struct MiyabiVTable`
-- `logic/src/lib.rs:61` `pub extern "C" fn get_miyabi_vtable() -> MiyabiVTable`
-- `logic/src/lib.rs:100` `pub mod ffi`
-- `logic/src/lib.rs:315` `pub enum GameState`
-- `logic/src/lib.rs:1045` `pub struct Game`
-- `logic/src/lib.rs:3124` `pub extern "C" fn create_game() -> *mut Game`
-- `logic/src/lib.rs:3129` `pub extern "C" fn destroy_game(game: *mut Game)`
-- `logic/src/lib.rs:3140` `pub extern "C" fn serialize_game(game: *const Game) -> *mut c_char`
-- `logic/src/lib.rs:3169` `pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game`
-- `logic/src/lib.rs:3208` `pub extern "C" fn free_serialized_string(s: *mut c_char)`
-- `logic/src/lib.rs:3217` `pub extern "C" fn update_game(game: *mut Game) -> GameState`
-- `logic/src/lib.rs:3228` `pub extern "C" fn get_renderables(game: *mut Game) -> RenderableObjectSlice`
-- `logic/src/lib.rs:3244` `pub extern "C" fn get_asset_commands(game: *mut Game) -> AssetCommandSlice`
-- `logic/src/lib.rs:3260` `pub extern "C" fn clear_asset_commands(game: *mut Game)`
-- `logic/src/lib.rs:3270` `pub extern "C" fn notify_asset_loaded(game: *mut Game, request_id: u32, asset_id: u32)`
-- `logic/src/lib.rs:3284` `pub extern "C" fn update_input_state(game: *mut Game, input: *const ffi::InputState)`
-- `logic/src/lib.rs:3299` `pub extern "C" fn get_asset_command_path_cstring(command: *const ffi::AssetCommand) -> *mut c_char`
-- `logic/src/lib.rs:3321` `pub extern "C" fn get_text_commands(game: *mut Game) -> TextCommandSlice`
-- `logic/src/lib.rs:3337` `pub extern "C" fn get_text_command_text_cstring(command: *const ffi::TextCommand) -> *mut c_char`
-- `logic/src/lib.rs:3359` `pub extern "C" fn free_cstring(s: *mut c_char)`
+- `logic/src/lib.rs:24` `pub struct RenderableObjectSlice`
+- `logic/src/lib.rs:30` `pub struct AssetCommandSlice`
+- `logic/src/lib.rs:36` `pub struct TextCommandSlice`
+- `logic/src/lib.rs:42` `pub struct MiyabiVTable`
+- `logic/src/lib.rs:64` `pub extern "C" fn get_miyabi_vtable() -> MiyabiVTable`
+- `logic/src/lib.rs:104` `pub mod ffi`
+- `logic/src/lib.rs:320` `pub enum GameState`
+- `logic/src/lib.rs:1079` `pub struct Game`
+- `logic/src/lib.rs:3519` `pub extern "C" fn create_game() -> *mut Game`
+- `logic/src/lib.rs:3524` `pub extern "C" fn destroy_game(game: *mut Game)`
+- `logic/src/lib.rs:3535` `pub extern "C" fn serialize_game(game: *const Game) -> *mut c_char`
+- `logic/src/lib.rs:3567` `pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game`
+- `logic/src/lib.rs:3607` `pub extern "C" fn free_serialized_string(s: *mut c_char)`
+- `logic/src/lib.rs:3616` `pub extern "C" fn update_game(game: *mut Game) -> GameState`
+- `logic/src/lib.rs:3627` `pub extern "C" fn get_renderables(game: *mut Game) -> RenderableObjectSlice`
+- `logic/src/lib.rs:3643` `pub extern "C" fn get_asset_commands(game: *mut Game) -> AssetCommandSlice`
+- `logic/src/lib.rs:3659` `pub extern "C" fn clear_asset_commands(game: *mut Game)`
+- `logic/src/lib.rs:3669` `pub extern "C" fn notify_asset_loaded(game: *mut Game, request_id: u32, asset_id: u32)`
+- `logic/src/lib.rs:3683` `pub extern "C" fn update_input_state(game: *mut Game, input: *const ffi::InputState)`
+- `logic/src/lib.rs:3698` `pub extern "C" fn get_asset_command_path_cstring(command: *const ffi::AssetCommand) -> *mut c_char`
+- `logic/src/lib.rs:3723` `pub extern "C" fn get_text_commands(game: *mut Game) -> TextCommandSlice`
+- `logic/src/lib.rs:3739` `pub extern "C" fn get_text_command_text_cstring(command: *const ffi::TextCommand) -> *mut c_char`
+- `logic/src/lib.rs:3764` `pub extern "C" fn free_cstring(s: *mut c_char)`
 
 補足:
 - SDK利用契約（`docs/SDK_DEFINITION.md`）の起点は `get_miyabi_vtable()`。
@@ -83,28 +83,29 @@
 - `logic/src/lib.rs:2` `pub mod level`
 - `logic/src/lib.rs:3` `pub mod perf`
 - `logic/src/lib.rs:4` `pub mod save`
-- `logic/src/lib.rs:17` `pub mod ui`
-- `logic/src/lib.rs:82` `pub trait Component`
-- `logic/src/lib.rs:87` `pub enum ComponentType`
-- `logic/src/lib.rs:326` `pub struct SaveProgress`
-- `logic/src/lib.rs:345` `pub enum MovementPreset`
-- `logic/src/lib.rs:357` `pub struct SaveSettings`
-- `logic/src/lib.rs:378` `pub struct SaveData`
-- `logic/src/lib.rs:409` `pub struct AssetServer`
-- `logic/src/lib.rs:422` `pub struct PendingAssetRequest`
-- `logic/src/lib.rs:537` `pub struct Material`
-- `logic/src/lib.rs:552` `pub struct Player`
-- `logic/src/lib.rs:558` `pub struct Sprite`
-- `logic/src/lib.rs:564` `pub struct SpriteAnimation`
-- `logic/src/lib.rs:578` `pub struct Obstacle`
-- `logic/src/lib.rs:584` `pub struct PhysicsBody`
-- `logic/src/lib.rs:592` `pub struct Entity(pub u64)`
-- `logic/src/lib.rs:597` `pub struct Archetype`
-- `logic/src/lib.rs:615` `pub struct InternalWorld`
-- `logic/src/lib.rs:759` `pub struct SystemRegistrationMeta`
-- `logic/src/lib.rs:765` `pub struct SystemRegistry`
-- `logic/src/lib.rs:804` `pub trait ComponentBundle`
-- `logic/src/lib.rs:1099` `pub type World = Game`
+- `logic/src/lib.rs:20` `pub mod ui`
+- `logic/src/lib.rs:85` `pub trait Component`
+- `logic/src/lib.rs:90` `pub enum ComponentType`
+- `logic/src/lib.rs:331` `pub struct SaveProgress`
+- `logic/src/lib.rs:350` `pub enum MovementPreset`
+- `logic/src/lib.rs:362` `pub struct SaveSettings`
+- `logic/src/lib.rs:383` `pub struct SaveData`
+- `logic/src/lib.rs:398` `pub enum RunMode`
+- `logic/src/lib.rs:426` `pub struct AssetServer`
+- `logic/src/lib.rs:439` `pub struct PendingAssetRequest`
+- `logic/src/lib.rs:554` `pub struct Material`
+- `logic/src/lib.rs:579` `pub struct Player`
+- `logic/src/lib.rs:585` `pub struct Sprite`
+- `logic/src/lib.rs:591` `pub struct SpriteAnimation`
+- `logic/src/lib.rs:605` `pub struct Obstacle`
+- `logic/src/lib.rs:611` `pub struct PhysicsBody`
+- `logic/src/lib.rs:619` `pub struct Entity(pub u64)`
+- `logic/src/lib.rs:624` `pub struct Archetype`
+- `logic/src/lib.rs:642` `pub struct InternalWorld`
+- `logic/src/lib.rs:793` `pub struct SystemRegistrationMeta`
+- `logic/src/lib.rs:799` `pub struct SystemRegistry`
+- `logic/src/lib.rs:838` `pub trait ComponentBundle`
+- `logic/src/lib.rs:1136` `pub type World = Game`
 
 補足:
 - これらは現状 `logic` クレート内部実装の都合で公開されている要素が中心。

@@ -237,6 +237,7 @@ fn build_renderables_from_world(
                 mesh_id: 1,
                 material_id: 1,
                 texture_id,
+                is_3d: false,
             });
         }
     }
