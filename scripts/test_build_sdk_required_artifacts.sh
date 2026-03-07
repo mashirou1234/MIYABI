@@ -26,6 +26,11 @@ touch "${FAKE_SDK}/examples/main.cpp"
 touch "${FAKE_SDK}/template_CMakeLists.txt"
 # docs/SDK_DEFINITION.md intentionally missing
 
+echo "[test] dry-run check reports missing artifact as non-fatal"
+./scripts/check_sdk_artifacts.sh --dry-run "${FAKE_SDK}" > "${TMP_DIR}/dry_run.log" 2>&1
+grep -q "\\[sdk-check\\]\\[dry-run\\] MISSING: docs/SDK_DEFINITION.md" "${TMP_DIR}/dry_run.log"
+grep -q "\\[sdk-check\\]\\[dry-run\\] DONE:" "${TMP_DIR}/dry_run.log"
+
 set +e
 SDK_DIR="${FAKE_SDK}" MIYABI_SDK_VALIDATE_ONLY=1 bash ./build_sdk.sh > "${TMP_DIR}/validate_missing.log" 2>&1
 STATUS=$?
