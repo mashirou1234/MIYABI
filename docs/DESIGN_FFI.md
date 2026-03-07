@@ -131,6 +131,15 @@ Violating these rules will lead to memory leaks, use-after-free, or crashes.
     -   **Source:** C++ provides this pointer (which it got from a previous `serialize_world` call).
     -   **Responsibility:** Rust will read the data but **MUST NOT** store the pointer or attempt to free it.
 
+### 4.1 Ownership Boundary Review Checklist (15-45 min)
+
+- **FFIポインタの非同期持ち越し禁止を明示確認する。**
+  - 対象: `World*` 以外の BORROW ポインタ（`RenderableObjectSlice.ptr`、入力配列ポインタ、C文字列ポインタ）。
+  - 観点: コールバック登録・ワーカースレッド投入・静的キャッシュなど、呼び出しスコープ外へポインタを保存する実装がないこと。
+  - 最小確認コマンド: `rg --line-number --no-heading "static|thread|async|spawn|cache|store" core logic sample_game`
+  - 判定: BORROW ポインタをまたぐ保存が 1 件でもあれば修正または設計 issue 化し、同PRで根拠を残す。
+  - 補足: これは `#159/#54` の入力境界テスト（null/len 検証）とは別軸の「所有権ライフタイム境界」レビュー項目。
+
 ## 5. Precise Hot-Reloading Workflow
 
 This workflow ensures a seamless transition between library versions with no memory leaks.
