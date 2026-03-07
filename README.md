@@ -44,6 +44,19 @@ cmake --build --preset dev -j
 
 SDK 生成スクリプトの前提依存を確認する場合は `./build_sdk.sh --help` を参照してください。
 
+### `build_sdk.sh` validate-only 確認（15〜30分目安）
+
+既存 `sdk/` 配下の必須同梱物だけを検証し、再ビルドせずに不足検出したい場合の最短手順です。
+
+```bash
+MIYABI_SDK_VALIDATE_ONLY=1 ./build_sdk.sh
+```
+
+確認ポイント:
+- 成功時は `Required SDK artifacts check passed.` が出力されること
+- 失敗時は `ERROR: Required SDK artifacts are missing:` の下に不足ファイル一覧が出ること
+- 検証対象の必須同梱物は `build_sdk.sh` の `REQUIRED_ARTIFACTS`（`docs/SDK_DEFINITION.md` を含む）と一致していること
+
 ## 新規Contributor向け 最短ビルド確認（15分目安）
 
 1. 依存確認: `cmake --version` と `c++ --version` が実行できることを確認
