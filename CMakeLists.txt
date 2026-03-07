@@ -29,8 +29,8 @@ if(MIYABI_PROFILE)
     add_compile_definitions(MIYABI_PROFILE)
 endif()
 
-# Option to enable performance testing
-option(MIYABI_PERFORMANCE_TEST "Enable performance testing" OFF)
+# Option to enable dedicated performance benchmark paths during measurement runs.
+option(MIYABI_PERFORMANCE_TEST "Enable performance benchmark/test code paths (OFF for normal dev/release)" OFF)
 if(MIYABI_PERFORMANCE_TEST)
     message(STATUS "Performance testing enabled.")
     add_compile_definitions(MIYABI_PERFORMANCE_TEST)

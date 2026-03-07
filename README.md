@@ -44,6 +44,15 @@ cmake --build --preset dev -j
 
 SDK 生成スクリプトの前提依存を確認する場合は `./build_sdk.sh --help` を参照してください。
 
+## 主要 CMake オプション（抜粋）
+
+| オプション | 既定値 | 目的 | 使う場面 |
+| --- | --- | --- | --- |
+| `MIYABI_PROFILE` | `OFF` | プロファイリング計測用の計装を有効化する | 処理内訳を計測したいときだけ `ON` |
+| `MIYABI_PERFORMANCE_TEST` | `OFF` | 性能計測専用のベンチマーク/テスト経路を有効化する | `perf_baseline` 実行や CI 性能計測時だけ `ON` |
+
+補足: `MIYABI_PERFORMANCE_TEST` は通常開発・通常リリースでは `OFF` のまま運用し、手順詳細は [PERFORMANCE_TEST.md](PERFORMANCE_TEST.md) の 4.9 を参照してください。
+
 ### `build_sdk.sh` validate-only 確認（15〜30分目安）
 
 既存 `sdk/` 配下の必須同梱物だけを検証し、再ビルドせずに不足検出したい場合の最短手順です。
