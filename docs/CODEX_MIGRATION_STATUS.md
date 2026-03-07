@@ -1,6 +1,6 @@
 # Codex移行ステータス
 
-最終更新: 2026-03-06
+最終更新: 2026-03-07
 
 ## 更新ルール（最小記載）
 
@@ -101,6 +101,25 @@
 ## 2. この移行で反映した内容
 
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
+### 2026-03-07 run: manual Issue設計ガイド整備
+
+- 背景:
+  - 完成に直結する Task を Issue 化しやすくするため、実装Issueの粒度と記載項目を正本化する必要があった。
+- 変更:
+  - `docs/ISSUE_DESIGN.md` を追加し、Issue種別、`codex:queue` 条件、分割ルール、必須項目、優先 Issue 群を整理した。
+  - GitHub 用の開発Issueテンプレートを `.github/ISSUE_TEMPLATE/development_task.md` として追加した。
+  - 案内導線として `README.md` と `docs/DEVELOPMENT_TRACK.md` から参照できるよう更新した。
+  - 関連ファイル:
+    - `docs/ISSUE_DESIGN.md`
+    - `.github/ISSUE_TEMPLATE/development_task.md`
+    - `docs/DEVELOPMENT_TRACK.md`
+    - `README.md`
+- 検証:
+  - `git diff --check`
+  - `rg -n "ISSUE_DESIGN|実装Task|Development task|codex:queue" README.md docs/DEVELOPMENT_TRACK.md docs/ISSUE_DESIGN.md .github/ISSUE_TEMPLATE/development_task.md`
+- 未解決:
+  - 既存の open Issue を新テンプレート基準で棚卸しし、`codex:queue` の再分類を行う作業は未実施。
+
 ### 2026-03-06 run: issue-175 更新粒度ルール明確化
 
 - 背景:

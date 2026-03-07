@@ -29,6 +29,8 @@
   - `docs/ASSET_IMPORT_REIMPORT.md`
 - logic公開API棚卸し:
   - `docs/LOGIC_PUBLIC_API_INVENTORY.md`
+- Issue設計と開発Issueテンプレート:
+  - `docs/ISSUE_DESIGN.md`
 
 ## 4. フェーズ間依存（`PLAN.md`準拠）
 
@@ -52,6 +54,7 @@
 
 - コア到達判定は `docs/CORE_DEVELOPMENT_TRACK.md` を正とする
 - ゲーム到達判定は `docs/GAME_DEVELOPMENT_TRACK.md` を正とする
+- 実装Taskの Issue は `docs/ISSUE_DESIGN.md` のテンプレートと分割ルールに従う
 - 作業完了時は `PLAN.md` と `docs/CODEX_MIGRATION_STATUS.md` を同時更新する
 
 ## 6. 依存解決ブロッカー記録欄
