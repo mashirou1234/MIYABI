@@ -17,6 +17,12 @@
 - [ ] `FAIL (missing scenario)` が 0 件である。
 - [ ] 同一コミットで最低2回再計測し、更新候補値の再現性を確認した。
 
+最小再現コマンド:
+
+```bash
+./scripts/test_core_c3_3d_perf_baseline.sh
+```
+
 ## 参照
 
 - baseline: `docs/perf/baseline_macos14.json`

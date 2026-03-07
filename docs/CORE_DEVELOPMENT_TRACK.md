@@ -50,7 +50,6 @@
 - 現在ステージ: **C2**
 - 次ゲート: **C3**
 - 直近不足:
-  - 3D シーン性能ベースライン採取 (`#366`)
   - 3D アセット検証コマンド (`#367`)
 
 ## 4. 管理ドキュメント
@@ -72,6 +71,10 @@
 ## 4.3 C2 証跡
 
 - `#363`: `scripts/test_core_2d_3d_coexistence.sh` で 2D title UI/text、3D arena overlay/render log、`G2/G3` スモークを 1 コマンドで再実行できるようにした
+
+## 4.4 C3 証跡
+
+- `#366`: `scripts/test_core_c3_3d_perf_baseline.sh` で `arena3d_renderable_build` を含む perf baseline 採取と regression compare を 1 コマンドで再実行できるようにした
 
 ## 5. ステージ別 完了定義（DoD）
 

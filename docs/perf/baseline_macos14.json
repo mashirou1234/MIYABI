@@ -1,10 +1,15 @@
 {
   "schema_version": 1,
   "platform": "macos-14",
-  "generated_on": "2026-02-23",
+  "generated_on": "2026-03-08",
   "baseline_source": "logic/src/bin/perf_baseline.rs",
   "comparison_rule": "current_avg_ms <= baseline_avg_ms * (1 + max_regression_pct / 100)",
   "scenarios": [
+    {
+      "name": "arena3d_renderable_build",
+      "baseline_avg_ms": 0.004261,
+      "max_regression_pct": 200
+    },
     {
       "name": "sprite_renderable_build",
       "baseline_avg_ms": 0.12143053333333334,
