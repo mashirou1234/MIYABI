@@ -4,8 +4,11 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <filesystem>
 
 namespace {
+namespace fs = std::filesystem;
+
 std::string summarize_gl_errors() {
     std::ostringstream oss;
     bool has_error = false;
@@ -21,6 +24,20 @@ std::string summarize_gl_errors() {
         has_error = true;
     }
     return has_error ? oss.str() : "none";
+}
+
+std::string resolve_shader_path(const std::string& requested_path) {
+    const fs::path requested(requested_path);
+    if (fs::exists(requested)) {
+        return requested.string();
+    }
+
+    const fs::path packaged = fs::path("shaders") / requested.filename();
+    if (fs::exists(packaged)) {
+        return packaged.string();
+    }
+
+    return requested_path;
 }
 }
 
@@ -89,15 +106,17 @@ uint32_t ShaderManager::get_program_id(uint32_t shader_id) const {
 std::string ShaderManager::read_file(const std::string& file_path) {
     std::ifstream file;
     std::stringstream stream;
+    const std::string resolved_path = resolve_shader_path(file_path);
     file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     try {
-        file.open(file_path);
+        file.open(resolved_path);
         stream << file.rdbuf();
         file.close();
     } catch (std::ifstream::failure& e) {
         std::cerr
             << "ERROR::SHADER::READ::FILE_OPEN_FAILED"
             << " path=\"" << file_path << "\""
+            << " resolved_path=\"" << resolved_path << "\""
             << " reason=\"" << e.what() << "\""
             << std::endl;
         return "";

@@ -49,6 +49,10 @@
 - `assets/player.png`
 - `assets/test.png`
 - `assets/test_sound.wav`
+- `shaders/text.vert`
+- `shaders/text.frag`
+- `shaders/textured.vert`
+- `shaders/textured.frag`
 - `run_miyabi.sh`
 - `SHA256SUMS.txt`
 - `docs/README.txt`
@@ -61,6 +65,10 @@ for p in \
   assets/player.png \
   assets/test.png \
   assets/test_sound.wav \
+  shaders/text.vert \
+  shaders/text.frag \
+  shaders/textured.vert \
+  shaders/textured.frag \
   run_miyabi.sh \
   SHA256SUMS.txt \
   docs/README.txt; do
@@ -107,6 +115,23 @@ spctl --assess --type execute --verbose=4 dist/miyabi_game_macos/bin/miyabi
 ```
 
 4. タイトル画面が表示され、`Start` から `InGame` へ遷移できることを確認する
+
+### 4.1 再現スモーク自動化
+
+同一手順の再実行を優先する場合は、次のコマンドを使う。
+
+```bash
+./scripts/test_distribution_smoke.sh
+```
+
+このスクリプトは次をまとめて行う。
+
+- 最新の配布 ZIP を生成する
+- 一時ディレクトリへ展開する
+- 最低同梱物を検証する
+- 展開先の `./run_miyabi.sh` を 5 秒間起動し、即時クラッシュしないことを確認する
+
+Issue コメントまたは PR には、出力された ZIP パスと PASS/FAIL をそのまま転記する。
 
 ## 5. 既知制約
 

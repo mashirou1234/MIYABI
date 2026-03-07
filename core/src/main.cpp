@@ -261,6 +261,11 @@ int main() {
             g_vtable.update_game(miyabi_game);
         }
 
+        if (has_pending_window_close_request()) {
+            consume_pending_window_close_request();
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+
         if (has_pending_fullscreen_request()) {
             bool requested_fullscreen = consume_pending_fullscreen_request();
             apply_fullscreen_mode(
@@ -401,11 +406,14 @@ void processInput(GLFWwindow *window, InputState& input_state) {
     input_state.down = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
     input_state.left = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
     input_state.right = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
+    input_state.w_key = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+    input_state.a_key = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
     input_state.esc_key = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
 
     input_state.s_key = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     input_state.p_key = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
     input_state.u_key = glfwGetKey(window, GLFW_KEY_U) == GLFW_PRESS;
+    input_state.d_key = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
 
     // Mouse position
     double xpos, ypos;

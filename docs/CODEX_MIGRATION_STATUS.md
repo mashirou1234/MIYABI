@@ -26,10 +26,10 @@
 - SDK更新時の同期チェック: `docs/SDK_DEFINITION.md` の「4.1 SDK更新時チェックリスト」
 - 現在ステージ:
   - コア: C0（Core Runtime）
-  - ゲーム: G1（2Dプレイアブルループ）
+  - ゲーム: G3（2D配布候補）
 - 次ゲート:
   - コア: C1（2D Engine Baseline）
-  - ゲーム: G2（2D Vertical Slice 完成）
+  - ゲーム: G4（3D Vertical Slice）
 - 本ドキュメントの役割: 「今スレッドで何を変更したか」を管理する
 
 `PLAN.md` は実装順、`docs/CORE_DEVELOPMENT_TRACK.md` はステージ到達判定、本ドキュメントはスレッド単位の変更履歴を管理する。
@@ -101,6 +101,37 @@
 ## 2. この移行で反映した内容
 
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
+### 2026-03-07 run: manual issue-343-350 境界最小分離と 3D 正本化
+
+- 背景:
+  - C1 の残件だった `sample_game` / `logic` 境界の最小分離と、Wave 5-7 の 3D 着手条件がまだ正本化されていなかった。
+- 変更:
+  - `sample_game/src/lib.rs` に `SampleGameState` / `SampleGameButtonAction` / `SampleGameLoop` を追加し、`sample_game/tests/flow_contract.rs` で scene/action 契約を固定した。
+  - `logic/src/ui.rs` を action id ベースの汎用 UI 部品へ縮小し、`logic/src/lib.rs` には現行 `get_miyabi_vtable()` 起動経路を維持する互換 shim を追加した。
+  - `docs/CORE_3D_FOUNDATION_CONTRACT.md` / `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md` / `docs/CORE_3D_PRODUCTION_BASELINE.md` を追加し、トラック文書・ロードマップ・`PLAN.md` を同期した。
+  - 関連ファイル:
+    - `sample_game/src/lib.rs`
+    - `sample_game/tests/flow_contract.rs`
+    - `sample_game/Cargo.toml`
+    - `logic/src/ui.rs`
+    - `logic/src/lib.rs`
+    - `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+    - `docs/CORE_3D_FOUNDATION_CONTRACT.md`
+    - `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
+    - `docs/CORE_3D_PRODUCTION_BASELINE.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/GAME_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `docs/LOGIC_PUBLIC_API_INVENTORY.md`
+    - `PLAN.md`
+- 検証:
+  - `cargo test --manifest-path logic/Cargo.toml --lib -- --nocapture`
+  - `cargo test --manifest-path sample_game/Cargo.toml -- --nocapture`
+  - `cmake --build build -j`
+  - `./scripts/test_game_track_g2.sh`
+  - `./scripts/test_distribution_smoke.sh`
+- 未解決:
+  - `core` は依然として `logic` staticlib の `get_miyabi_vtable()` を起点に起動しており、`sample_game` 直接 boot への最終反転は未実施。
 ### 2026-03-07 run: manual 配布生成物 dist を gitignore へ追加
 
 - 背景:

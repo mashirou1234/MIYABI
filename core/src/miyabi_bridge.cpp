@@ -24,6 +24,7 @@ std::atomic<bool> g_se_group_ready{false};
 std::atomic<bool> g_bgm_sound_ready{false};
 std::atomic<bool> g_pending_fullscreen{false};
 std::atomic<bool> g_requested_fullscreen{false};
+std::atomic<bool> g_pending_window_close{false};
 std::mutex g_bgm_mutex;
 
 
@@ -111,6 +112,10 @@ void request_fullscreen(bool enabled) {
     g_pending_fullscreen.store(true, std::memory_order_release);
 }
 
+void request_window_close() {
+    g_pending_window_close.store(true, std::memory_order_release);
+}
+
 // Physics
 miyabi::physics::PhysicsManager::BodyId create_dynamic_box_body(float x, float y, float width, float height) {
     return g_physics_manager.create_dynamic_box(x, y, width, height);
@@ -189,4 +194,12 @@ bool has_pending_fullscreen_request() {
 bool consume_pending_fullscreen_request() {
     g_pending_fullscreen.store(false, std::memory_order_release);
     return g_requested_fullscreen.load(std::memory_order_acquire);
+}
+
+bool has_pending_window_close_request() {
+    return g_pending_window_close.load(std::memory_order_acquire);
+}
+
+bool consume_pending_window_close_request() {
+    return g_pending_window_close.exchange(false, std::memory_order_acq_rel);
 }

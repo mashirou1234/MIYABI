@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ffi::{Vec2, Vec4};
-use crate::{Game, GameState};
+use crate::Game;
 
 // 1. Define the Button Component
 // =============================
@@ -25,26 +25,11 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ButtonAction {
-    StartGame,
-    ResumeGame,
-    RetryGame,
-    BackToTitle,
-    MasterVolumeDown,
-    MasterVolumeUp,
-    BgmVolumeDown,
-    BgmVolumeUp,
-    SeVolumeDown,
-    SeVolumeUp,
-    ToggleFullscreen,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Button {
     pub rect: Rect,
     pub text: String,
-    pub action: ButtonAction,
+    pub action_id: String,
     // pub font_size: f32,
     // pub color: Vec4,
     // pub hover_color: Vec4,
@@ -63,11 +48,11 @@ impl Component for Button {
 // 2. UI System Logic
 // ==================
 
-/// The UI system handles button interactions and drawing.
-pub fn ui_system(game: &mut Game) {
+/// The UI system handles button hit-testing and drawing, and returns the clicked action id.
+pub fn ui_system(game: &mut Game) -> Option<String> {
     let mouse_pos = game.input_state.mouse_pos;
     let mouse_clicked = game.input_state.mouse_clicked;
-    let mut queued_action: Option<ButtonAction> = None;
+    let mut queued_action_id: Option<String> = None;
 
     // Find archetypes with a Button component
     for archetype in &game.world.archetypes {
@@ -81,8 +66,8 @@ pub fn ui_system(game: &mut Game) {
 
             for button in buttons.iter() {
                 // --- Interaction Logic ---
-                if mouse_clicked && queued_action.is_none() && button.rect.contains(mouse_pos) {
-                    queued_action = Some(button.action.clone());
+                if mouse_clicked && queued_action_id.is_none() && button.rect.contains(mouse_pos) {
+                    queued_action_id = Some(button.action_id.clone());
                 }
 
                 // --- Drawing Logic ---
@@ -107,44 +92,5 @@ pub fn ui_system(game: &mut Game) {
         }
     }
 
-    // If an action was queued, perform it now.
-    if let Some(action) = queued_action {
-        crate::ffi::play_sound("assets/test_sound.wav");
-        match action {
-            ButtonAction::StartGame => {
-                game.start_new_run();
-            }
-            ButtonAction::ResumeGame => {
-                game.clear_menu_buttons();
-                game.current_state = GameState::InGame;
-            }
-            ButtonAction::RetryGame => {
-                game.start_new_run();
-            }
-            ButtonAction::BackToTitle => {
-                game.setup_title_screen();
-            }
-            ButtonAction::MasterVolumeDown => {
-                game.adjust_master_volume(-crate::SETTINGS_STEP);
-            }
-            ButtonAction::MasterVolumeUp => {
-                game.adjust_master_volume(crate::SETTINGS_STEP);
-            }
-            ButtonAction::BgmVolumeDown => {
-                game.adjust_bgm_volume(-crate::SETTINGS_STEP);
-            }
-            ButtonAction::BgmVolumeUp => {
-                game.adjust_bgm_volume(crate::SETTINGS_STEP);
-            }
-            ButtonAction::SeVolumeDown => {
-                game.adjust_se_volume(-crate::SETTINGS_STEP);
-            }
-            ButtonAction::SeVolumeUp => {
-                game.adjust_se_volume(crate::SETTINGS_STEP);
-            }
-            ButtonAction::ToggleFullscreen => {
-                game.toggle_fullscreen_setting();
-            }
-        }
-    }
+    queued_action_id
 }

@@ -92,6 +92,7 @@ fi
 echo "[package] copy runtime"
 cp "$BUILD_DIR/core/miyabi" "$PACKAGE_DIR/bin/miyabi"
 cp -R "$ROOT_DIR/assets" "$PACKAGE_DIR/assets"
+cp -R "$ROOT_DIR/core/src/shaders" "$PACKAGE_DIR/shaders"
 
 cat > "$PACKAGE_DIR/run_miyabi.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -117,7 +118,15 @@ EOF
 echo "[package] create checksum"
 (
   cd "$PACKAGE_DIR"
-  shasum -a 256 bin/miyabi assets/player.png assets/test.png assets/test_sound.wav > SHA256SUMS.txt
+  shasum -a 256 \
+    bin/miyabi \
+    assets/player.png \
+    assets/test.png \
+    assets/test_sound.wav \
+    shaders/text.vert \
+    shaders/text.frag \
+    shaders/textured.vert \
+    shaders/textured.frag > SHA256SUMS.txt
 )
 
 echo "[package] archive"
