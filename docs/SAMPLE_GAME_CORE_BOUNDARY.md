@@ -66,4 +66,21 @@
 - `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
 - `sample_game` の状態機械はまだテスト契約中心で、実行時 boot path は `logic` staticlib のままである。`core` が `sample_game` を知らずに差し替えられる起動方式を次段で固める必要がある。
 
+## 6. レビュー時チェック質問（15〜45 分の着手単位）
+
+`sample_game` / `core` の責務境界に関する変更をレビューするときは、以下 4 問を順に確認する。
+
+1. 依存方向
+   - `core -> sample_game` または `sample_game -> core` の新規依存が差分に含まれていないか。
+2. 境界窓口
+   - `logic` からのランタイム呼び出しが `core/include/miyabi/bridge.h` の契約内に収まっているか。
+3. 変更根拠
+   - PR 本文または関連 Issue に、なぜこの境界変更が必要かを 1 文以上で説明しているか。
+4. 検証ログ
+   - 最低 1 回、`./scripts/check_core_no_sample_game_dependency.sh` を実行し、結果（成功/失敗と対応）を残しているか。
+
+判定:
+- 4 問のうち 1 つでも `No` の場合はマージ保留にする。
+- 2. の境界窓口を拡張する場合は、`docs/architecture_checks.md` の「除外設定レビュー手順」と整合する説明を PR に追記する。
+
 このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。
