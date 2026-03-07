@@ -213,4 +213,5 @@ echo "exit_code=$?"
 
 - 既存チェック実装: `scripts/check_core_no_sample_game_dependency.sh`
 - 既存チェック実装: `scripts/check_core_public_header_include_order.sh`
+- 最小再現テスト: `./scripts/test_check_core_no_sample_game_dependency.sh`
 - 新規チェックを増やす場合も、`scripts/` 配下に追加して本ドキュメントへ対応項目を追記する
