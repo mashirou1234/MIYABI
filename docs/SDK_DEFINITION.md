@@ -104,6 +104,36 @@ SDK展開後、最短で ABI 整合を確認する手順を以下に固定する
    - `./scripts/check_sdk_artifacts.sh <sdk_dir>`
 3. 実行時 ABI 判定の確認
    - `sdk/examples/main.cpp` 相当で `vtable.abi_version == MIYABI_ABI_VERSION` を実行し、判定が true であることを確認する。
+
+### 4.3 `check_sdk_artifacts` JSON出力オプション設計メモ（運用差分）
+
+`scripts/check_sdk_artifacts.sh` は現状テキスト出力のみを提供する。  
+結果共有の転記コストを下げるため、次回拡張で以下の JSON 出力オプションを追加する設計を採用する。
+
+- 対象コマンド
+  - `./scripts/check_sdk_artifacts.sh --json`
+  - `./scripts/check_sdk_artifacts.sh --json=/path/to/report.json`
+- 非互換回避方針
+  - `--json` 未指定時の既存標準出力/標準エラー文言と終了コードは変更しない。
+  - `--dry-run` の意味（不足があっても終了コード 0）は維持する。
+- 最小 JSON スキーマ（案）
+  - `schema_version`: 文字列。初期値は `"1"`.
+  - `sdk_dir`: 検査対象ディレクトリ。
+  - `dry_run`: 真偽値。
+  - `ok`: 真偽値。必須同梱物が全件存在する場合のみ `true`。
+  - `missing`: 不足ファイル相対パスの配列。
+  - `required_count`: 必須件数。
+  - `checked_at`: UTC ISO8601 文字列。
+- 運用手順（15〜45 分で実施）
+  1. `scripts/check_sdk_artifacts.sh` に `--json` パースを追加する。
+  2. 既存の欠落判定ロジックから `missing` 配列を組み立てる。
+  3. `jq -n` で JSON を生成し、`--json=<path>` 指定時のみファイル出力する。
+  4. `--json` 指定時でも終了コード判定は既存仕様（`--dry-run` 含む）に合わせる。
+  5. `README.md` と本節を参照して運用者へ共有する。
+
+補足:
+
+- 既存 #179 / #178 は `build_sdk.sh` の前提チェックが対象であり、本設計メモは `check_sdk_artifacts` の出力形式拡張に限定する。
 ## 5. リンク契約
 
 `find_package(MIYABI CONFIG REQUIRED)` により `MIYABI::SDK` を利用する。
