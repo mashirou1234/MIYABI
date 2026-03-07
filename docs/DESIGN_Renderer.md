@@ -155,6 +155,19 @@ This timing model aligns with the existing loop (`get_renderables` -> build draw
 
 The `trend=provisional` marker indicates these are observation values for regression detection, not hard runtime limits.
 
+### 6.4. Frame Measurement Log Capture Command (macOS-14 Baseline Flow)
+
+Rendererのフレーム計測ログ採取は、`PERFORMANCE_TEST.md` 4.6 の baseline 更新フローと同じ入力/出力パスを使う。
+
+```bash
+cargo run --release --manifest-path logic/Cargo.toml --bin perf_baseline -- \
+  --output build/perf/current_baseline.json
+```
+
+- 出力先は `build/perf/current_baseline.json` に固定する。
+- 生成JSONは `draw_call_count` / `batch_count` / `instance_count` を含むシナリオ比較の入力として扱う。
+- 採取後の比較手順は `PERFORMANCE_TEST.md` 4.6 の regression report 生成コマンドを参照する。
+
 ## 7. Buffer Preconditions (Explicit Contract)
 
 To prevent interpretation drift between Rust scene output and C++ draw submission, buffer handling follows these preconditions:
