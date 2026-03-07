@@ -1,6 +1,7 @@
 use miyabi_logic::{
-    ffi, update_input_state, AssetServer, Game, GameState, InternalWorld, SaveData,
+    ffi, update_input_state, AssetServer, Game, GameState, InternalWorld, RunMode, SaveData,
 };
+use sample_game::SampleGameLoop;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::ptr;
@@ -9,6 +10,8 @@ fn make_test_game() -> Game {
     Game {
         world: InternalWorld::new(),
         current_state: GameState::Title,
+        run_mode: RunMode::BoxSurvival2d,
+        sample_loop: SampleGameLoop::new(),
         asset_server: AssetServer::new(),
         texture_map: HashMap::new(),
         input_state: ffi::InputState::default(),

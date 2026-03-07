@@ -4,6 +4,9 @@ pub mod perf;
 pub mod save;
 use crate::ui::Button;
 use rand::Rng;
+use sample_game_runtime::{
+    SampleGameButtonAction, SampleGameEffect, SampleGameEvent, SampleGameLoop, SampleGameState,
+};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
@@ -88,6 +91,7 @@ pub enum ComponentType {
     Transform,
     Velocity,
     Material,
+    RenderMesh,
     Player,
     Obstacle,
     Button,
@@ -142,6 +146,7 @@ pub mod ffi {
         pub mesh_id: u32,
         pub material_id: u32,
         pub texture_id: u32,
+        pub is_3d: bool,
         pub transform: Transform,
     }
 
@@ -389,6 +394,18 @@ impl Default for SaveData {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RunMode {
+    BoxSurvival2d,
+    Arena3d,
+}
+
+impl Default for RunMode {
+    fn default() -> Self {
+        Self::BoxSurvival2d
+    }
+}
+
 impl SaveSettings {
     fn sanitized(mut self) -> Self {
         self.master_volume = self.master_volume.clamp(0.0, 1.0);
@@ -538,6 +555,13 @@ pub struct Material {
     pub texture_handle: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+struct RenderMesh {
+    mesh_id: u32,
+    material_id: u32,
+    is_3d: bool,
+}
+
 impl Component for ffi::Transform {
     const COMPONENT_TYPE: ComponentType = ComponentType::Transform;
 }
@@ -546,6 +570,9 @@ impl Component for ffi::Velocity {
 }
 impl Component for Material {
     const COMPONENT_TYPE: ComponentType = ComponentType::Material;
+}
+impl Component for RenderMesh {
+    const COMPONENT_TYPE: ComponentType = ComponentType::RenderMesh;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -649,6 +676,11 @@ impl InternalWorld {
                 .storage
                 .insert(ComponentType::Material, Box::new(Vec::<Material>::new()));
         }
+        if types.contains(&ComponentType::RenderMesh) {
+            archetype
+                .storage
+                .insert(ComponentType::RenderMesh, Box::new(Vec::<RenderMesh>::new()));
+        }
         if types.contains(&ComponentType::Player) {
             archetype
                 .storage
@@ -735,6 +767,8 @@ impl InternalWorld {
                     } else if let Some(vec) = storage.downcast_mut::<Vec<ffi::Velocity>>() {
                         vec.clear();
                     } else if let Some(vec) = storage.downcast_mut::<Vec<Material>>() {
+                        vec.clear();
+                    } else if let Some(vec) = storage.downcast_mut::<Vec<RenderMesh>>() {
                         vec.clear();
                     } else if let Some(vec) = storage.downcast_mut::<Vec<Player>>() {
                         vec.clear();
@@ -1045,6 +1079,9 @@ impl<T: Component, U: Component, V: Component, W: Component, X: Component, Y: Co
 pub struct Game {
     pub world: InternalWorld,
     pub current_state: GameState,
+    pub run_mode: RunMode,
+    #[serde(skip)]
+    pub sample_loop: SampleGameLoop,
 
     #[serde(skip)]
     pub asset_server: AssetServer,
@@ -1115,18 +1152,15 @@ const LEVEL_FILE_REL_PATH: &str = "assets/levels/stage1.json";
 pub(crate) const SETTINGS_STEP: f32 = 0.1;
 const BGM_TRACK_PATH: &str = "assets/test_sound.wav";
 const ASSET_INTEGRITY_CHECK_INTERVAL_FRAMES: u32 = 30;
-const ACTION_START_GAME: &str = "sample.start_game";
-const ACTION_RESUME_GAME: &str = "sample.resume_game";
-const ACTION_RETRY_GAME: &str = "sample.retry_game";
-const ACTION_BACK_TO_TITLE: &str = "sample.back_to_title";
-const ACTION_MASTER_VOLUME_DOWN: &str = "sample.master_volume_down";
-const ACTION_MASTER_VOLUME_UP: &str = "sample.master_volume_up";
-const ACTION_BGM_VOLUME_DOWN: &str = "sample.bgm_volume_down";
-const ACTION_BGM_VOLUME_UP: &str = "sample.bgm_volume_up";
-const ACTION_SE_VOLUME_DOWN: &str = "sample.se_volume_down";
-const ACTION_SE_VOLUME_UP: &str = "sample.se_volume_up";
-const ACTION_TOGGLE_FULLSCREEN: &str = "sample.toggle_fullscreen";
-const ACTION_EXIT_GAME: &str = "sample.exit_game";
+const MESH_ID_QUAD_2D: u32 = 1;
+const MESH_ID_ARENA_CUBE_3D: u32 = 100;
+const MATERIAL_ID_TEXTURED: u32 = 1;
+const ARENA_HALF_EXTENT: f32 = 110.0;
+const ARENA_WALL_THICKNESS: f32 = 8.0;
+const ARENA_WALL_HEIGHT: f32 = 24.0;
+const ARENA_FLOOR_Y: f32 = -18.0;
+const ARENA_PLAYER_SIZE: f32 = 18.0;
+const ARENA_PLAYER_MOVE_SPEED: f32 = 120.0;
 
 fn resolve_runtime_path(relative_path: &str) -> PathBuf {
     let direct = PathBuf::from(relative_path);
@@ -1144,6 +1178,18 @@ fn resolve_runtime_path(relative_path: &str) -> PathBuf {
     direct
 }
 
+fn sample_state_for_game_state(game_state: GameState) -> SampleGameState {
+    match game_state {
+        GameState::Title => SampleGameState::Title,
+        GameState::InGame => SampleGameState::InGame,
+        GameState::Pause => SampleGameState::Pause,
+        GameState::Result => SampleGameState::Result,
+        GameState::SpriteStressTest | GameState::PhysicsStressTest | GameState::UIStressTest => {
+            SampleGameState::Title
+        }
+    }
+}
+
 impl Game {
     pub fn new() -> Self {
         let save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
@@ -1151,6 +1197,8 @@ impl Game {
         let mut game = Game {
             world: InternalWorld::new(),
             current_state: GameState::Title,
+            run_mode: RunMode::BoxSurvival2d,
+            sample_loop: SampleGameLoop::new(),
             asset_server: AssetServer::new(),
             texture_map: HashMap::new(),
             input_state: ffi::InputState {
@@ -1442,18 +1490,18 @@ impl Game {
 
         let rows = [
             (
-                ACTION_MASTER_VOLUME_DOWN,
-                ACTION_MASTER_VOLUME_UP,
+                SampleGameButtonAction::MasterVolumeDown.action_id(),
+                SampleGameButtonAction::MasterVolumeUp.action_id(),
                 first_row_y,
             ),
             (
-                ACTION_BGM_VOLUME_DOWN,
-                ACTION_BGM_VOLUME_UP,
+                SampleGameButtonAction::BgmVolumeDown.action_id(),
+                SampleGameButtonAction::BgmVolumeUp.action_id(),
                 first_row_y - row_step,
             ),
             (
-                ACTION_SE_VOLUME_DOWN,
-                ACTION_SE_VOLUME_UP,
+                SampleGameButtonAction::SeVolumeDown.action_id(),
+                SampleGameButtonAction::SeVolumeUp.action_id(),
                 first_row_y - row_step * 2.0,
             ),
         ];
@@ -1489,7 +1537,7 @@ impl Game {
                 height: button_h,
             },
             text: "Toggle Fullscreen".to_string(),
-            action_id: ACTION_TOGGLE_FULLSCREEN.to_string(),
+            action_id: SampleGameButtonAction::ToggleFullscreen.action_id().to_string(),
         },));
     }
 
@@ -1611,60 +1659,62 @@ impl Game {
         self.run_asset_integrity_check();
     }
 
-    // Transitional compatibility shim until the runtime boot path can construct
-    // `sample_game::SampleGameLoop` directly.
-    fn apply_sample_action_id(&mut self, action_id: &str) {
-        match action_id {
-            ACTION_START_GAME => {
+    fn dispatch_sample_action_id(&mut self, action_id: &str) {
+        let Some(action) = SampleGameButtonAction::from_action_id(action_id) else {
+            eprintln!("[ui] Unknown sample action id: {action_id}");
+            return;
+        };
+        self.dispatch_sample_event(SampleGameEvent::ButtonAction(action));
+    }
+
+    fn dispatch_sample_event(&mut self, event: SampleGameEvent) {
+        let effects = self.sample_loop.dispatch(event);
+        for effect in effects {
+            self.apply_sample_effect(effect);
+        }
+    }
+
+    fn apply_sample_effect(&mut self, effect: SampleGameEffect) {
+        match effect {
+            SampleGameEffect::PlayClickSound => {
                 runtime_bridge::play_sound("assets/test_sound.wav");
+            }
+            SampleGameEffect::StartNewRun => {
                 self.start_new_run();
             }
-            ACTION_RESUME_GAME => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
+            SampleGameEffect::StartNew3dRun => {
+                self.start_new_3d_run();
+            }
+            SampleGameEffect::ResumeRun => {
                 self.clear_menu_buttons();
                 self.current_state = GameState::InGame;
             }
-            ACTION_RETRY_GAME => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
-                self.start_new_run();
+            SampleGameEffect::SetupPauseMenu => {
+                self.current_state = GameState::Pause;
+                self.setup_pause_menu();
             }
-            ACTION_BACK_TO_TITLE => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
+            SampleGameEffect::SetupResultMenu => {
+                self.current_state = GameState::Result;
+                self.setup_result_menu();
+            }
+            SampleGameEffect::SetupTitleScreen => {
                 self.setup_title_screen();
             }
-            ACTION_MASTER_VOLUME_DOWN => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
-                self.adjust_master_volume(-SETTINGS_STEP);
+            SampleGameEffect::AdjustMasterVolume(delta) => {
+                self.adjust_master_volume(delta);
             }
-            ACTION_MASTER_VOLUME_UP => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
-                self.adjust_master_volume(SETTINGS_STEP);
+            SampleGameEffect::AdjustBgmVolume(delta) => {
+                self.adjust_bgm_volume(delta);
             }
-            ACTION_BGM_VOLUME_DOWN => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
-                self.adjust_bgm_volume(-SETTINGS_STEP);
+            SampleGameEffect::AdjustSeVolume(delta) => {
+                self.adjust_se_volume(delta);
             }
-            ACTION_BGM_VOLUME_UP => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
-                self.adjust_bgm_volume(SETTINGS_STEP);
-            }
-            ACTION_SE_VOLUME_DOWN => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
-                self.adjust_se_volume(-SETTINGS_STEP);
-            }
-            ACTION_SE_VOLUME_UP => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
-                self.adjust_se_volume(SETTINGS_STEP);
-            }
-            ACTION_TOGGLE_FULLSCREEN => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
+            SampleGameEffect::ToggleFullscreen => {
                 self.toggle_fullscreen_setting();
             }
-            ACTION_EXIT_GAME => {
-                runtime_bridge::play_sound("assets/test_sound.wav");
+            SampleGameEffect::RequestWindowClose => {
                 runtime_bridge::request_window_close();
             }
-            _ => eprintln!("[ui] Unknown sample action id: {action_id}"),
         }
     }
 
@@ -1718,7 +1768,7 @@ impl Game {
         self.push_settings_text(230.0);
 
         if let Some(action_id) = ui::ui_system(self) {
-            self.apply_sample_action_id(&action_id);
+            self.dispatch_sample_action_id(&action_id);
         }
     }
 
@@ -1732,6 +1782,7 @@ impl Game {
             ComponentType::Transform,
             ComponentType::Velocity,
             ComponentType::Material,
+            ComponentType::RenderMesh,
             ComponentType::Player,
             ComponentType::Obstacle,
             ComponentType::Button,
@@ -1748,6 +1799,7 @@ impl Game {
 
     pub(crate) fn setup_title_screen(&mut self) {
         self.clear_runtime_world();
+        self.sample_loop = SampleGameLoop::from_state(SampleGameState::Title);
         self.current_state = GameState::Title;
         self.esc_was_pressed = false;
         self.apply_runtime_bgm_for_state();
@@ -1755,29 +1807,41 @@ impl Game {
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
-                y: 430.0,
+                y: 450.0,
                 width: 200.0,
                 height: 50.0,
             },
             text: "Start Game".to_string(),
-            action_id: ACTION_START_GAME.to_string(),
+            action_id: SampleGameButtonAction::StartGame.action_id().to_string(),
         },));
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
-                y: 360.0,
+                y: 380.0,
+                width: 200.0,
+                height: 50.0,
+            },
+            text: "Start 3D Arena".to_string(),
+            action_id: SampleGameButtonAction::Start3dArena.action_id().to_string(),
+        },));
+        self.world.spawn((Button {
+            rect: ui::Rect {
+                x: 300.0,
+                y: 310.0,
                 width: 200.0,
                 height: 50.0,
             },
             text: "Exit".to_string(),
-            action_id: ACTION_EXIT_GAME.to_string(),
+            action_id: SampleGameButtonAction::ExitGame.action_id().to_string(),
         },));
-        self.spawn_settings_buttons(300.0);
+        self.spawn_settings_buttons(230.0);
     }
 
     pub(crate) fn start_new_run(&mut self) {
         self.clear_runtime_world();
+        self.sample_loop = SampleGameLoop::from_state(SampleGameState::InGame);
         self.current_state = GameState::InGame;
+        self.run_mode = RunMode::BoxSurvival2d;
         self.esc_was_pressed = false;
         self.apply_runtime_bgm_for_state();
         self.hp = 3;
@@ -1863,8 +1927,146 @@ impl Game {
         runtime_bridge::play_sound("assets/test_sound.wav");
     }
 
+    fn start_new_3d_run(&mut self) {
+        self.clear_runtime_world();
+        self.sample_loop = SampleGameLoop::from_state(SampleGameState::InGame);
+        self.current_state = GameState::InGame;
+        self.run_mode = RunMode::Arena3d;
+        self.esc_was_pressed = false;
+        self.apply_runtime_bgm_for_state();
+        self.hp = 3;
+        self.survival_time_sec = 0.0;
+        self.avoid_count = 0;
+        self.score = 0;
+        self.difficulty_level = 1;
+        self.result_is_clear = false;
+        self.obstacle_spawn_accumulator_sec = 0.0;
+        self.save_data.progress.total_play_count =
+            self.save_data.progress.total_play_count.saturating_add(1);
+        self.total_play_count = self.save_data.progress.total_play_count;
+
+        self.player_texture_handle = self.asset_server.load_texture("assets/player.png");
+        self.obstacle_texture_handle = self.asset_server.load_texture("assets/test.png");
+
+        self.spawn_3d_arena_box(
+            0.0,
+            ARENA_FLOOR_Y,
+            0.0,
+            ARENA_HALF_EXTENT * 2.0,
+            6.0,
+            ARENA_HALF_EXTENT * 2.0,
+            self.obstacle_texture_handle,
+        );
+        self.spawn_3d_arena_box(
+            -ARENA_HALF_EXTENT,
+            0.0,
+            0.0,
+            ARENA_WALL_THICKNESS,
+            ARENA_WALL_HEIGHT,
+            ARENA_HALF_EXTENT * 2.0,
+            self.obstacle_texture_handle,
+        );
+        self.spawn_3d_arena_box(
+            ARENA_HALF_EXTENT,
+            0.0,
+            0.0,
+            ARENA_WALL_THICKNESS,
+            ARENA_WALL_HEIGHT,
+            ARENA_HALF_EXTENT * 2.0,
+            self.obstacle_texture_handle,
+        );
+        self.spawn_3d_arena_box(
+            0.0,
+            0.0,
+            -ARENA_HALF_EXTENT,
+            ARENA_HALF_EXTENT * 2.0,
+            ARENA_WALL_HEIGHT,
+            ARENA_WALL_THICKNESS,
+            self.obstacle_texture_handle,
+        );
+        self.spawn_3d_arena_box(
+            0.0,
+            0.0,
+            ARENA_HALF_EXTENT,
+            ARENA_HALF_EXTENT * 2.0,
+            ARENA_WALL_HEIGHT,
+            ARENA_WALL_THICKNESS,
+            self.obstacle_texture_handle,
+        );
+
+        self.world.spawn((
+            ffi::Transform {
+                position: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 48.0,
+                },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: ARENA_PLAYER_SIZE,
+                    y: ARENA_PLAYER_SIZE,
+                    z: ARENA_PLAYER_SIZE,
+                },
+            },
+            ffi::Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Material {
+                texture_handle: self.player_texture_handle,
+            },
+            RenderMesh {
+                mesh_id: MESH_ID_ARENA_CUBE_3D,
+                material_id: MATERIAL_ID_TEXTURED,
+                is_3d: true,
+            },
+            Player,
+        ));
+
+        runtime_bridge::play_sound("assets/test_sound.wav");
+    }
+
+    fn spawn_3d_arena_box(
+        &mut self,
+        x: f32,
+        y: f32,
+        z: f32,
+        scale_x: f32,
+        scale_y: f32,
+        scale_z: f32,
+        texture_handle: u32,
+    ) {
+        self.world.spawn((
+            ffi::Transform {
+                position: ffi::Vec3 { x, y, z },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: scale_x,
+                    y: scale_y,
+                    z: scale_z,
+                },
+            },
+            Material { texture_handle },
+            RenderMesh {
+                mesh_id: MESH_ID_ARENA_CUBE_3D,
+                material_id: MATERIAL_ID_TEXTURED,
+                is_3d: true,
+            },
+        ));
+    }
+
     fn setup_pause_menu(&mut self) {
         self.clear_menu_buttons();
+        self.sample_loop = SampleGameLoop::from_state(SampleGameState::Pause);
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
@@ -1873,7 +2075,7 @@ impl Game {
                 height: 50.0,
             },
             text: "Resume".to_string(),
-            action_id: ACTION_RESUME_GAME.to_string(),
+            action_id: SampleGameButtonAction::ResumeGame.action_id().to_string(),
         },));
         self.world.spawn((Button {
             rect: ui::Rect {
@@ -1883,13 +2085,14 @@ impl Game {
                 height: 50.0,
             },
             text: "Back To Title".to_string(),
-            action_id: ACTION_BACK_TO_TITLE.to_string(),
+            action_id: SampleGameButtonAction::BackToTitle.action_id().to_string(),
         },));
         self.spawn_settings_buttons(170.0);
     }
 
     fn setup_result_menu(&mut self) {
         self.clear_menu_buttons();
+        self.sample_loop = SampleGameLoop::from_state(SampleGameState::Result);
         self.apply_runtime_bgm_for_state();
         self.world.spawn((Button {
             rect: ui::Rect {
@@ -1899,7 +2102,7 @@ impl Game {
                 height: 50.0,
             },
             text: "Retry".to_string(),
-            action_id: ACTION_RETRY_GAME.to_string(),
+            action_id: SampleGameButtonAction::RetryGame.action_id().to_string(),
         },));
         self.world.spawn((Button {
             rect: ui::Rect {
@@ -1909,7 +2112,7 @@ impl Game {
                 height: 50.0,
             },
             text: "Back To Title".to_string(),
-            action_id: ACTION_BACK_TO_TITLE.to_string(),
+            action_id: SampleGameButtonAction::BackToTitle.action_id().to_string(),
         },));
     }
 
@@ -2062,6 +2265,98 @@ impl Game {
         }
 
         player_bounds
+    }
+
+    fn update_player_3d(&mut self) {
+        let (move_up, move_down, move_left, move_right) =
+            match self.save_data.settings.movement_preset {
+                MovementPreset::ArrowKeys => (
+                    self.input_state.up,
+                    self.input_state.down,
+                    self.input_state.left,
+                    self.input_state.right,
+                ),
+                MovementPreset::Wasd => (
+                    self.input_state.w_key,
+                    self.input_state.s_key,
+                    self.input_state.a_key,
+                    self.input_state.d_key,
+                ),
+            };
+
+        for archetype in &mut self.world.archetypes {
+            if !(archetype.types.contains(&ComponentType::Player)
+                && archetype.types.contains(&ComponentType::Transform)
+                && archetype.types.contains(&ComponentType::Velocity)
+                && archetype.types.contains(&ComponentType::RenderMesh))
+            {
+                continue;
+            }
+
+            let render_meshes = archetype
+                .storage
+                .get(&ComponentType::RenderMesh)
+                .and_then(|storage| storage.downcast_ref::<Vec<RenderMesh>>())
+                .expect("render mesh storage must be Vec<RenderMesh>");
+            let is_3d_player = render_meshes.first().map(|mesh| mesh.is_3d).unwrap_or(false);
+            if !is_3d_player {
+                continue;
+            }
+
+            let mut transform_storage =
+                archetype.storage.remove(&ComponentType::Transform).unwrap();
+            let mut velocity_storage = archetype.storage.remove(&ComponentType::Velocity).unwrap();
+            let transforms = transform_storage
+                .downcast_mut::<Vec<ffi::Transform>>()
+                .unwrap();
+            let velocities = velocity_storage
+                .downcast_mut::<Vec<ffi::Velocity>>()
+                .unwrap();
+
+            for i in 0..archetype.entity_count {
+                let mut move_x: f32 = 0.0;
+                let mut move_z: f32 = 0.0;
+                if move_left {
+                    move_x -= 1.0;
+                }
+                if move_right {
+                    move_x += 1.0;
+                }
+                if move_up {
+                    move_z -= 1.0;
+                }
+                if move_down {
+                    move_z += 1.0;
+                }
+
+                let length = (move_x * move_x + move_z * move_z).sqrt();
+                if length > 0.0 {
+                    move_x /= length;
+                    move_z /= length;
+                }
+
+                velocities[i].x = move_x * ARENA_PLAYER_MOVE_SPEED;
+                velocities[i].y = 0.0;
+                velocities[i].z = move_z * ARENA_PLAYER_MOVE_SPEED;
+                transforms[i].position.x += velocities[i].x * FIXED_DT_SEC;
+                transforms[i].position.z += velocities[i].z * FIXED_DT_SEC;
+                transforms[i].position.x = transforms[i]
+                    .position
+                    .x
+                    .clamp(-ARENA_HALF_EXTENT + 14.0, ARENA_HALF_EXTENT - 14.0);
+                transforms[i].position.z = transforms[i]
+                    .position
+                    .z
+                    .clamp(-ARENA_HALF_EXTENT + 14.0, ARENA_HALF_EXTENT - 14.0);
+            }
+
+            archetype
+                .storage
+                .insert(ComponentType::Transform, transform_storage);
+            archetype
+                .storage
+                .insert(ComponentType::Velocity, velocity_storage);
+        }
     }
 
     fn update_obstacles_and_collisions(&mut self, player_bounds: Option<(f32, f32, f32, f32)>) {
@@ -2250,13 +2545,12 @@ impl Game {
         let esc_just_pressed = self.input_state.esc_key && !self.esc_was_pressed;
         self.esc_was_pressed = self.input_state.esc_key;
         if esc_just_pressed {
-            self.clear_menu_buttons();
-            self.current_state = GameState::InGame;
+            self.dispatch_sample_event(SampleGameEvent::EscapePressed);
             return;
         }
 
         if let Some(action_id) = ui::ui_system(self) {
-            self.apply_sample_action_id(&action_id);
+            self.dispatch_sample_action_id(&action_id);
         }
     }
 
@@ -2343,7 +2637,7 @@ impl Game {
         });
 
         if let Some(action_id) = ui::ui_system(self) {
-            self.apply_sample_action_id(&action_id);
+            self.dispatch_sample_action_id(&action_id);
         }
     }
 
@@ -2554,14 +2848,38 @@ impl Game {
         self.start_new_run();
     }
 
+    fn update_in_game_3d(&mut self) {
+        self.update_player_3d();
+        self.survival_time_sec += FIXED_DT_SEC;
+        self.score = (self.survival_time_sec as u32).saturating_mul(10);
+        self.process_asset_server();
+        self.build_renderables();
+        self.push_hud_text();
+        self.text_commands.push(ffi::TextCommand {
+            text: "3D Arena Prototype".to_string(),
+            position: ffi::Vec2 { x: 16.0, y: 540.0 },
+            font_size: 18.0,
+            color: ffi::Vec4 {
+                x: 0.75,
+                y: 0.9,
+                z: 1.0,
+                w: 1.0,
+            },
+        });
+    }
+
     fn update_in_game(&mut self) {
         self.text_commands.clear();
 
         let esc_just_pressed = self.input_state.esc_key && !self.esc_was_pressed;
         self.esc_was_pressed = self.input_state.esc_key;
         if esc_just_pressed {
-            self.current_state = GameState::Pause;
-            self.setup_pause_menu();
+            self.dispatch_sample_event(SampleGameEvent::EscapePressed);
+            return;
+        }
+
+        if self.run_mode == RunMode::Arena3d {
+            self.update_in_game_3d();
             return;
         }
 
@@ -2587,17 +2905,13 @@ impl Game {
         if self.hp <= 0 {
             self.result_is_clear = false;
             self.apply_result_to_progress_and_persist();
-            self.current_state = GameState::Result;
-            self.setup_result_menu();
-            runtime_bridge::play_sound("assets/test_sound.wav");
+            self.dispatch_sample_event(SampleGameEvent::RunFailed);
             return;
         }
         if self.survival_time_sec >= 1800.0 {
             self.result_is_clear = true;
             self.apply_result_to_progress_and_persist();
-            self.current_state = GameState::Result;
-            self.setup_result_menu();
-            runtime_bridge::play_sound("assets/test_sound.wav");
+            self.dispatch_sample_event(SampleGameEvent::RunCleared);
             return;
         }
 
@@ -2662,18 +2976,28 @@ impl Game {
                     .unwrap()
                     .downcast_ref::<Vec<Material>>()
                     .unwrap();
+                let render_meshes = archetype
+                    .storage
+                    .get(&ComponentType::RenderMesh)
+                    .and_then(|storage| storage.downcast_ref::<Vec<RenderMesh>>());
 
-                for (transform, material) in transforms.iter().zip(materials.iter()) {
+                for (index, (transform, material)) in
+                    transforms.iter().zip(materials.iter()).enumerate()
+                {
                     let texture_id = self
                         .texture_map
                         .get(&material.texture_handle)
                         .cloned()
                         .unwrap_or(0);
+                    let render_mesh = render_meshes.and_then(|render_meshes| render_meshes.get(index));
                     self.renderables.push(ffi::RenderableObject {
                         transform: *transform,
-                        mesh_id: 1,
-                        material_id: 1,
+                        mesh_id: render_mesh.map(|mesh| mesh.mesh_id).unwrap_or(MESH_ID_QUAD_2D),
+                        material_id: render_mesh
+                            .map(|mesh| mesh.material_id)
+                            .unwrap_or(MATERIAL_ID_TEXTURED),
                         texture_id,
+                        is_3d: render_mesh.map(|mesh| mesh.is_3d).unwrap_or(false),
                     });
                 }
             }
@@ -2699,10 +3023,12 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
+    use sample_game_runtime::SampleGameButtonAction;
+
     use super::{
         ffi, runtime_bridge, save, ui, Archetype, ComponentBundle, ComponentType, Game, GameState,
-        Material, MovementPreset, SystemRegistry, ACTION_BACK_TO_TITLE, ACTION_EXIT_GAME,
-        ACTION_RESUME_GAME, ACTION_RETRY_GAME, ACTION_START_GAME,
+        Material, MovementPreset, RunMode, SystemRegistry, MESH_ID_ARENA_CUBE_3D,
+        MESH_ID_QUAD_2D,
     };
     use std::collections::HashSet;
     use std::path::PathBuf;
@@ -2878,6 +3204,33 @@ mod tests {
         positions
     }
 
+    fn player_position_3d(game: &Game) -> ffi::Vec3 {
+        for archetype in &game.world.archetypes {
+            if !(archetype.types.contains(&ComponentType::Player)
+                && archetype.types.contains(&ComponentType::Transform))
+            {
+                continue;
+            }
+
+            let transforms = archetype
+                .storage
+                .get(&ComponentType::Transform)
+                .expect("transform storage must exist")
+                .downcast_ref::<Vec<ffi::Transform>>()
+                .expect("transform storage must be Vec<Transform>");
+
+            if let Some(transform) = transforms.first() {
+                return transform.position;
+            }
+        }
+
+        panic!("player transform not found");
+    }
+
+    fn count_3d_renderables(game: &Game) -> usize {
+        game.renderables.iter().filter(|renderable| renderable.is_3d).count()
+    }
+
     #[test]
     fn asset_integrity_registry_log_includes_tick() {
         let message = Game::asset_integrity_registry_inconsistency_log(30);
@@ -2972,7 +3325,7 @@ mod tests {
         let mut game = new_game_for_test("scene-flow");
         assert_eq!(game.current_state, GameState::Title);
 
-        click_button(&mut game, ACTION_START_GAME);
+        click_button(&mut game, SampleGameButtonAction::StartGame.action_id());
         assert_eq!(game.current_state, GameState::InGame);
 
         game.input_state.esc_key = true;
@@ -2981,7 +3334,7 @@ mod tests {
 
         game.input_state.esc_key = false;
         game.update();
-        click_button(&mut game, ACTION_RESUME_GAME);
+        click_button(&mut game, SampleGameButtonAction::ResumeGame.action_id());
         assert_eq!(game.current_state, GameState::InGame);
 
         game.hp = 0;
@@ -2989,16 +3342,16 @@ mod tests {
         assert_eq!(game.current_state, GameState::Result);
         assert!(!game.result_is_clear);
 
-        click_button(&mut game, ACTION_RETRY_GAME);
+        click_button(&mut game, SampleGameButtonAction::RetryGame.action_id());
         assert_eq!(game.current_state, GameState::InGame);
 
         game.hp = 0;
         game.update();
-        click_button(&mut game, ACTION_BACK_TO_TITLE);
+        click_button(&mut game, SampleGameButtonAction::BackToTitle.action_id());
         assert_eq!(game.current_state, GameState::Title);
 
         assert!(!runtime_bridge::consume_pending_window_close_request());
-        click_button(&mut game, ACTION_EXIT_GAME);
+        click_button(&mut game, SampleGameButtonAction::ExitGame.action_id());
         assert!(runtime_bridge::consume_pending_window_close_request());
         assert!(!runtime_bridge::consume_pending_window_close_request());
     }
@@ -3006,7 +3359,7 @@ mod tests {
     #[test]
     fn headless_g2_stability_run_reaches_clear_with_safe_corridor() {
         let mut game = new_game_for_test("g2-stability");
-        click_button(&mut game, ACTION_START_GAME);
+        click_button(&mut game, SampleGameButtonAction::StartGame.action_id());
 
         for _ in 0..110_000 {
             if game.current_state != GameState::InGame {
@@ -3027,7 +3380,7 @@ mod tests {
     #[test]
     fn movement_preset_toggle_persists_and_changes_runtime_input() {
         let mut game = new_game_for_test("movement-preset");
-        click_button(&mut game, ACTION_START_GAME);
+        click_button(&mut game, SampleGameButtonAction::StartGame.action_id());
 
         let before_arrow = player_position(&game);
         game.input_state.w_key = true;
@@ -3066,7 +3419,7 @@ mod tests {
     #[test]
     fn sprite_animation_cycles_frames_and_speeds_up_when_player_moves() {
         let mut idle_game = new_game_for_test("sprite-animation-idle");
-        click_button(&mut idle_game, ACTION_START_GAME);
+        click_button(&mut idle_game, SampleGameButtonAction::StartGame.action_id());
         let initial_idle = player_texture_handle(&idle_game);
         for _ in 0..20 {
             idle_game.input_state = ffi::InputState::default();
@@ -3080,7 +3433,7 @@ mod tests {
         assert_ne!(player_texture_handle(&idle_game), initial_idle);
 
         let mut moving_game = new_game_for_test("sprite-animation-active");
-        click_button(&mut moving_game, ACTION_START_GAME);
+        click_button(&mut moving_game, SampleGameButtonAction::StartGame.action_id());
         let initial_active = player_texture_handle(&moving_game);
         for _ in 0..12 {
             moving_game.input_state = ffi::InputState::default();
@@ -3093,7 +3446,7 @@ mod tests {
     #[test]
     fn start_new_run_uses_external_level_layout() {
         let mut game = new_game_for_test("external-level");
-        click_button(&mut game, ACTION_START_GAME);
+        click_button(&mut game, SampleGameButtonAction::StartGame.action_id());
 
         assert_eq!(
             obstacle_positions(&game),
@@ -3108,6 +3461,47 @@ mod tests {
                 (680, 928),
             ]
         );
+    }
+
+    #[test]
+    fn start_3d_arena_builds_3d_renderables() {
+        let mut game = new_game_for_test("start-3d-arena");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+
+        assert_eq!(game.current_state, GameState::InGame);
+        assert_eq!(game.run_mode, RunMode::Arena3d);
+        assert!(count_3d_renderables(&game) >= 5);
+        assert!(
+            game.renderables
+                .iter()
+                .all(|renderable| renderable.is_3d || renderable.mesh_id == MESH_ID_QUAD_2D)
+        );
+        assert!(
+            game.renderables
+                .iter()
+                .filter(|renderable| renderable.is_3d)
+                .all(|renderable| renderable.mesh_id == MESH_ID_ARENA_CUBE_3D)
+        );
+    }
+
+    #[test]
+    fn start_3d_arena_moves_player_on_xz_plane() {
+        let mut game = new_game_for_test("move-3d-arena");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+
+        let before = player_position_3d(&game);
+        game.input_state = ffi::InputState::default();
+        game.input_state.right = true;
+        game.update();
+        let after_x = player_position_3d(&game);
+        assert!(after_x.x > before.x);
+        assert_eq!(after_x.y, before.y);
+
+        game.input_state = ffi::InputState::default();
+        game.input_state.up = true;
+        game.update();
+        let after_z = player_position_3d(&game);
+        assert!(after_z.z < after_x.z);
     }
 }
 
@@ -3199,6 +3593,7 @@ pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
     game.save_data = game.save_data.sanitized();
     game.total_play_count = game.save_data.progress.total_play_count;
     game.save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
+    game.sample_loop = SampleGameLoop::from_state(sample_state_for_game_state(game.current_state));
     game.apply_runtime_audio_settings();
     game.apply_runtime_fullscreen_setting();
     game.apply_runtime_bgm_for_state();

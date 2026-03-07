@@ -1,6 +1,6 @@
 # サンプルゲーム 3D Vertical Slice 最小仕様
 
-最終更新: 2026-03-07
+最終更新: 2026-03-08
 
 ## 1. 目的
 
@@ -20,6 +20,7 @@ G4 では、2D の `Box Survival` を 3D 空間へ拡張した最小デモを 1 
 ### 3.1 Title
 
 - `Start Game`
+- `Start 3D Arena`
 - `Exit`
 - 音量 / fullscreen / 移動プリセット設定
 
@@ -79,10 +80,15 @@ G4 では、2D の `Box Survival` を 3D 空間へ拡張した最小デモを 1 
 
 1. `G4-01`: 3D arena の最小起動
    - Title から 3D シーンへ遷移し、床 / 壁 / プレイヤーが表示される
+   - 実装済み（2026-03-08）
 2. `G4-02`: 3D run の勝敗導線
    - HP / Time / Score と Pause / Result 遷移を接続する
 3. `G4-03`: 3D 障害物 1 系統
    - 落下物または巡回敵 1 種で clear / fail 条件を成立させる
+
+補足:
+- 2026-03-08 時点の最小 3D 起動は `Title -> Start 3D Arena -> InGame` まで実装済み。
+- `Pause -> Result` を含む勝敗導線と障害物導入は `G4-02` / `G4-03` で継続する。
 
 ## 8. 明確に対象外とするもの
 

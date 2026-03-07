@@ -53,6 +53,8 @@ MiyabiVTable g_vtable;
 bool g_mouse_released = true;
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
+const uint32_t QUAD_MESH_ID = 1;
+const uint32_t ARENA_CUBE_MESH_ID = 100;
 
 // --- Function Prototypes ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -150,6 +152,7 @@ int main() {
     // Enable alpha blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
 
     // --- Renderer Infrastructure Setup ---
     ShaderManager shader_manager;
@@ -166,6 +169,19 @@ int main() {
         return -1;
     }
     uint32_t quad_mesh_id = mesh_manager.create_quad_mesh();
+    if (quad_mesh_id != QUAD_MESH_ID) {
+        std::cerr << "Unexpected quad mesh ID. expected=" << QUAD_MESH_ID
+                  << " actual=" << quad_mesh_id << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    uint32_t arena_cube_mesh_id = mesh_manager.load_obj_mesh(ARENA_CUBE_MESH_ID, "assets/meshes/arena_cube.obj");
+    if (arena_cube_mesh_id != ARENA_CUBE_MESH_ID) {
+        std::cerr << "Failed to register arena cube mesh. expected_id=" << ARENA_CUBE_MESH_ID
+                  << " actual=" << arena_cube_mesh_id << std::endl;
+        glfwTerminate();
+        return -1;
+    }
     material_manager.create_material(textured_shader_id);
 
     const GLMesh* quad_mesh = mesh_manager.get_mesh(quad_mesh_id);
@@ -287,86 +303,144 @@ int main() {
         {
             MIYABI_PROFILE_SCOPE("Render");
             glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // --- New Rendering Logic ---
             RenderableObjectSlice renderables_slice = g_vtable.get_renderables(miyabi_game);
-            std::vector<RenderableObject> renderables(renderables_slice.ptr, renderables_slice.ptr + renderables_slice.len);
-
-            sort_renderables_for_batching(renderables);
-            const std::vector<MaterialMeshBatch> material_mesh_batches =
-                build_material_mesh_batches(renderables);
-
-            for (const auto& material_mesh_batch : material_mesh_batches) {
-                Material* material = material_manager.get_material(material_mesh_batch.material_id);
-                if (!material) {
-                    continue;
-                }
-                shader_manager.use_shader(material->shader_id);
-                uint32_t program_id = shader_manager.get_program_id(material->shader_id);
-
-                glm::mat4 projection = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
-                glm::mat4 view = glm::mat4(1.0f);
-                glUniformMatrix4fv(glGetUniformLocation(program_id, "u_projection"), 1, GL_FALSE, &projection[0][0]);
-                glUniformMatrix4fv(glGetUniformLocation(program_id, "u_view"), 1, GL_FALSE, &view[0][0]);
-                glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0);
-
-                const GLMesh* batch_mesh = mesh_manager.get_mesh(material_mesh_batch.mesh_id);
-                if (!batch_mesh) {
-                    continue;
-                }
-                mesh_manager.bind_mesh(material_mesh_batch.mesh_id);
-
-                const size_t batch_end =
-                    material_mesh_batch.start_index + material_mesh_batch.instance_count;
-                std::unordered_map<uint32_t, std::vector<const RenderableObject*>> textured_batches;
-                for (size_t i = material_mesh_batch.start_index; i < batch_end; ++i) {
-                    textured_batches[renderables[i].texture_id].push_back(&renderables[i]);
-                }
-
-                for (const auto& [texture_id, textured_batch] : textured_batches) {
-                    if (textured_batch.empty()) {
-                        continue;
-                    }
-
-                    std::vector<glm::mat4> model_matrices;
-                    model_matrices.reserve(textured_batch.size());
-                    for (const auto* obj : textured_batch) {
-                        glm::mat4 model = glm::mat4(1.0f);
-                        model = glm::translate(
-                            model,
-                            glm::vec3(
-                                obj->transform.position.x,
-                                obj->transform.position.y,
-                                obj->transform.position.z));
-                        // Add rotation and scale later
-                        model = glm::scale(
-                            model,
-                            glm::vec3(
-                                obj->transform.scale.x,
-                                obj->transform.scale.y,
-                                obj->transform.scale.z));
-                        model_matrices.push_back(model);
-                    }
-
-                    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-                    glBufferData(
-                        GL_ARRAY_BUFFER,
-                        textured_batch.size() * sizeof(glm::mat4),
-                        model_matrices.data(),
-                        GL_DYNAMIC_DRAW);
-
-                    texture_manager.bind_texture(texture_id, GL_TEXTURE0);
-                    glDrawElementsInstanced(
-                        GL_TRIANGLES,
-                        batch_mesh->element_count,
-                        GL_UNSIGNED_INT,
-                        0,
-                        textured_batch.size());
+            std::vector<RenderableObject> renderables(
+                renderables_slice.ptr, renderables_slice.ptr + renderables_slice.len);
+            std::vector<RenderableObject> renderables_3d;
+            std::vector<RenderableObject> renderables_2d;
+            renderables_3d.reserve(renderables.size());
+            renderables_2d.reserve(renderables.size());
+            for (const auto& renderable : renderables) {
+                if (renderable.is_3d) {
+                    renderables_3d.push_back(renderable);
+                } else {
+                    renderables_2d.push_back(renderable);
                 }
             }
+
+            const auto render_batches = [&](std::vector<RenderableObject>& pass_renderables,
+                                            const glm::mat4& projection,
+                                            const glm::mat4& view,
+                                            bool enable_depth_test) {
+                if (pass_renderables.empty()) {
+                    return;
+                }
+
+                if (enable_depth_test) {
+                    glEnable(GL_DEPTH_TEST);
+                } else {
+                    glDisable(GL_DEPTH_TEST);
+                }
+
+                sort_renderables_for_batching(pass_renderables);
+                const std::vector<MaterialMeshBatch> material_mesh_batches =
+                    build_material_mesh_batches(pass_renderables);
+
+                for (const auto& material_mesh_batch : material_mesh_batches) {
+                    Material* material = material_manager.get_material(material_mesh_batch.material_id);
+                    if (!material) {
+                        continue;
+                    }
+                    shader_manager.use_shader(material->shader_id);
+                    uint32_t program_id = shader_manager.get_program_id(material->shader_id);
+
+                    glUniformMatrix4fv(
+                        glGetUniformLocation(program_id, "u_projection"),
+                        1,
+                        GL_FALSE,
+                        &projection[0][0]
+                    );
+                    glUniformMatrix4fv(
+                        glGetUniformLocation(program_id, "u_view"),
+                        1,
+                        GL_FALSE,
+                        &view[0][0]
+                    );
+                    glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0);
+
+                    const GLMesh* batch_mesh = mesh_manager.get_mesh(material_mesh_batch.mesh_id);
+                    if (!batch_mesh) {
+                        continue;
+                    }
+                    mesh_manager.bind_mesh(material_mesh_batch.mesh_id);
+
+                    const size_t batch_end =
+                        material_mesh_batch.start_index + material_mesh_batch.instance_count;
+                    std::unordered_map<uint32_t, std::vector<const RenderableObject*>> textured_batches;
+                    for (size_t i = material_mesh_batch.start_index; i < batch_end; ++i) {
+                        textured_batches[pass_renderables[i].texture_id].push_back(&pass_renderables[i]);
+                    }
+
+                    for (const auto& [texture_id, textured_batch] : textured_batches) {
+                        if (textured_batch.empty()) {
+                            continue;
+                        }
+
+                        std::vector<glm::mat4> model_matrices;
+                        model_matrices.reserve(textured_batch.size());
+                        for (const auto* obj : textured_batch) {
+                            glm::mat4 model = glm::mat4(1.0f);
+                            model = glm::translate(
+                                model,
+                                glm::vec3(
+                                    obj->transform.position.x,
+                                    obj->transform.position.y,
+                                    obj->transform.position.z));
+                            model = glm::scale(
+                                model,
+                                glm::vec3(
+                                    obj->transform.scale.x,
+                                    obj->transform.scale.y,
+                                    obj->transform.scale.z));
+                            model_matrices.push_back(model);
+                        }
+
+                        glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+                        glBufferData(
+                            GL_ARRAY_BUFFER,
+                            textured_batch.size() * sizeof(glm::mat4),
+                            model_matrices.data(),
+                            GL_DYNAMIC_DRAW);
+
+                        texture_manager.bind_texture(texture_id, GL_TEXTURE0);
+                        glDrawElementsInstanced(
+                            GL_TRIANGLES,
+                            batch_mesh->element_count,
+                            GL_UNSIGNED_INT,
+                            0,
+                            textured_batch.size());
+                    }
+                }
+            };
+
+            const glm::mat4 projection_3d = glm::perspective(
+                glm::radians(60.0f),
+                static_cast<float>(SCR_WIDTH) / static_cast<float>(SCR_HEIGHT),
+                0.1f,
+                1000.0f
+            );
+            const glm::mat4 view_3d = glm::lookAt(
+                glm::vec3(0.0f, 180.0f, 260.0f),
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f)
+            );
+            const glm::mat4 projection_2d = glm::ortho(
+                0.0f,
+                static_cast<float>(SCR_WIDTH),
+                0.0f,
+                static_cast<float>(SCR_HEIGHT),
+                -1.0f,
+                1.0f
+            );
+            const glm::mat4 view_2d = glm::mat4(1.0f);
+
+            render_batches(renderables_3d, projection_3d, view_3d, true);
+            render_batches(renderables_2d, projection_2d, view_2d, false);
             
             glBindVertexArray(0);
+            glDisable(GL_DEPTH_TEST);
 
             // Render text from commands
             TextCommandSlice text_commands_slice = g_vtable.get_text_commands(miyabi_game);

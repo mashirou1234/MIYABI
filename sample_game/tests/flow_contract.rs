@@ -6,6 +6,7 @@ use sample_game::{
 fn sample_game_button_actions_round_trip_to_action_ids() {
     let actions = [
         SampleGameButtonAction::StartGame,
+        SampleGameButtonAction::Start3dArena,
         SampleGameButtonAction::ResumeGame,
         SampleGameButtonAction::RetryGame,
         SampleGameButtonAction::BackToTitle,
@@ -36,6 +37,28 @@ fn sample_game_button_actions_round_trip_to_action_ids() {
 #[test]
 fn sample_game_loop_covers_title_pause_result_and_exit_flow() {
     let mut game_loop = SampleGameLoop::new();
+    assert_eq!(game_loop.state(), SampleGameState::Title);
+
+    assert_eq!(
+        game_loop.dispatch(SampleGameEvent::ButtonAction(
+            SampleGameButtonAction::Start3dArena
+        )),
+        vec![
+            SampleGameEffect::PlayClickSound,
+            SampleGameEffect::StartNew3dRun,
+        ]
+    );
+    assert_eq!(game_loop.state(), SampleGameState::InGame);
+
+    assert_eq!(
+        game_loop.dispatch(SampleGameEvent::ButtonAction(
+            SampleGameButtonAction::BackToTitle
+        )),
+        vec![
+            SampleGameEffect::PlayClickSound,
+            SampleGameEffect::SetupTitleScreen,
+        ]
+    );
     assert_eq!(game_loop.state(), SampleGameState::Title);
 
     assert_eq!(

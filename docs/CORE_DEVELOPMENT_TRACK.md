@@ -50,9 +50,8 @@
 - 現在ステージ: **C0**
 - 次ゲート: **C1**
 - 直近不足:
-  - `sample_game` runtime boot path の最終反転（現状は state/action 契約まで移行済み）
-    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
   - 外部サンプルでの再利用確認と C1 DoD の証跡追加
+    - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
 
 ## 4. 管理ドキュメント
 
@@ -63,6 +62,8 @@
 
 - C2 の最小契約: `docs/CORE_3D_FOUNDATION_CONTRACT.md`
 - C3/C4 の基盤 / 評価軸: `docs/CORE_3D_PRODUCTION_BASELINE.md`
+- 2026-03-08 実装済み: `C2-01` / `C2-02`
+- 次段の残件: `C2-03` / `C2-04`
 
 ## 5. ステージ別 完了定義（DoD）
 

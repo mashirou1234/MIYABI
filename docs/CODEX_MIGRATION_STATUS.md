@@ -101,6 +101,51 @@
 ## 2. この移行で反映した内容
 
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
+### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
+
+- 背景:
+  - C1 の残件だった `sample_game` runtime boot path の最終反転と、C2/G4 の初手実装 (`C2-01`, `C2-02`, `G4-01`) が未完だった。
+- 変更:
+  - `sample_game_runtime/` crate を追加し、`SampleGameState` / `SampleGameButtonAction` / `SampleGameEffect` / `SampleGameLoop` を `logic` と `sample_game` の共有契約層へ移した。
+  - `logic/src/lib.rs` に `RunMode` / `RenderMesh` / `SampleGameLoop` 実行導線を追加し、`Start 3D Arena` action から最小 3D arena（床 / 壁 / プレイヤー）を起動できるようにした。
+  - `core/src/main.cpp` で 3D 透視パスと 2D オーバーレイパスを分離し、`core/src/renderer/MeshManager.*` に OBJ mesh registry / loader を追加した。`assets/meshes/arena_cube.obj` を配布物へ同梱するようにした。
+  - トラック文書、境界文書、公開 API 棚卸し、`PLAN.md` を今回の実装状況へ同期した。
+  - 関連ファイル:
+    - `sample_game_runtime/Cargo.toml`
+    - `sample_game_runtime/src/lib.rs`
+    - `sample_game/src/lib.rs`
+    - `sample_game/tests/flow_contract.rs`
+    - `sample_game/tests/ffi_input_boundary.rs`
+    - `sample_game/Cargo.toml`
+    - `sample_game/Cargo.lock`
+    - `logic/Cargo.toml`
+    - `logic/Cargo.lock`
+    - `logic/src/lib.rs`
+    - `logic/src/perf.rs`
+    - `core/src/main.cpp`
+    - `core/src/renderer/MeshManager.hpp`
+    - `core/src/renderer/MeshManager.cpp`
+    - `assets/meshes/arena_cube.obj`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/GAME_DEVELOPMENT_TRACK.md`
+    - `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+    - `docs/LOGIC_PUBLIC_API_INVENTORY.md`
+    - `docs/CORE_3D_FOUNDATION_CONTRACT.md`
+    - `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
+    - `docs/CORE_3D_PRODUCTION_BASELINE.md`
+    - `PLAN.md`
+- 検証:
+  - `cargo test --manifest-path logic/Cargo.toml --lib -- --nocapture`
+  - `cargo test --manifest-path sample_game/Cargo.toml -- --nocapture`
+  - `cmake --build build -j`
+  - `./scripts/test_game_track_g2.sh`
+  - `./scripts/test_distribution_smoke.sh`
+- 未解決:
+  - C1 完了には外部サンプルでの再利用確認と証跡追加が残る。
+  - 3D 系の次段は `C2-03` / `C2-04` / `G4-02` / `G4-03`。
+
 ### 2026-03-07 run: manual issue-343-350 境界最小分離と 3D 正本化
 
 - 背景:
