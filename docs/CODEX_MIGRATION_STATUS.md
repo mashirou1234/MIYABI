@@ -193,6 +193,33 @@
 - 未解決:
   - `C2-04` の 2D/3D 共存回帰ハーネスは別 issue で継続する。
 
+### 2026-03-08 run: manual issue-363 2D/3D 共存回帰ハーネスを追加
+
+- 背景:
+  - `C2-04` として、2D title UI/text と 3D arena overlay/render の両方を再現可能に確認し、`G2/G3` スモークまでまとめて再実行できる手順が必要だった。
+- 変更:
+  - `logic/src/lib.rs` に `title_screen_exposes_2d_ui_and_text_commands` / `start_3d_arena_preserves_2d_text_overlay_and_3d_renderables` / `start_3d_arena_pause_and_back_to_title_flow_is_reachable` を追加し、2D UI/text、3D overlay/render、2D/3D 状態遷移を headless で固定した。
+  - `scripts/test_core_2d_3d_coexistence.sh` を追加し、上記 targeted test と `./scripts/test_game_track_g2.sh` / `./scripts/test_distribution_smoke.sh` を束ねる 1 コマンド entrypoint を作成した。
+  - ハーネス実行時に `artifacts/c2_04_2d_3d_coexistence_latest.log` へ summary を書き出すようにし、3D 最小描画証跡を再取得しやすくした。
+  - `README.md` / `docs/CORE_3D_FOUNDATION_CONTRACT.md` / `docs/CORE_DEVELOPMENT_TRACK.md` / `docs/GAME_DEVELOPMENT_TRACK.md` / `docs/COMPLETION_ROADMAP.md` / `PLAN.md` を更新し、`C2-04` 完了と Core 現在地 `C2` / 次ゲート `C3` を同期した。
+  - 関連ファイル:
+    - `logic/src/lib.rs`
+    - `scripts/test_core_2d_3d_coexistence.sh`
+    - `README.md`
+    - `docs/CORE_3D_FOUNDATION_CONTRACT.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/GAME_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `PLAN.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `cargo test --manifest-path logic/Cargo.toml --lib -- --nocapture`
+  - `./scripts/test_game_track_g2.sh`
+  - `./scripts/test_distribution_smoke.sh`
+  - `./scripts/test_core_2d_3d_coexistence.sh`
+- 未解決:
+  - Core の次段は `#366` / `#367`（C3）で継続する。
+
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 
 - 背景:

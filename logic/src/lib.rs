@@ -3087,6 +3087,35 @@ mod tests {
         game.update();
     }
 
+    fn button_action_ids(game: &Game) -> Vec<String> {
+        let mut action_ids = Vec::new();
+        for archetype in &game.world.archetypes {
+            if !archetype.types.contains(&ComponentType::Button) {
+                continue;
+            }
+
+            let buttons = archetype
+                .storage
+                .get(&ComponentType::Button)
+                .expect("button storage must exist")
+                .downcast_ref::<Vec<ui::Button>>()
+                .expect("button storage must be Vec<Button>");
+
+            for button in buttons {
+                action_ids.push(button.action_id.clone());
+            }
+        }
+        action_ids.sort();
+        action_ids
+    }
+
+    fn text_command_texts(game: &Game) -> Vec<String> {
+        game.text_commands
+            .iter()
+            .map(|command| command.text.clone())
+            .collect()
+    }
+
     fn keep_safe_corridor(game: &mut Game) {
         const CORRIDOR_LEFT: f32 = 340.0;
         const CORRIDOR_RIGHT: f32 = 460.0;
@@ -3359,6 +3388,34 @@ mod tests {
     }
 
     #[test]
+    fn title_screen_exposes_2d_ui_and_text_commands() {
+        let mut game = new_game_for_test("title-ui");
+        game.update();
+
+        let action_ids = button_action_ids(&game);
+        let texts = text_command_texts(&game);
+
+        assert!(texts.iter().any(|text| text == "MIYABI Box Survival"));
+        assert!(texts.iter().any(|text| text.contains("Arrow Keys / WASD")));
+        assert!(action_ids
+            .iter()
+            .any(|action_id| action_id == SampleGameButtonAction::StartGame.action_id()));
+        assert!(action_ids
+            .iter()
+            .any(|action_id| action_id == SampleGameButtonAction::Start3dArena.action_id()));
+        assert!(action_ids
+            .iter()
+            .any(|action_id| action_id == SampleGameButtonAction::ExitGame.action_id()));
+
+        println!(
+            "[c2-04][2d-title] buttons={} text_commands={} actions={:?}",
+            action_ids.len(),
+            texts.len(),
+            action_ids
+        );
+    }
+
+    #[test]
     fn headless_g2_stability_run_reaches_clear_with_safe_corridor() {
         let mut game = new_game_for_test("g2-stability");
         click_button(&mut game, SampleGameButtonAction::StartGame.action_id());
@@ -3510,6 +3567,53 @@ mod tests {
         game.update();
         let after_z = player_position_3d(&game);
         assert!(after_z.z < after_x.z);
+    }
+
+    #[test]
+    fn start_3d_arena_preserves_2d_text_overlay_and_3d_renderables() {
+        let mut game = new_game_for_test("3d-overlay");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+        game.input_state = ffi::InputState::default();
+        game.update();
+
+        let texts = text_command_texts(&game);
+        let renderables_3d = count_3d_renderables(&game);
+        let renderables_2d = game
+            .renderables
+            .iter()
+            .filter(|renderable| !renderable.is_3d)
+            .count();
+
+        assert!(texts.iter().any(|text| text.starts_with("HP:")));
+        assert!(texts.iter().any(|text| text == "3D Arena Prototype"));
+        assert!(renderables_3d >= 5);
+
+        println!(
+            "[c2-04][3d-arena] renderables_3d={} renderables_2d={} text_commands={} hud={}",
+            renderables_3d,
+            renderables_2d,
+            texts.len(),
+            texts.iter().any(|text| text.starts_with("HP:"))
+        );
+    }
+
+    #[test]
+    fn start_3d_arena_pause_and_back_to_title_flow_is_reachable() {
+        let mut game = new_game_for_test("3d-pause-flow");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+        assert_eq!(game.current_state, GameState::InGame);
+        assert_eq!(game.run_mode, RunMode::Arena3d);
+
+        game.input_state.esc_key = true;
+        game.update();
+        assert_eq!(game.current_state, GameState::Pause);
+
+        game.input_state.esc_key = false;
+        game.update();
+        click_button(&mut game, SampleGameButtonAction::BackToTitle.action_id());
+        assert_eq!(game.current_state, GameState::Title);
+
+        println!("[c2-04][3d-flow] pause-and-back-to-title=pass");
     }
 }
 
