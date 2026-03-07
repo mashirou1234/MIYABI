@@ -101,6 +101,21 @@
 ## 2. この移行で反映した内容
 
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
+### 2026-03-07 run: manual ローカル生成物の gitignore 追加
+
+- 背景:
+  - `artifacts/` や `build_*`、Python の `__pycache__` が未追跡差分として残り、レビュー対象との差分判読を妨げていた。
+- 変更:
+  - `.gitignore` にローカル自動化生成物、アドホックビルド出力、Python キャッシュを追加した。
+  - 関連ファイル:
+    - `.gitignore`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `git diff --check`
+  - `git status --short --branch`
+- 未解決:
+  - 既存の ignore ルールが他のローカル生成物を十分に網羅しているかの棚卸しは未実施。
+
 ### 2026-03-07 run: manual Issue設計ガイド整備
 
 - 背景:

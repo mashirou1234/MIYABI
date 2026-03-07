@@ -16,3 +16,10 @@ miyabi.log
 sdk/
 logic_dylib/
 .codex-orch/
+
+# Local automation and ad-hoc build outputs
+/artifacts/
+/build_*/
+
+# Python cache
+**/__pycache__/
