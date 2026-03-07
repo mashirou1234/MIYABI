@@ -1,6 +1,6 @@
 # `sample_game` / `core` 責務境界
 
-最終更新: 2026-02-26
+最終更新: 2026-03-07
 
 ## 1. レイヤーモデルと役割
 
@@ -24,7 +24,7 @@
 
 - `core` → `logic`: `core/CMakeLists.txt` で `miyabi_logic` (`staticlib`) をリンクし、`miyabi_bridge.cpp` から VTable を呼び出している。
 - `logic` → `core`: `logic/src/lib.rs` の `cxx::bridge` で `play_sound` や `create_dynamic_box_body` などランタイム呼び出しを宣言し、`core/include/miyabi/bridge.h` に実装を置いている。
-- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録済み（`sample_game/src/lib.rs` では re-export のみ）。
+- `sample_game` → `logic`: `sample_game/Cargo.toml` で `miyabi_logic` を依存登録しつつ、`sample_game/src/lib.rs` に `SampleGameState` / `SampleGameButtonAction` / `SampleGameLoop` を持つ最小状態機械契約を追加済み。
 - `core` ↛ `sample_game`: 実行ファイルは `sample_game` をリンクしておらず、ユーザーのゲームコードを静的に組み込まない想定。
 - 例外的に `core` は `../logic/src/performance.cpp` を直接ビルドへ含めており、ここが境界の整理対象。
 
@@ -52,11 +52,18 @@
 - NG: `core` の CMake に `sample_game` ターゲットを追加し、`target_link_libraries` で直接リンクする。  
   代替: 実行時の組み合わせは `core` + `logic` の ABI 境界で接続し、ゲーム固有処理は Rust 側で完結させる。
 
-## 4. 「次に分離すべき箇所」の指針
+## 4. 2026-03-07 時点の移行状況
 
-- `logic/src/lib.rs`: `GameState`（Title/InGame/Pause/Result）、HUD レンダリング、障害物生成、設定 UI、アセット再読込などサンプルゲーム固有の処理が集中している。`sample_game` クレートへ移すことで `logic` を SDK コアへ純化できる。
-- `logic/src/ui.rs`: ボタン定義と `ButtonAction` がサンプル固有の遷移（Start/Resume/Retry/BackToTitle）を前提にしており、UI 部品そのものは残しつつハンドラは `sample_game` へ委譲する必要がある。
+- `sample_game/src/lib.rs` に `SampleGameState` / `SampleGameButtonAction` / `SampleGameLoop` を追加し、Title / InGame / Pause / Result の最小遷移契約を `sample_game` 側へ移した。
+- `logic/src/ui.rs` は `Button` の hit-test と描画に限定し、戻り値として `action_id` を返す汎用 UI 部品へ縮小した。ゲーム固有の action enum は `logic` から除去した。
+- `logic/src/lib.rs` には `apply_sample_action_id()` の互換 shim を残し、現行の `get_miyabi_vtable()` 起動経路を壊さずに sample 側契約を段階移行できる状態にした。
+- `sample_game/tests/flow_contract.rs` で action id の round-trip と `Title -> InGame -> Pause -> Result -> Title -> Exit` の契約を固定した。
+
+## 5. 次に分離すべき箇所の指針
+
+- `logic/src/lib.rs`: まだ HUD レンダリング、障害物生成、勝敗判定、保存反映などサンプル固有処理が残る。次段では `sample_game::SampleGameLoop` が返す command/effect を直接実行する構成へ寄せる。
+- `logic` と `sample_game` で共有している `sample.*` action id 文字列は暫定契約であり、最終的には共通契約層または `sample_game` 起点の登録 API へ一本化する。
 - `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
-- `sample_game/src/lib.rs`: 現状は `use miyabi_logic::*;` のみで空。ここをゲームエントリーポイント（`create_game` など）に差し替え、`logic` 側から分離した状態機械を登録するのが当面の移行シナリオとなる。
+- `sample_game` の状態機械はまだテスト契約中心で、実行時 boot path は `logic` staticlib のままである。`core` が `sample_game` を知らずに差し替えられる起動方式を次段で固める必要がある。
 
 このルールを満たしたとき、`core` はプラットフォームとランタイムに専念し、`logic` は SDK/API 群、`sample_game` はユーザーコードのサンプルという役割が明確になる。C1 判定では上記 4 点の分離具合を指標にする。

@@ -1,4 +1,6 @@
-use miyabi_logic::{ffi, update_input_state, AssetServer, Game, GameState, InternalWorld, SaveData};
+use miyabi_logic::{
+    ffi, update_input_state, AssetServer, Game, GameState, InternalWorld, SaveData,
+};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::ptr;
@@ -26,6 +28,7 @@ fn make_test_game() -> Game {
         obstacle_texture_handle: 0,
         obstacle_spawn_accumulator_sec: 0.0,
         esc_was_pressed: false,
+        p_was_pressed: false,
         u_was_pressed: false,
         asset_integrity_tick: 0,
         reported_missing_texture_handles: HashSet::new(),
@@ -53,7 +56,10 @@ fn update_input_state_accepts_empty_frame() {
     let mut game = make_test_game();
     let empty_input = ffi::InputState::default();
 
-    update_input_state(&mut game as *mut Game, &empty_input as *const ffi::InputState);
+    update_input_state(
+        &mut game as *mut Game,
+        &empty_input as *const ffi::InputState,
+    );
 
     assert_eq!(
         game.input_state, empty_input,

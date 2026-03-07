@@ -50,13 +50,19 @@
 - 現在ステージ: **C0**
 - 次ゲート: **C1**
 - 直近不足:
-  - `sample_game` と `core` の責務再分離（ゲーム層の分離再整備）  
+  - `sample_game` runtime boot path の最終反転（現状は state/action 契約まで移行済み）
     - 詳細な境界ルール: `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+  - 外部サンプルでの再利用確認と C1 DoD の証跡追加
 
 ## 4. 管理ドキュメント
 
 - 作業タスク: `PLAN.md`
 - 変更履歴: `docs/CODEX_MIGRATION_STATUS.md`
+
+## 4.1 3D 正本
+
+- C2 の最小契約: `docs/CORE_3D_FOUNDATION_CONTRACT.md`
+- C3/C4 の基盤 / 評価軸: `docs/CORE_3D_PRODUCTION_BASELINE.md`
 
 ## 5. ステージ別 完了定義（DoD）
 

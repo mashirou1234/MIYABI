@@ -37,14 +37,16 @@
 
 ## 3. 現在地
 
-- 現在ステージ: **G1**
-- 次ゲート: **G2**
+- 現在ステージ: **G3**
+- 次ゲート: **G4**
 - 直近不足:
-  - 30分連続プレイの安定性検証
+  - 3D arena 最小起動 (`G4-01`)
+  - 透視カメラ / 深度 / 3D メッシュの最小実装 (`C2-01` / `C2-02`)
 
 ## 4. 管理ドキュメント
 
-- 仕様: `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md`
+- 2D 仕様: `docs/SPEC_SAMPLE_GAME_2D_VERTICAL_SLICE.md`
+- G4 仕様: `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
 - 作業タスク: `PLAN.md`
 - 変更履歴: `docs/CODEX_MIGRATION_STATUS.md`
 
@@ -59,6 +61,76 @@
 
 環境差がある場合は、先に差分（OS/コンパイラ/依存）を明記してから結果を比較する。
 
+## 5.1 G2 30分連続プレイ検証手順
+
+G2 証跡は、状態遷移確認と 30 分相当の長時間安定性確認を同じ run で残す。
+
+- 最小再現コマンド:
+  - `./scripts/test_game_track_g2.sh`
+- 内訳:
+  - `title_pause_result_and_exit_flow_is_reachable`: Title -> InGame -> Pause -> Result -> Title -> Exit 要求までの導線を headless に確認する
+  - `headless_g2_stability_run_reaches_clear_with_safe_corridor`: 安全通路を維持した headless ハーネスで 30 分相当の更新を流し、進行不能やクラッシュなく `CLEAR` へ到達することを確認する
+- 任意の追加確認:
+  - `cmake -S . -B build && cmake --build build -j`
+  - `build/core/miyabi` を起動し、5 分程度の目視操作で Title / InGame / Pause / Result の見え方を確認する
+
+Issue コメントまたは PR に残すテンプレート:
+
+```md
+### G2 検証ログ YYYY-MM-DD
+
+- Environment:
+  - OS: <例: macOS 14.x (Apple Silicon)>
+  - Compiler: <`c++ --version` の要点>
+- Commands:
+  - `./scripts/test_game_track_g2.sh`
+  - 任意: `cmake -S . -B build && cmake --build build -j`
+- Result:
+  - `title_pause_result_and_exit_flow_is_reachable`: PASS / FAIL
+  - `headless_g2_stability_run_reaches_clear_with_safe_corridor`: PASS / FAIL
+  - 手動 5 分導線確認: PASS / FAIL / 未実施
+- Findings:
+  - <なければ `なし`>
+- Evidence URL:
+  - <Issue comment or PR URL>
+```
+
+## 5.2 G3 配布再現スモーク手順
+
+G3 証跡は、配布 ZIP の生成、展開、最低同梱物確認、起動スモークまでを 1 コマンドで再実行できることを優先する。
+
+- 最小再現コマンド:
+  - `./scripts/test_distribution_smoke.sh`
+- 期待結果:
+  - 最新の `dist/MIYABI_GAME_macOS_<timestamp>.zip` が生成される
+  - 展開先に最低同梱物が揃う
+  - `./run_miyabi.sh` が 5 秒以上生存し、即時クラッシュしない
+
+Issue コメントまたは PR に残すテンプレート:
+
+```md
+### G3 配布再現ログ YYYY-MM-DD
+
+- Environment:
+  - OS: <例: macOS 14.x (Apple Silicon)>
+- Commands:
+  - `./scripts/test_distribution_smoke.sh`
+- Result:
+  - ZIP 生成: PASS / FAIL
+  - 同梱物確認: PASS / FAIL
+  - 5 秒起動スモーク: PASS / FAIL
+- Evidence URL:
+  - <Issue comment or PR URL>
+```
+
+## 5.3 G4 着手前の固定事項
+
+- 正本: `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
+- 最初の実装 Task:
+  - `G4-01`: 3D arena の最小起動
+  - `G4-02`: 3D run の勝敗導線
+  - `G4-03`: 3D 障害物 1 系統
+
 ## 6. マイルストーン証跡リンク
 
 各ステージの到達判定を更新するときは、同時に「証跡リンク」を 1 件以上記録する。
@@ -67,9 +139,9 @@
 | ステージ | 到達判定の参照先 | 証跡リンク | 更新条件 |
 | --- | --- | --- | --- |
 | G0 | 本書「2. ステージ定義 / G0」 | 未設定 | 仕様固定を宣言した Issue/PR を記録 |
-| G1 | 本書「2. ステージ定義 / G1」 | 未設定 | 通しプレイ成立を示す Issue/PR を記録 |
-| G2 | 本書「2. ステージ定義 / G2」 | 未設定 | 30分連続プレイ結果を示す Issue/PR を記録 |
-| G3 | 本書「2. ステージ定義 / G3」 | 未設定 | 配布手順の再現結果を示す Issue/PR を記録 |
+| G1 | 本書「2. ステージ定義 / G1」 | https://github.com/mashirou1234/MIYABI/issues/341#issuecomment-4016476986 | 通しプレイ成立を示す Issue/PR を記録 |
+| G2 | 本書「2. ステージ定義 / G2」 | https://github.com/mashirou1234/MIYABI/issues/340#issuecomment-4016476977 | 30分連続プレイ結果を示す Issue/PR を記録 |
+| G3 | 本書「2. ステージ定義 / G3」 | https://github.com/mashirou1234/MIYABI/issues/342#issuecomment-4016476990 | 配布手順の再現結果を示す Issue/PR を記録 |
 | G4 | 本書「2. ステージ定義 / G4」 | 未設定 | 3D縦切り到達を示す Issue/PR を記録 |
 
 記入手順:
