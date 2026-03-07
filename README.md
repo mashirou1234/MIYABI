@@ -52,6 +52,21 @@ SDK 生成スクリプトの前提依存を確認する場合は `./build_sdk.sh
 - [docs/CORE_DEVELOPMENT_TRACK.md](docs/CORE_DEVELOPMENT_TRACK.md): 現在ステージと次ゲート
 - [PLAN.md](PLAN.md): 着手順と優先タスク
 
+## 配布前 preflight 確認（15分目安）
+
+`scripts/package_macos_game.sh` を使った配布前チェックの最短手順です。
+
+```bash
+./scripts/package_macos_game.sh --preflight-only
+```
+
+確認ポイント:
+- 出力に `[preflight] ok` が含まれること
+- `cmake` / `zip` / `shasum` の必須コマンド不足エラーが出ないこと
+- `assets/player.png` `assets/test.png` `assets/test_sound.wav` の欠落エラーが出ないこと
+
+詳細な配布手順は [docs/DISTRIBUTION_1OS.md](docs/DISTRIBUTION_1OS.md) を参照してください。
+
 ## FFI 入力境界テスト（最小手順）
 
 `sample_game` 側の FFI 入力ポインタ境界を確認する最小テストです。
