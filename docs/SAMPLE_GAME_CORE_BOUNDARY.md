@@ -71,17 +71,17 @@
 
 ## 4. 2026-03-08 時点の移行状況
 
-- `sample_game_runtime/src/lib.rs` に `SampleGameState` / `SampleGameButtonAction` / `SampleGameEffect` / `SampleGameLoop` を分離し、`sample_game/src/lib.rs` から再エクスポートする形へ更新した。
-- `logic/src/lib.rs` は `SampleGameLoop` を直接保持し、`SampleGameEvent` / `SampleGameEffect` を runtime boot path で実行するようにした。`apply_sample_action_id()` 互換 shim は不要になった。
+- `sample_game_runtime/src/lib.rs` に `SampleGameState` / `SampleGameRunMode` / `SampleGameButtonAction` / `SampleGameEffect` / `SampleGameLoop` を分離し、`sample_game/src/lib.rs` から再エクスポートする形へ更新した。
+- `logic/src/lib.rs` は `SampleGameLoop` を直接保持し、`SampleGameEvent` / `SampleGameEffect` を runtime boot path で実行するようにした。2D/3D の retry 先は `SampleGameRunMode` を介して維持する。`apply_sample_action_id()` 互換 shim は不要になった。
 - `core/src/main.cpp` と `core/src/renderer/MeshManager.*` は、固定透視カメラ + 3D/2D 描画パス分離 + OBJ メッシュ登録を追加し、`core -> sample_game` の依存逆流なしで 3D 最小起動を受けられる形にした。
-- `sample_game/tests/flow_contract.rs` と `logic` のテストで、`Start 3D Arena` を含む action id 契約、3D arena 最小起動、XZ 平面移動を固定した。
+- `sample_game/tests/flow_contract.rs` と `logic` のテストで、`Start 3D Arena` を含む action id 契約、3D arena 最小起動、XZ 平面移動、Result からの 3D retry 維持を固定した。
 
 ## 5. 次に分離すべき箇所の指針
 
 - `logic/src/lib.rs`: まだ HUD レンダリング、障害物生成、勝敗判定、保存反映などサンプル固有処理が残る。次段では外部サンプルへの再利用を通じて、共通 API と sample 固有実装の境界をさらに削る。
 - `logic` と `sample_game` で共有している `sample.*` action id 文字列は `sample_game_runtime` に集約したが、最終的には `sample_game` 起点の登録 API へ寄せる余地がある。
 - `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
-- C1 の最小証跡は `sample_game` 以外の外部 SDK サンプル 1 本で configure/build/run を確認することとし、外部サンプル 2 本以上の成立は `Wave 4` で扱う。3D 側は `G4-02` / `G4-03`、C2 側は `C2-03` / `C2-04` が次段になる。
+- C1 の最小証跡は `sample_game` 以外の外部 SDK サンプル 1 本で configure/build/run を確認することとし、外部サンプル 2 本以上の成立は `Wave 4` で扱う。3D 側は `G4-03`、core 側は `C3` が次段になる。
 
 ## 6. レビュー時チェック質問（15〜45 分の着手単位）
 

@@ -83,12 +83,13 @@ G4 では、2D の `Box Survival` を 3D 空間へ拡張した最小デモを 1 
    - 実装済み（2026-03-08）
 2. `G4-02`: 3D run の勝敗導線
    - HP / Time / Score と Pause / Result 遷移を接続する
+   - 実装済み（2026-03-08）
 3. `G4-03`: 3D 障害物 1 系統
    - 落下物または巡回敵 1 種で clear / fail 条件を成立させる
 
 補足:
-- 2026-03-08 時点の最小 3D 起動は `Title -> Start 3D Arena -> InGame` まで実装済み。
-- `Pause -> Result` を含む勝敗導線と障害物導入は `G4-02` / `G4-03` で継続する。
+- 2026-03-08 時点で `Title -> Start 3D Arena -> Pause/Result -> Title` の最小導線と Retry による 3D run 再開までは実装済み。
+- 残件は障害物導入 (`G4-03`) による fail 要因の実プレイ化である。
 
 ## 8. 明確に対象外とするもの
 

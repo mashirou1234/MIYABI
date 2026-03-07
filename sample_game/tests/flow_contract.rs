@@ -1,5 +1,6 @@
 use sample_game::{
-    SampleGameButtonAction, SampleGameEffect, SampleGameEvent, SampleGameLoop, SampleGameState,
+    SampleGameButtonAction, SampleGameEffect, SampleGameEvent, SampleGameLoop, SampleGameRunMode,
+    SampleGameState,
 };
 
 #[test]
@@ -38,6 +39,7 @@ fn sample_game_button_actions_round_trip_to_action_ids() {
 fn sample_game_loop_covers_title_pause_result_and_exit_flow() {
     let mut game_loop = SampleGameLoop::new();
     assert_eq!(game_loop.state(), SampleGameState::Title);
+    assert_eq!(game_loop.run_mode(), SampleGameRunMode::BoxSurvival2d);
 
     assert_eq!(
         game_loop.dispatch(SampleGameEvent::ButtonAction(
@@ -49,6 +51,7 @@ fn sample_game_loop_covers_title_pause_result_and_exit_flow() {
         ]
     );
     assert_eq!(game_loop.state(), SampleGameState::InGame);
+    assert_eq!(game_loop.run_mode(), SampleGameRunMode::Arena3d);
 
     assert_eq!(
         game_loop.dispatch(SampleGameEvent::ButtonAction(
@@ -71,6 +74,7 @@ fn sample_game_loop_covers_title_pause_result_and_exit_flow() {
         ]
     );
     assert_eq!(game_loop.state(), SampleGameState::InGame);
+    assert_eq!(game_loop.run_mode(), SampleGameRunMode::BoxSurvival2d);
 
     assert_eq!(
         game_loop.dispatch(SampleGameEvent::EscapePressed),
@@ -119,4 +123,41 @@ fn sample_game_loop_covers_title_pause_result_and_exit_flow() {
         ]
     );
     assert_eq!(game_loop.state(), SampleGameState::Title);
+}
+
+#[test]
+fn sample_game_loop_retries_last_3d_run_after_result() {
+    let mut game_loop = SampleGameLoop::new();
+
+    assert_eq!(
+        game_loop.dispatch(SampleGameEvent::ButtonAction(
+            SampleGameButtonAction::Start3dArena
+        )),
+        vec![
+            SampleGameEffect::PlayClickSound,
+            SampleGameEffect::StartNew3dRun,
+        ]
+    );
+    assert_eq!(game_loop.run_mode(), SampleGameRunMode::Arena3d);
+
+    assert_eq!(
+        game_loop.dispatch(SampleGameEvent::RunCleared),
+        vec![
+            SampleGameEffect::PlayClickSound,
+            SampleGameEffect::SetupResultMenu,
+        ]
+    );
+    assert_eq!(game_loop.state(), SampleGameState::Result);
+
+    assert_eq!(
+        game_loop.dispatch(SampleGameEvent::ButtonAction(
+            SampleGameButtonAction::RetryGame
+        )),
+        vec![
+            SampleGameEffect::PlayClickSound,
+            SampleGameEffect::StartNew3dRun,
+        ]
+    );
+    assert_eq!(game_loop.state(), SampleGameState::InGame);
+    assert_eq!(game_loop.run_mode(), SampleGameRunMode::Arena3d);
 }
