@@ -81,7 +81,7 @@
 - `logic/src/lib.rs`: まだ HUD レンダリング、障害物生成、勝敗判定、保存反映などサンプル固有処理が残る。次段では外部サンプルへの再利用を通じて、共通 API と sample 固有実装の境界をさらに削る。
 - `logic` と `sample_game` で共有している `sample.*` action id 文字列は `sample_game_runtime` に集約したが、最終的には `sample_game` 起点の登録 API へ寄せる余地がある。
 - `core/CMakeLists.txt` 内の `../logic/src/performance.cpp` 取り込みは、C++ から Rust ディレクトリへアクセスしている唯一の箇所。ビルド成果物へ組み込むなら `logic` 側で `extern "C"` API を提供して `core` はそれを呼ぶ形に合わせる。
-- C1 の最小証跡は `sample_game` 以外の外部 SDK サンプル 1 本で configure/build/run を確認することとし、外部サンプル 2 本以上の成立は `Wave 4` で扱う。3D 側は `G4-03`、core 側は `C3` が次段になる。
+- C1 の最小証跡は `sample_game` 以外の外部 SDK サンプル 1 本で configure/build/run を確認することとし、外部サンプル 2 本以上の成立は `Wave 4` で扱う。3D 縦切り (`G4`) は成立し、次段は `Wave 4` と `C3` になる。
 
 ## 6. レビュー時チェック質問（15〜45 分の着手単位）
 
