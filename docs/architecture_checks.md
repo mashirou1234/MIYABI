@@ -201,6 +201,14 @@ echo "exit_code=$?"
   ... error: unknown type name 'uint32_t'
 ```
 
+失敗ログ読解クイック手順（15〜45 分）:
+
+1. 先頭 `[NG]` 行から失敗ヘッダ名を特定する（例: `miyabi/bad.h`）。
+2. 直下のコンパイラログで最初の `error:` 行を確認し、不足シンボル/型名を抽出する。
+3. 失敗ヘッダに最小限の標準ヘッダを追加する（例: `uint32_t` なら `<cstdint>`）。
+4. 再実行して同一ヘッダの `[NG]` が消えることを確認する。別ヘッダで失敗した場合は同手順を繰り返す。
+5. 依存が重い型で include 連鎖が増える場合は、必要に応じて forward declaration 化を検討する。
+
 ## scripts 参照導線
 
 - 既存チェック実装: `scripts/check_core_no_sample_game_dependency.sh`
