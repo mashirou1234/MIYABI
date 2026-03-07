@@ -63,6 +63,22 @@
 
 補足: #169 は「適用除外条件」の整理が対象。本節は「スキップ時の切り分け手順」を追加し、同じ `automerge:off` を使う運用でも用途を分離している。
 
+## 5.2 self-hosted runner 障害時の保留手順
+
+Woodpecker の self-hosted runner 側で障害が発生し、Required checks を正常完了できない場合は、次の条件で auto-merge を保留する。
+
+1. 保留開始条件
+   - 連続 2 回以上、同一要因で runner 起因の失敗（例: runner offline、ジョブ未割当、実行環境起動失敗）が発生した場合
+2. 保留時の必須対応
+   - 対象 PR に `automerge:off` を付与する
+   - PR コメントへ「runner 障害のため一時保留」と復旧確認予定時刻（UTC）を記載する
+   - 追跡 Issue（`codex:queue`）または運用ログへ、発生時刻・影響 PR・暫定対応を 1 件で記録する
+3. 保留解除条件
+   - 同一リポジトリで Required checks が 1 回以上連続成功する
+   - 復旧確認後、`automerge:off` を外し、PR コメントに解除時刻と確認した CI 実行 URL を追記する
+
+判断が分かれる場合は、開発トラックの正本（`docs/DEVELOPMENT_TRACK.md` → `docs/CORE_DEVELOPMENT_TRACK.md`）に合わせ、CI・運用判断を優先する。
+
 ## 6. 自動マージ除外ケース（手動レビュー必須）
 
 次の変更は、CI が成功しても `automerge:off` を付与して手動レビューを行う。
