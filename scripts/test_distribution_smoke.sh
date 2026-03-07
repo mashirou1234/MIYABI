@@ -34,6 +34,8 @@ for path in \
   shaders/text.frag \
   shaders/textured.vert \
   shaders/textured.frag \
+  shaders/lit_textured.vert \
+  shaders/lit_textured.frag \
   run_miyabi.sh \
   SHA256SUMS.txt \
   docs/README.txt

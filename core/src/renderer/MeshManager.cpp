@@ -1,6 +1,8 @@
 #include "renderer/MeshManager.hpp"
 #include <glad/glad.h>
 #include <array>
+#include <cstddef>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -15,18 +17,84 @@ namespace fs = std::filesystem;
 struct ObjVertexKey {
     int position_index;
     int texcoord_index;
+    int normal_index;
 
     bool operator==(const ObjVertexKey& other) const {
-        return position_index == other.position_index && texcoord_index == other.texcoord_index;
+        return position_index == other.position_index &&
+               texcoord_index == other.texcoord_index &&
+               normal_index == other.normal_index;
     }
 };
 
 struct ObjVertexKeyHash {
     std::size_t operator()(const ObjVertexKey& key) const {
         return (static_cast<std::size_t>(key.position_index) << 32) ^
-               static_cast<std::size_t>(key.texcoord_index);
+               (static_cast<std::size_t>(key.texcoord_index) << 16) ^
+               static_cast<std::size_t>(key.normal_index);
     }
 };
+
+struct ObjVertex {
+    std::array<float, 3> position{};
+    std::array<float, 2> texcoord{};
+    std::array<float, 3> normal{};
+    bool has_explicit_normal = false;
+};
+
+std::size_t resolve_obj_index(int index, std::size_t available_count) {
+    if (index > 0) {
+        return static_cast<std::size_t>(index - 1);
+    }
+    return static_cast<std::size_t>(
+        static_cast<std::ptrdiff_t>(available_count) + static_cast<std::ptrdiff_t>(index)
+    );
+}
+
+std::array<float, 3> subtract(
+    const std::array<float, 3>& lhs,
+    const std::array<float, 3>& rhs
+) {
+    return {
+        lhs[0] - rhs[0],
+        lhs[1] - rhs[1],
+        lhs[2] - rhs[2],
+    };
+}
+
+std::array<float, 3> cross(
+    const std::array<float, 3>& lhs,
+    const std::array<float, 3>& rhs
+) {
+    return {
+        lhs[1] * rhs[2] - lhs[2] * rhs[1],
+        lhs[2] * rhs[0] - lhs[0] * rhs[2],
+        lhs[0] * rhs[1] - lhs[1] * rhs[0],
+    };
+}
+
+void accumulate_normal(
+    std::array<float, 3>& target,
+    const std::array<float, 3>& value
+) {
+    target[0] += value[0];
+    target[1] += value[1];
+    target[2] += value[2];
+}
+
+std::array<float, 3> normalize_or_default(const std::array<float, 3>& value) {
+    const float length_sq =
+        value[0] * value[0] + value[1] * value[1] + value[2] * value[2];
+    if (length_sq <= 0.000001f) {
+        return {0.0f, 0.0f, 1.0f};
+    }
+
+    const float inverse_length = 1.0f / std::sqrt(length_sq);
+    return {
+        value[0] * inverse_length,
+        value[1] * inverse_length,
+        value[2] * inverse_length,
+    };
+}
 
 std::string resolve_mesh_path(const std::string& requested_path) {
     const fs::path requested(requested_path);
@@ -58,6 +126,8 @@ bool build_mesh_from_obj(
 
     std::vector<std::array<float, 3>> positions;
     std::vector<std::array<float, 2>> texcoords;
+    std::vector<std::array<float, 3>> normals;
+    std::vector<ObjVertex> obj_vertices;
     std::unordered_map<ObjVertexKey, unsigned int, ObjVertexKeyHash> vertex_map;
     std::string line;
 
@@ -65,29 +135,38 @@ bool build_mesh_from_obj(
         std::stringstream token_stream(token);
         std::string position_part;
         std::string texcoord_part;
+        std::string normal_part;
         std::getline(token_stream, position_part, '/');
         std::getline(token_stream, texcoord_part, '/');
+        std::getline(token_stream, normal_part, '/');
 
         const int position_index = std::stoi(position_part);
         const int texcoord_index = texcoord_part.empty() ? 0 : std::stoi(texcoord_part);
-        const ObjVertexKey key{position_index, texcoord_index};
+        const int normal_index = normal_part.empty() ? 0 : std::stoi(normal_part);
+        const ObjVertexKey key{position_index, texcoord_index, normal_index};
 
         auto found = vertex_map.find(key);
         if (found != vertex_map.end()) {
             return found->second;
         }
 
-        const auto& position = positions.at(static_cast<std::size_t>(position_index - 1));
+        const auto& position =
+            positions.at(resolve_obj_index(position_index, positions.size()));
         const std::array<float, 2> texcoord =
             texcoord_index > 0
-                ? texcoords.at(static_cast<std::size_t>(texcoord_index - 1))
+                ? texcoords.at(resolve_obj_index(texcoord_index, texcoords.size()))
                 : std::array<float, 2>{0.0f, 0.0f};
+        const std::array<float, 3> normal =
+            normal_index > 0
+                ? normals.at(resolve_obj_index(normal_index, normals.size()))
+                : std::array<float, 3>{0.0f, 0.0f, 0.0f};
 
-        vertices.push_back(position[0]);
-        vertices.push_back(position[1]);
-        vertices.push_back(position[2]);
-        vertices.push_back(texcoord[0]);
-        vertices.push_back(texcoord[1]);
+        obj_vertices.push_back(ObjVertex{
+            position,
+            texcoord,
+            normal,
+            normal_index > 0,
+        });
 
         const unsigned int new_index = static_cast<unsigned int>(vertex_map.size());
         vertex_map.emplace(key, new_index);
@@ -117,6 +196,13 @@ bool build_mesh_from_obj(
             continue;
         }
 
+        if (prefix == "vn") {
+            std::array<float, 3> normal{};
+            line_stream >> normal[0] >> normal[1] >> normal[2];
+            normals.push_back(normalize_or_default(normal));
+            continue;
+        }
+
         if (prefix != "f") {
             continue;
         }
@@ -132,17 +218,52 @@ bool build_mesh_from_obj(
         }
 
         for (std::size_t i = 1; i + 1 < face_indices.size(); ++i) {
-            indices.push_back(face_indices[0]);
-            indices.push_back(face_indices[i]);
-            indices.push_back(face_indices[i + 1]);
+            const unsigned int triangle_indices[3] = {
+                face_indices[0],
+                face_indices[i],
+                face_indices[i + 1],
+            };
+            indices.push_back(triangle_indices[0]);
+            indices.push_back(triangle_indices[1]);
+            indices.push_back(triangle_indices[2]);
+
+            const auto& vertex_a = obj_vertices.at(triangle_indices[0]);
+            const auto& vertex_b = obj_vertices.at(triangle_indices[1]);
+            const auto& vertex_c = obj_vertices.at(triangle_indices[2]);
+            const std::array<float, 3> edge_ab =
+                subtract(vertex_b.position, vertex_a.position);
+            const std::array<float, 3> edge_ac =
+                subtract(vertex_c.position, vertex_a.position);
+            const std::array<float, 3> face_normal =
+                normalize_or_default(cross(edge_ab, edge_ac));
+
+            for (const unsigned int triangle_index : triangle_indices) {
+                ObjVertex& vertex = obj_vertices.at(triangle_index);
+                if (!vertex.has_explicit_normal) {
+                    accumulate_normal(vertex.normal, face_normal);
+                }
+            }
         }
     }
 
-    if (vertices.empty() || indices.empty()) {
+    if (obj_vertices.empty() || indices.empty()) {
         std::cerr << "MeshManager::load_obj_mesh - OBJ produced no drawable geometry path=\""
                   << requested_path << "\" resolved_path=\"" << resolved_path << "\""
                   << std::endl;
         return false;
+    }
+
+    vertices.reserve(obj_vertices.size() * 8);
+    for (auto& vertex : obj_vertices) {
+        const std::array<float, 3> normal = normalize_or_default(vertex.normal);
+        vertices.push_back(vertex.position[0]);
+        vertices.push_back(vertex.position[1]);
+        vertices.push_back(vertex.position[2]);
+        vertices.push_back(vertex.texcoord[0]);
+        vertices.push_back(vertex.texcoord[1]);
+        vertices.push_back(normal[0]);
+        vertices.push_back(normal[1]);
+        vertices.push_back(normal[2]);
     }
 
     return true;
@@ -175,11 +296,13 @@ GLMesh upload_mesh(
         GL_STATIC_DRAW
     );
 
-    const GLsizei stride = 5 * sizeof(float);
+    const GLsizei stride = 8 * sizeof(float);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(5 * sizeof(float)));
+    glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
     mesh.element_count = static_cast<uint32_t>(indices.size());
@@ -201,10 +324,10 @@ MeshManager::~MeshManager() {
 
 uint32_t MeshManager::create_quad_mesh() {
     const std::vector<float> vertices = {
-        0.5f, 0.5f, 0.0f, 1.0f, 1.0f,
-        0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
-        -0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+        0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+        -0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
     };
     const std::vector<unsigned int> indices = {
         0, 1, 3,

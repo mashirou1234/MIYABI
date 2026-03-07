@@ -22,25 +22,8 @@
 #include "renderer/RenderBatching.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include "profiler/Profiler.hpp"
-
-// Temporary minimal Mat4 struct until a math library is added
-struct Mat4 {
-    float data[16] = {
-        1.f, 0.f, 0.f, 0.f,
-        0.f, 1.f, 0.f, 0.f,
-        0.f, 0.f, 1.f, 0.f,
-        0.f, 0.f, 0.f, 1.f
-    };
-
-    static Mat4 translation(float x, float y, float z) {
-        Mat4 m;
-        m.data[12] = x;
-        m.data[13] = y;
-        m.data[14] = z;
-        return m;
-    }
-};
 
 // Enum to mirror Rust's GameState
 enum GameState {
@@ -55,6 +38,58 @@ const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 const uint32_t QUAD_MESH_ID = 1;
 const uint32_t ARENA_CUBE_MESH_ID = 100;
+const uint32_t MATERIAL_ID_TEXTURED_2D = 1;
+const uint32_t MATERIAL_ID_LIT_TEXTURED_3D = 2;
+
+struct DirectionalLight {
+    glm::vec3 direction;
+    glm::vec3 color;
+    float ambient_strength;
+    float diffuse_strength;
+};
+
+namespace {
+void configure_instanced_model_attributes(uint32_t vao, uint32_t instance_vbo) {
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+    for (uint32_t column = 0; column < 4; ++column) {
+        const uint32_t attribute_location = 3 + column;
+        glEnableVertexAttribArray(attribute_location);
+        glVertexAttribPointer(
+            attribute_location,
+            4,
+            GL_FLOAT,
+            GL_FALSE,
+            sizeof(glm::mat4),
+            reinterpret_cast<void*>(sizeof(float) * 4 * column)
+        );
+        glVertexAttribDivisor(attribute_location, 1);
+    }
+    glBindVertexArray(0);
+}
+
+void set_vec3_uniform_if_present(
+    uint32_t program_id,
+    const char* name,
+    const glm::vec3& value
+) {
+    const int location = glGetUniformLocation(program_id, name);
+    if (location != -1) {
+        glUniform3fv(location, 1, glm::value_ptr(value));
+    }
+}
+
+void set_float_uniform_if_present(
+    uint32_t program_id,
+    const char* name,
+    float value
+) {
+    const int location = glGetUniformLocation(program_id, name);
+    if (location != -1) {
+        glUniform1f(location, value);
+    }
+}
+} // namespace
 
 // --- Function Prototypes ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -168,6 +203,12 @@ int main() {
         glfwTerminate();
         return -1;
     }
+    uint32_t lit_textured_shader_id =
+        shader_manager.load_shader("core/src/shaders/lit_textured.vert", "core/src/shaders/lit_textured.frag");
+    if (lit_textured_shader_id == 0) {
+        glfwTerminate();
+        return -1;
+    }
     uint32_t quad_mesh_id = mesh_manager.create_quad_mesh();
     if (quad_mesh_id != QUAD_MESH_ID) {
         std::cerr << "Unexpected quad mesh ID. expected=" << QUAD_MESH_ID
@@ -182,10 +223,28 @@ int main() {
         glfwTerminate();
         return -1;
     }
-    material_manager.create_material(textured_shader_id);
+    uint32_t textured_material_id = material_manager.create_material(textured_shader_id);
+    if (textured_material_id != MATERIAL_ID_TEXTURED_2D) {
+        std::cerr << "Unexpected 2D material ID. expected=" << MATERIAL_ID_TEXTURED_2D
+                  << " actual=" << textured_material_id << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    uint32_t lit_material_id = material_manager.create_material(lit_textured_shader_id);
+    if (lit_material_id != MATERIAL_ID_LIT_TEXTURED_3D) {
+        std::cerr << "Unexpected 3D lit material ID. expected=" << MATERIAL_ID_LIT_TEXTURED_3D
+                  << " actual=" << lit_material_id << std::endl;
+        glfwTerminate();
+        return -1;
+    }
 
     const GLMesh* quad_mesh = mesh_manager.get_mesh(quad_mesh_id);
     if (!quad_mesh) {
+        glfwTerminate();
+        return -1;
+    }
+    const GLMesh* arena_cube_mesh = mesh_manager.get_mesh(arena_cube_mesh_id);
+    if (!arena_cube_mesh) {
         glfwTerminate();
         return -1;
     }
@@ -193,24 +252,15 @@ int main() {
     // --- Instancing Setup ---
     unsigned int instance_vbo;
     glGenBuffers(1, &instance_vbo);
-    glBindVertexArray(quad_mesh->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-    // Set up attribute pointers for instance model matrix (a_modelMatrix)
-    // It's at location 2 because pos=0, texcoord=1. A mat4 is 4 vec4s.
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)0);
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 4));
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 8));
-    glEnableVertexAttribArray(5);
-    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(Mat4), (void*)(sizeof(float) * 12));
-    // Tell OpenGL this is an instanced vertex attribute.
-    glVertexAttribDivisor(2, 1);
-    glVertexAttribDivisor(3, 1);
-    glVertexAttribDivisor(4, 1);
-    glVertexAttribDivisor(5, 1);
-    glBindVertexArray(0);
+    configure_instanced_model_attributes(quad_mesh->vao, instance_vbo);
+    configure_instanced_model_attributes(arena_cube_mesh->vao, instance_vbo);
+
+    const DirectionalLight directional_light{
+        glm::normalize(glm::vec3(-0.45f, -1.0f, -0.35f)),
+        glm::vec3(1.0f, 0.98f, 0.92f),
+        0.35f,
+        0.85f,
+    };
 
     Game* miyabi_game = g_vtable.create_game();
     bool is_fullscreen = false;
@@ -359,6 +409,26 @@ int main() {
                         &view[0][0]
                     );
                     glUniform1i(glGetUniformLocation(program_id, "u_texture"), 0);
+                    set_vec3_uniform_if_present(
+                        program_id,
+                        "u_lightDirection",
+                        directional_light.direction
+                    );
+                    set_vec3_uniform_if_present(
+                        program_id,
+                        "u_lightColor",
+                        directional_light.color
+                    );
+                    set_float_uniform_if_present(
+                        program_id,
+                        "u_ambientStrength",
+                        directional_light.ambient_strength
+                    );
+                    set_float_uniform_if_present(
+                        program_id,
+                        "u_diffuseStrength",
+                        directional_light.diffuse_strength
+                    );
 
                     const GLMesh* batch_mesh = mesh_manager.get_mesh(material_mesh_batch.mesh_id);
                     if (!batch_mesh) {
@@ -415,9 +485,16 @@ int main() {
                 }
             };
 
+            int framebuffer_width = SCR_WIDTH;
+            int framebuffer_height = SCR_HEIGHT;
+            glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+            const float aspect_ratio =
+                framebuffer_height > 0
+                    ? static_cast<float>(framebuffer_width) / static_cast<float>(framebuffer_height)
+                    : static_cast<float>(SCR_WIDTH) / static_cast<float>(SCR_HEIGHT);
             const glm::mat4 projection_3d = glm::perspective(
                 glm::radians(60.0f),
-                static_cast<float>(SCR_WIDTH) / static_cast<float>(SCR_HEIGHT),
+                aspect_ratio,
                 0.1f,
                 1000.0f
             );

@@ -146,6 +146,39 @@
   - 外部サンプル 2 本以上での再利用成立は Wave 4 として別途継続する。
   - 次のコア着手は `C2-03` / `C2-04`。
 
+### 2026-03-08 run: manual issue-362 directional light 1 灯と最小陰影を追加
+
+- 背景:
+  - `C2-03` として、3D arena の床 / 壁 / プレイヤーに陰影差を付け、G4 最小シーンの立体感を補う必要があった。
+- 変更:
+  - `core/src/renderer/MeshManager.cpp` で OBJ の法線読み込み / 面法線補完を追加し、3D メッシュを `position + uv + normal` でアップロードするようにした。
+  - `core/src/shaders/lit_textured.vert` / `core/src/shaders/lit_textured.frag` を追加し、Lambert 相当の directional light 1 灯を使う 3D 用 shader を導入した。
+  - `core/src/main.cpp` で 2D `textured` shader と 3D `lit_textured` shader を分離し、3D material / directional light uniform / instancing attribute を 3D cube mesh にも接続した。
+  - `logic/src/lib.rs` で 3D arena の renderable に `MATERIAL_ID_LIT_TEXTURED_3D` を割り当て、2D/3D の shader 契約を material_id で分離した。
+  - `scripts/package_macos_game.sh` / `scripts/test_distribution_smoke.sh` と C2/Core/Game track 文書を更新し、新規 shader 配布物と `C2-03` 完了状態を同期した。
+  - 関連ファイル:
+    - `core/src/renderer/MeshManager.cpp`
+    - `core/src/main.cpp`
+    - `core/src/shaders/lit_textured.vert`
+    - `core/src/shaders/lit_textured.frag`
+    - `core/src/shaders/textured.vert`
+    - `logic/src/lib.rs`
+    - `scripts/package_macos_game.sh`
+    - `scripts/test_distribution_smoke.sh`
+    - `docs/CORE_3D_FOUNDATION_CONTRACT.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/GAME_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `PLAN.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `cargo test --manifest-path logic/Cargo.toml --lib -- --nocapture`
+  - `cmake --build build -j`
+  - `./scripts/test_game_track_g2.sh`
+  - `./scripts/test_distribution_smoke.sh`
+- 未解決:
+  - `C2-04` の 2D/3D 共存回帰ハーネスは別 issue で継続する。
+
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 
 - 背景:

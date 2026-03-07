@@ -1155,6 +1155,7 @@ const ASSET_INTEGRITY_CHECK_INTERVAL_FRAMES: u32 = 30;
 const MESH_ID_QUAD_2D: u32 = 1;
 const MESH_ID_ARENA_CUBE_3D: u32 = 100;
 const MATERIAL_ID_TEXTURED: u32 = 1;
+const MATERIAL_ID_LIT_TEXTURED_3D: u32 = 2;
 const ARENA_HALF_EXTENT: f32 = 110.0;
 const ARENA_WALL_THICKNESS: f32 = 8.0;
 const ARENA_WALL_HEIGHT: f32 = 24.0;
@@ -2022,7 +2023,7 @@ impl Game {
             },
             RenderMesh {
                 mesh_id: MESH_ID_ARENA_CUBE_3D,
-                material_id: MATERIAL_ID_TEXTURED,
+                material_id: MATERIAL_ID_LIT_TEXTURED_3D,
                 is_3d: true,
             },
             Player,
@@ -2058,7 +2059,7 @@ impl Game {
             Material { texture_handle },
             RenderMesh {
                 mesh_id: MESH_ID_ARENA_CUBE_3D,
-                material_id: MATERIAL_ID_TEXTURED,
+                material_id: MATERIAL_ID_LIT_TEXTURED_3D,
                 is_3d: true,
             },
         ));
@@ -3027,7 +3028,8 @@ mod tests {
 
     use super::{
         ffi, runtime_bridge, save, ui, Archetype, ComponentBundle, ComponentType, Game, GameState,
-        Material, MovementPreset, RunMode, SystemRegistry, MESH_ID_ARENA_CUBE_3D,
+        Material, MovementPreset, RunMode, SystemRegistry, MATERIAL_ID_LIT_TEXTURED_3D,
+        MESH_ID_ARENA_CUBE_3D,
         MESH_ID_QUAD_2D,
     };
     use std::collections::HashSet;
@@ -3481,6 +3483,12 @@ mod tests {
                 .iter()
                 .filter(|renderable| renderable.is_3d)
                 .all(|renderable| renderable.mesh_id == MESH_ID_ARENA_CUBE_3D)
+        );
+        assert!(
+            game.renderables
+                .iter()
+                .filter(|renderable| renderable.is_3d)
+                .all(|renderable| renderable.material_id == MATERIAL_ID_LIT_TEXTURED_3D)
         );
     }
 

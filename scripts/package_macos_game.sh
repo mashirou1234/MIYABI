@@ -126,7 +126,9 @@ echo "[package] create checksum"
     shaders/text.vert \
     shaders/text.frag \
     shaders/textured.vert \
-    shaders/textured.frag > SHA256SUMS.txt
+    shaders/textured.frag \
+    shaders/lit_textured.vert \
+    shaders/lit_textured.frag > SHA256SUMS.txt
 )
 
 echo "[package] archive"
