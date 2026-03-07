@@ -101,6 +101,21 @@
 ## 2. この移行で反映した内容
 
 ※ `0.2 移行記録テンプレ（標準）` の形式で追記する。既存履歴は互換性のため維持する。
+### 2026-03-07 run: manual 配布生成物 dist を gitignore へ追加
+
+- 背景:
+  - `scripts/package_macos_game.sh` による配布生成物 `dist/` が未追跡差分として残り、通常のレビュー差分と混ざっていた。
+- 変更:
+  - `.gitignore` に `/dist/` を追加し、配布 ZIP と展開済み配布物を Git 管理対象から外した。
+  - 関連ファイル:
+    - `.gitignore`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `git status --short --branch`
+  - `git diff --check`
+- 未解決:
+  - 既に手元に生成済みの `dist/` 自体はローカルに残るが、以後は未追跡差分として表示されない。
+
 ### 2026-03-07 run: manual 完成ロードマップを追加
 
 - 背景:

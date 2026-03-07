@@ -20,6 +20,7 @@ logic_dylib/
 # Local automation and ad-hoc build outputs
 /artifacts/
 /build_*/
+/dist/
 
 # Python cache
 **/__pycache__/
