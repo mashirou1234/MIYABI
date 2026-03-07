@@ -220,6 +220,38 @@
 - 未解決:
   - Core の次段は `#366` / `#367`（C3）で継続する。
 
+### 2026-03-08 run: manual issue-364 3D run の勝敗導線を接続
+
+- 背景:
+  - `G4-02` として、3D arena を `Pause / GAME OVER / CLEAR / Retry` まで繋ぎ、2D run に戻らず 3D run を再開できる最小 loop を固定する必要があった。
+- 変更:
+  - `sample_game_runtime/src/lib.rs` に `SampleGameRunMode` と `SampleGameLoop::from_state_and_mode()` / `run_mode()` を追加し、`RetryGame` が直前の 2D/3D run mode に応じて `StartNewRun` / `StartNew3dRun` を返すようにした。
+  - `sample_game/src/lib.rs` と `sample_game/tests/flow_contract.rs` を更新し、`Start 3D Arena -> Result -> RetryGame` が 3D run へ戻る契約を固定した。
+  - `logic/src/lib.rs` で `RunMode` と `SampleGameRunMode` の変換を追加し、Title / InGame / Pause / Result / deserialize 復元時に run mode を `SampleGameLoop` へ保持するようにした。
+  - `logic/src/lib.rs` の 3D run 更新処理に、HP 0 の `GAME OVER`、`180.0 sec` 到達時の `CLEAR`、difficulty / score 更新、`3D Arena Result` 表示を追加した。
+  - `logic` の targeted test と `scripts/test_game_track_g4.sh` を追加し、Pause / GAME OVER / CLEAR / Retry の headless スモークを `artifacts/g4_02_3d_run_flow_latest.log` へ残せるようにした。
+  - `README.md` / `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md` / `docs/GAME_DEVELOPMENT_TRACK.md` / `docs/COMPLETION_ROADMAP.md` / `docs/SAMPLE_GAME_CORE_BOUNDARY.md` / `PLAN.md` を更新し、`G4-02` 完了と残件 `G4-03` を同期した。
+  - 関連ファイル:
+    - `sample_game_runtime/src/lib.rs`
+    - `sample_game/src/lib.rs`
+    - `sample_game/tests/flow_contract.rs`
+    - `logic/src/lib.rs`
+    - `scripts/test_game_track_g4.sh`
+    - `README.md`
+    - `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
+    - `docs/GAME_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+    - `PLAN.md`
+- 検証:
+  - `cargo test --manifest-path sample_game/Cargo.toml -- --nocapture`
+  - `cargo test --manifest-path logic/Cargo.toml --lib -- --nocapture`
+  - `cmake --build build -j`
+  - `./scripts/test_game_track_g4.sh`
+- 未解決:
+  - `G4-03` の障害物導入までは、3D `GAME OVER` は headless test で `hp=0` を与える最小導線に留まる。
+
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 
 - 背景:

@@ -40,7 +40,6 @@
 - 現在ステージ: **G3**
 - 次ゲート: **G4**
 - 直近不足:
-  - 3D run の勝敗導線 (`G4-02`)
   - 3D 障害物 1 系統 (`G4-03`)
 
 ## 4. 管理ドキュメント
@@ -128,8 +127,20 @@ Issue コメントまたは PR に残すテンプレート:
 - 正本: `docs/SPEC_SAMPLE_GAME_3D_VERTICAL_SLICE.md`
 - 最初の実装 Task:
   - `G4-01`: 3D arena の最小起動（2026-03-08 実装済み）
-  - `G4-02`: 3D run の勝敗導線
+  - `G4-02`: 3D run の勝敗導線（2026-03-08 実装済み）
   - `G4-03`: 3D 障害物 1 系統
+
+## 5.4 G4-02 3D run 勝敗導線スモーク
+
+G4-02 証跡は、Pause / GAME OVER / CLEAR / Retry の headless 導線を 1 コマンドで再実行できることを優先する。
+
+- 最小再現コマンド:
+  - `./scripts/test_game_track_g4.sh`
+- 期待結果:
+  - `start_3d_arena_pause_and_back_to_title_flow_is_reachable` が PASS
+  - `start_3d_arena_game_over_reaches_result_screen` が PASS
+  - `start_3d_arena_clear_and_retry_stays_in_3d` が PASS
+  - `artifacts/g4_02_3d_run_flow_latest.log` に summary が出力される
 
 ## 6. マイルストーン証跡リンク
 

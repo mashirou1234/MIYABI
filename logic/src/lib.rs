@@ -5,7 +5,8 @@ pub mod save;
 use crate::ui::Button;
 use rand::Rng;
 use sample_game_runtime::{
-    SampleGameButtonAction, SampleGameEffect, SampleGameEvent, SampleGameLoop, SampleGameState,
+    SampleGameButtonAction, SampleGameEffect, SampleGameEvent, SampleGameLoop, SampleGameRunMode,
+    SampleGameState,
 };
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -1162,6 +1163,7 @@ const ARENA_WALL_HEIGHT: f32 = 24.0;
 const ARENA_FLOOR_Y: f32 = -18.0;
 const ARENA_PLAYER_SIZE: f32 = 18.0;
 const ARENA_PLAYER_MOVE_SPEED: f32 = 120.0;
+const ARENA_CLEAR_TIME_SEC: f32 = 180.0;
 
 fn resolve_runtime_path(relative_path: &str) -> PathBuf {
     let direct = PathBuf::from(relative_path);
@@ -1188,6 +1190,13 @@ fn sample_state_for_game_state(game_state: GameState) -> SampleGameState {
         GameState::SpriteStressTest | GameState::PhysicsStressTest | GameState::UIStressTest => {
             SampleGameState::Title
         }
+    }
+}
+
+fn sample_run_mode_for_run_mode(run_mode: RunMode) -> SampleGameRunMode {
+    match run_mode {
+        RunMode::BoxSurvival2d => SampleGameRunMode::BoxSurvival2d,
+        RunMode::Arena3d => SampleGameRunMode::Arena3d,
     }
 }
 
@@ -1800,7 +1809,10 @@ impl Game {
 
     pub(crate) fn setup_title_screen(&mut self) {
         self.clear_runtime_world();
-        self.sample_loop = SampleGameLoop::from_state(SampleGameState::Title);
+        self.sample_loop = SampleGameLoop::from_state_and_mode(
+            SampleGameState::Title,
+            SampleGameRunMode::BoxSurvival2d,
+        );
         self.current_state = GameState::Title;
         self.esc_was_pressed = false;
         self.apply_runtime_bgm_for_state();
@@ -1840,7 +1852,10 @@ impl Game {
 
     pub(crate) fn start_new_run(&mut self) {
         self.clear_runtime_world();
-        self.sample_loop = SampleGameLoop::from_state(SampleGameState::InGame);
+        self.sample_loop = SampleGameLoop::from_state_and_mode(
+            SampleGameState::InGame,
+            SampleGameRunMode::BoxSurvival2d,
+        );
         self.current_state = GameState::InGame;
         self.run_mode = RunMode::BoxSurvival2d;
         self.esc_was_pressed = false;
@@ -1930,7 +1945,10 @@ impl Game {
 
     fn start_new_3d_run(&mut self) {
         self.clear_runtime_world();
-        self.sample_loop = SampleGameLoop::from_state(SampleGameState::InGame);
+        self.sample_loop = SampleGameLoop::from_state_and_mode(
+            SampleGameState::InGame,
+            SampleGameRunMode::Arena3d,
+        );
         self.current_state = GameState::InGame;
         self.run_mode = RunMode::Arena3d;
         self.esc_was_pressed = false;
@@ -2067,7 +2085,10 @@ impl Game {
 
     fn setup_pause_menu(&mut self) {
         self.clear_menu_buttons();
-        self.sample_loop = SampleGameLoop::from_state(SampleGameState::Pause);
+        self.sample_loop = SampleGameLoop::from_state_and_mode(
+            SampleGameState::Pause,
+            sample_run_mode_for_run_mode(self.run_mode),
+        );
         self.world.spawn((Button {
             rect: ui::Rect {
                 x: 300.0,
@@ -2093,7 +2114,10 @@ impl Game {
 
     fn setup_result_menu(&mut self) {
         self.clear_menu_buttons();
-        self.sample_loop = SampleGameLoop::from_state(SampleGameState::Result);
+        self.sample_loop = SampleGameLoop::from_state_and_mode(
+            SampleGameState::Result,
+            sample_run_mode_for_run_mode(self.run_mode),
+        );
         self.apply_runtime_bgm_for_state();
         self.world.spawn((Button {
             rect: ui::Rect {
@@ -2575,6 +2599,19 @@ impl Game {
                 w: 1.0,
             },
         });
+        if self.run_mode == RunMode::Arena3d {
+            self.text_commands.push(ffi::TextCommand {
+                text: "3D Arena Result".to_string(),
+                position: ffi::Vec2 { x: 300.0, y: 410.0 },
+                font_size: 18.0,
+                color: ffi::Vec4 {
+                    x: 0.75,
+                    y: 0.9,
+                    z: 1.0,
+                    w: 1.0,
+                },
+            });
+        }
         self.text_commands.push(ffi::TextCommand {
             text: format!("Score: {}", self.score),
             position: ffi::Vec2 { x: 300.0, y: 390.0 },
@@ -2852,7 +2889,22 @@ impl Game {
     fn update_in_game_3d(&mut self) {
         self.update_player_3d();
         self.survival_time_sec += FIXED_DT_SEC;
+        self.difficulty_level = (self.survival_time_sec / 60.0).floor() as u32 + 1;
         self.score = (self.survival_time_sec as u32).saturating_mul(10);
+
+        if self.hp <= 0 {
+            self.result_is_clear = false;
+            self.apply_result_to_progress_and_persist();
+            self.dispatch_sample_event(SampleGameEvent::RunFailed);
+            return;
+        }
+        if self.survival_time_sec >= ARENA_CLEAR_TIME_SEC {
+            self.result_is_clear = true;
+            self.apply_result_to_progress_and_persist();
+            self.dispatch_sample_event(SampleGameEvent::RunCleared);
+            return;
+        }
+
         self.process_asset_server();
         self.build_renderables();
         self.push_hud_text();
@@ -3028,9 +3080,8 @@ mod tests {
 
     use super::{
         ffi, runtime_bridge, save, ui, Archetype, ComponentBundle, ComponentType, Game, GameState,
-        Material, MovementPreset, RunMode, SystemRegistry, MATERIAL_ID_LIT_TEXTURED_3D,
-        MESH_ID_ARENA_CUBE_3D,
-        MESH_ID_QUAD_2D,
+        Material, MovementPreset, RunMode, SystemRegistry, ARENA_CLEAR_TIME_SEC, FIXED_DT_SEC,
+        MATERIAL_ID_LIT_TEXTURED_3D, MESH_ID_ARENA_CUBE_3D, MESH_ID_QUAD_2D,
     };
     use std::collections::HashSet;
     use std::path::PathBuf;
@@ -3614,6 +3665,70 @@ mod tests {
         assert_eq!(game.current_state, GameState::Title);
 
         println!("[c2-04][3d-flow] pause-and-back-to-title=pass");
+        println!("[g4-02][pause-back] pause-and-back-to-title=pass");
+    }
+
+    #[test]
+    fn start_3d_arena_game_over_reaches_result_screen() {
+        let mut game = new_game_for_test("3d-game-over");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+
+        game.hp = 0;
+        game.input_state = ffi::InputState::default();
+        game.update();
+
+        assert_eq!(game.current_state, GameState::Result);
+        assert_eq!(game.run_mode, RunMode::Arena3d);
+        assert!(!game.result_is_clear);
+
+        game.input_state = ffi::InputState::default();
+        game.update();
+        let texts = text_command_texts(&game);
+        assert!(texts.iter().any(|text| text == "GAME OVER"));
+        assert!(texts.iter().any(|text| text == "3D Arena Result"));
+        assert!(texts.iter().any(|text| text.starts_with("Score:")));
+
+        println!(
+            "[g4-02][game-over] state={:?} run_mode={:?} texts={:?}",
+            game.current_state, game.run_mode, texts
+        );
+    }
+
+    #[test]
+    fn start_3d_arena_clear_and_retry_stays_in_3d() {
+        let mut game = new_game_for_test("3d-clear-retry");
+        click_button(&mut game, SampleGameButtonAction::Start3dArena.action_id());
+
+        game.survival_time_sec = ARENA_CLEAR_TIME_SEC - FIXED_DT_SEC;
+        game.input_state = ffi::InputState::default();
+        game.update();
+
+        assert_eq!(game.current_state, GameState::Result);
+        assert_eq!(game.run_mode, RunMode::Arena3d);
+        assert!(game.result_is_clear);
+
+        game.input_state = ffi::InputState::default();
+        game.update();
+        let result_texts = text_command_texts(&game);
+        assert!(result_texts.iter().any(|text| text == "CLEAR"));
+        assert!(result_texts.iter().any(|text| text == "3D Arena Result"));
+        assert!(result_texts
+            .iter()
+            .any(|text| text == &format!("Survival: {:.1} sec", ARENA_CLEAR_TIME_SEC)));
+
+        click_button(&mut game, SampleGameButtonAction::RetryGame.action_id());
+        assert_eq!(game.current_state, GameState::InGame);
+        assert_eq!(game.run_mode, RunMode::Arena3d);
+        assert!(game.survival_time_sec < 1.0);
+
+        let retry_texts = text_command_texts(&game);
+        assert!(retry_texts.iter().any(|text| text == "3D Arena Prototype"));
+        assert!(retry_texts.iter().any(|text| text.starts_with("HP:")));
+
+        println!(
+            "[g4-02][clear-retry] result_texts={:?} retry_texts={:?}",
+            result_texts, retry_texts
+        );
     }
 }
 
@@ -3705,7 +3820,10 @@ pub extern "C" fn deserialize_game(json: *const c_char) -> *mut Game {
     game.save_data = game.save_data.sanitized();
     game.total_play_count = game.save_data.progress.total_play_count;
     game.save_file_path = PathBuf::from(SAVE_FILE_REL_PATH);
-    game.sample_loop = SampleGameLoop::from_state(sample_state_for_game_state(game.current_state));
+    game.sample_loop = SampleGameLoop::from_state_and_mode(
+        sample_state_for_game_state(game.current_state),
+        sample_run_mode_for_run_mode(game.run_mode),
+    );
     game.apply_runtime_audio_settings();
     game.apply_runtime_fullscreen_setting();
     game.apply_runtime_bgm_for_state();

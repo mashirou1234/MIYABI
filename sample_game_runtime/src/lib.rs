@@ -9,6 +9,12 @@ pub enum SampleGameState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SampleGameRunMode {
+    BoxSurvival2d,
+    Arena3d,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SampleGameButtonAction {
     StartGame,
     Start3dArena,
@@ -91,6 +97,7 @@ pub enum SampleGameEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SampleGameLoop {
     state: SampleGameState,
+    run_mode: SampleGameRunMode,
 }
 
 impl Default for SampleGameLoop {
@@ -101,15 +108,23 @@ impl Default for SampleGameLoop {
 
 impl SampleGameLoop {
     pub fn new() -> Self {
-        Self::from_state(SampleGameState::Title)
+        Self::from_state_and_mode(SampleGameState::Title, SampleGameRunMode::BoxSurvival2d)
     }
 
     pub fn from_state(state: SampleGameState) -> Self {
-        Self { state }
+        Self::from_state_and_mode(state, SampleGameRunMode::BoxSurvival2d)
+    }
+
+    pub fn from_state_and_mode(state: SampleGameState, run_mode: SampleGameRunMode) -> Self {
+        Self { state, run_mode }
     }
 
     pub fn state(&self) -> SampleGameState {
         self.state
+    }
+
+    pub fn run_mode(&self) -> SampleGameRunMode {
+        self.run_mode
     }
 
     pub fn dispatch(&mut self, event: SampleGameEvent) -> Vec<SampleGameEffect> {
@@ -128,7 +143,8 @@ impl SampleGameLoop {
 
     fn handle_button_action(&mut self, action: SampleGameButtonAction) -> Vec<SampleGameEffect> {
         match action {
-            SampleGameButtonAction::StartGame | SampleGameButtonAction::RetryGame => {
+            SampleGameButtonAction::StartGame => {
+                self.run_mode = SampleGameRunMode::BoxSurvival2d;
                 self.state = SampleGameState::InGame;
                 vec![
                     SampleGameEffect::PlayClickSound,
@@ -136,11 +152,25 @@ impl SampleGameLoop {
                 ]
             }
             SampleGameButtonAction::Start3dArena => {
+                self.run_mode = SampleGameRunMode::Arena3d;
                 self.state = SampleGameState::InGame;
                 vec![
                     SampleGameEffect::PlayClickSound,
                     SampleGameEffect::StartNew3dRun,
                 ]
+            }
+            SampleGameButtonAction::RetryGame => {
+                self.state = SampleGameState::InGame;
+                match self.run_mode {
+                    SampleGameRunMode::BoxSurvival2d => vec![
+                        SampleGameEffect::PlayClickSound,
+                        SampleGameEffect::StartNewRun,
+                    ],
+                    SampleGameRunMode::Arena3d => vec![
+                        SampleGameEffect::PlayClickSound,
+                        SampleGameEffect::StartNew3dRun,
+                    ],
+                }
             }
             SampleGameButtonAction::ResumeGame => {
                 self.state = SampleGameState::InGame;
