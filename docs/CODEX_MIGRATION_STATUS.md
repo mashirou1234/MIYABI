@@ -280,6 +280,35 @@
 - 未解決:
   - ゲーム側の 3D 縦切り残件は解消した。次段は `#366` / `#367` と `Wave 4` の継続運用。
 
+### 2026-03-08 run: manual issue-366 3D シーン性能ベースライン採取を自動化
+
+- 背景:
+  - `C3` の初手として、代表 3D シーンの perf 値を手順ではなく 1 コマンドで再取得し、baseline compare と記録先まで固定する必要があった。
+- 変更:
+  - `logic/src/perf.rs` に `arena3d_renderable_build` scenario を追加し、`Arena3d` の floor / walls / player / 3D cube 群を使う代表 3D scene renderable build を baseline 対象へ加えた。
+  - `logic/src/bin/perf_baseline.rs` に `--arena3d-obstacles` を追加し、3D scene の規模を CLI から調整できるようにした。
+  - `scripts/test_core_c3_3d_perf_baseline.sh` を追加し、`perf_baseline` 実行、`tools/check_perf_regression.py` 比較、`build/perf/logs/` への compare log 保存、`artifacts/c3_3d_perf_baseline_latest.log` への summary 出力を 1 run で行うようにした。
+  - `docs/perf/baseline_macos14.json` / `PERFORMANCE_TEST.md` / `docs/perf/PERF_BASELINE.md` / `README.md` / `docs/CORE_DEVELOPMENT_TRACK.md` / `docs/CORE_3D_PRODUCTION_BASELINE.md` / `docs/COMPLETION_ROADMAP.md` / `PLAN.md` を更新し、`#366` 完了と `#367` のみが C3 残件である状態へ同期した。
+  - 関連ファイル:
+    - `logic/src/perf.rs`
+    - `logic/src/bin/perf_baseline.rs`
+    - `scripts/test_core_c3_3d_perf_baseline.sh`
+    - `docs/perf/baseline_macos14.json`
+    - `PERFORMANCE_TEST.md`
+    - `docs/perf/PERF_BASELINE.md`
+    - `README.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/CORE_3D_PRODUCTION_BASELINE.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `PLAN.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+- 検証:
+  - `cargo test --manifest-path logic/Cargo.toml perf -- --nocapture`
+  - `./scripts/test_core_c3_3d_perf_baseline.sh`
+  - `cmake --build build -j`
+- 未解決:
+  - `C3` の残件は `#367` の 3D アセット検証コマンド追加。
+
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 
 - 背景:

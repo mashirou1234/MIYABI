@@ -46,6 +46,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             "--scene-entities" => {
                 config.scene_entity_count = parse_usize_arg("--scene-entities", args.next())?;
             }
+            "--arena3d-obstacles" => {
+                config.arena3d_obstacle_count =
+                    parse_usize_arg("--arena3d-obstacles", args.next())?;
+            }
             "--json-compact" => {
                 json_compact = true;
             }
@@ -96,5 +100,6 @@ fn print_help() {
     println!("  --ui-rows <n>           UI行数 (default: 30)");
     println!("  --ui-cols <n>           UI列数 (default: 40)");
     println!("  --scene-entities <n>    シーン構築破棄のエンティティ数 (default: 5000)");
+    println!("  --arena3d-obstacles <n> 3D scene の obstacle 数 (default: 128)");
     println!("  --json-compact          1行JSONで出力する");
 }

@@ -1,4 +1,7 @@
-use crate::{ffi, ComponentType, InternalWorld, Material, Sprite};
+use crate::{
+    ffi, ComponentType, InternalWorld, Material, RenderMesh, Sprite,
+    MATERIAL_ID_LIT_TEXTURED_3D, MESH_ID_ARENA_CUBE_3D,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Command;
@@ -7,8 +10,10 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 pub const PERF_SCENARIO_SPRITE_RENDERABLE_BUILD: &str = "sprite_renderable_build";
 pub const PERF_SCENARIO_UI_TEXT_COMMAND_BUILD: &str = "ui_text_command_build";
 pub const PERF_SCENARIO_SCENE_CONSTRUCT_DESTRUCT: &str = "scene_construct_destruct";
+pub const PERF_SCENARIO_ARENA3D_RENDERABLE_BUILD: &str = "arena3d_renderable_build";
 
-pub const PERF_SCENARIO_KEYS: [&str; 3] = [
+pub const PERF_SCENARIO_KEYS: [&str; 4] = [
+    PERF_SCENARIO_ARENA3D_RENDERABLE_BUILD,
     PERF_SCENARIO_SPRITE_RENDERABLE_BUILD,
     PERF_SCENARIO_UI_TEXT_COMMAND_BUILD,
     PERF_SCENARIO_SCENE_CONSTRUCT_DESTRUCT,
@@ -22,6 +27,7 @@ pub struct PerfConfig {
     pub ui_items_per_row: usize,
     pub ui_items_per_col: usize,
     pub scene_entity_count: usize,
+    pub arena3d_obstacle_count: usize,
 }
 
 impl Default for PerfConfig {
@@ -33,6 +39,7 @@ impl Default for PerfConfig {
             ui_items_per_row: 30,
             ui_items_per_col: 40,
             scene_entity_count: 5_000,
+            arena3d_obstacle_count: 128,
         }
     }
 }
@@ -59,9 +66,14 @@ pub struct PerfReport {
 pub fn run_performance_baseline(config: PerfConfig) -> PerfReport {
     let sprite_world = build_sprite_world(config.sprite_count);
     let texture_map = build_texture_map(config.sprite_count);
+    let arena3d_world = build_arena3d_world(config.arena3d_obstacle_count);
 
     let sprite_samples = benchmark_samples(config.warmup_iterations, config.iterations, || {
         let _renderables = build_renderables_from_world(&sprite_world, &texture_map);
+    });
+
+    let arena3d_samples = benchmark_samples(config.warmup_iterations, config.iterations, || {
+        let _renderables = build_renderables_from_world(&arena3d_world, &texture_map);
     });
 
     let ui_samples = benchmark_samples(config.warmup_iterations, config.iterations, || {
@@ -85,6 +97,7 @@ pub fn run_performance_baseline(config: PerfConfig) -> PerfReport {
         git_commit,
         config,
         scenarios: vec![
+            summarize_samples(PERF_SCENARIO_ARENA3D_RENDERABLE_BUILD, &arena3d_samples),
             summarize_samples(PERF_SCENARIO_SPRITE_RENDERABLE_BUILD, &sprite_samples),
             summarize_samples(PERF_SCENARIO_UI_TEXT_COMMAND_BUILD, &ui_samples),
             summarize_samples(PERF_SCENARIO_SCENE_CONSTRUCT_DESTRUCT, &scene_samples),
@@ -226,22 +239,94 @@ fn build_renderables_from_world(
         let Some(materials) = material_storage.downcast_ref::<Vec<Material>>() else {
             continue;
         };
+        let render_meshes = archetype
+            .storage
+            .get(&ComponentType::RenderMesh)
+            .and_then(|storage| storage.downcast_ref::<Vec<RenderMesh>>());
 
-        for (transform, material) in transforms.iter().zip(materials.iter()) {
+        for (index, (transform, material)) in transforms.iter().zip(materials.iter()).enumerate() {
             let texture_id = texture_map
                 .get(&material.texture_handle)
                 .copied()
                 .unwrap_or(0);
+            let render_mesh = render_meshes.and_then(|items| items.get(index));
             renderables.push(ffi::RenderableObject {
                 transform: *transform,
-                mesh_id: 1,
-                material_id: 1,
+                mesh_id: render_mesh.map(|mesh| mesh.mesh_id).unwrap_or(1),
+                material_id: render_mesh.map(|mesh| mesh.material_id).unwrap_or(1),
                 texture_id,
-                is_3d: false,
+                is_3d: render_mesh.map(|mesh| mesh.is_3d).unwrap_or(false),
             });
         }
     }
     renderables
+}
+
+fn build_arena3d_world(obstacle_count: usize) -> InternalWorld {
+    let mut world = InternalWorld::new();
+
+    for (x, y, z, sx, sy, sz) in [
+        (0.0, -18.0, 0.0, 220.0, 6.0, 220.0),
+        (-110.0, 0.0, 0.0, 8.0, 24.0, 220.0),
+        (110.0, 0.0, 0.0, 8.0, 24.0, 220.0),
+        (0.0, 0.0, -110.0, 220.0, 24.0, 8.0),
+        (0.0, 0.0, 110.0, 220.0, 24.0, 8.0),
+        (0.0, 0.0, 48.0, 18.0, 18.0, 18.0),
+    ] {
+        world.spawn((
+            ffi::Transform {
+                position: ffi::Vec3 { x, y, z },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: sx,
+                    y: sy,
+                    z: sz,
+                },
+            },
+            Material { texture_handle: 1 },
+            RenderMesh {
+                mesh_id: MESH_ID_ARENA_CUBE_3D,
+                material_id: MATERIAL_ID_LIT_TEXTURED_3D,
+                is_3d: true,
+            },
+        ));
+    }
+
+    let lanes_per_row = 8usize;
+    for i in 0..obstacle_count {
+        let lane = i % lanes_per_row;
+        let row = i / lanes_per_row;
+        let x = -84.0 + lane as f32 * 24.0;
+        let z = 72.0 - (row % lanes_per_row) as f32 * 24.0;
+        let y = 18.0 + row as f32 * 6.0;
+        world.spawn((
+            ffi::Transform {
+                position: ffi::Vec3 { x, y, z },
+                rotation: ffi::Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: ffi::Vec3 {
+                    x: 18.0,
+                    y: 18.0,
+                    z: 18.0,
+                },
+            },
+            Material { texture_handle: 1 },
+            RenderMesh {
+                mesh_id: MESH_ID_ARENA_CUBE_3D,
+                material_id: MATERIAL_ID_LIT_TEXTURED_3D,
+                is_3d: true,
+            },
+        ));
+    }
+
+    world
 }
 
 fn build_ui_text_commands(items_per_row: usize, items_per_col: usize) -> Vec<ffi::TextCommand> {
@@ -327,6 +412,7 @@ mod baseline_key_tests {
         assert_eq!(
             missing,
             vec![
+                "arena3d_renderable_build".to_string(),
                 "scene_construct_destruct".to_string(),
                 "ui_text_command_build".to_string()
             ]

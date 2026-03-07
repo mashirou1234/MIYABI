@@ -124,6 +124,7 @@ python3 tools/check_perf_regression.py \
 
 | scenario | baseline_avg_ms | max_regression_pct |
 | --- | ---: | ---: |
+| `arena3d_renderable_build` | 0.004 | 200 |
 | `sprite_renderable_build` | 0.121 | 200 |
 | `ui_text_command_build` | 0.069 | 200 |
 | `scene_construct_destruct` | 1.364 | 200 |
@@ -159,6 +160,20 @@ python3 tools/check_perf_regression.py \
    ```
 4. 意図した変更のみであることを確認後、`build/perf/current_baseline.json` の内容を `docs/perf/baseline_macos14.json` に反映し、`generated_on` を更新する。
 5. PR には `PERFORMANCE_TEST.md`、`docs/perf/baseline_macos14.json`、`build/perf/regression_report.md` の確認結果を記載する。
+
+### 4.6.1 C3 3D scene baseline の最小採取コマンド
+
+代表 3D シーンの baseline 採取は、次の 1 コマンドを正本とする。
+
+```bash
+./scripts/test_core_c3_3d_perf_baseline.sh
+```
+
+期待結果:
+- `build/perf/current_baseline.json` が更新される
+- `build/perf/regression_report.md` が更新される
+- `build/perf/regression_report.md` に `arena3d_renderable_build` 行が含まれる
+- `artifacts/c3_3d_perf_baseline_latest.log` に最新 summary が残る
 
 ### 4.7 baseline 更新レビューのチェックリスト
 
