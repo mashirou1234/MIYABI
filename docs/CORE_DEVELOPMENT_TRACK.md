@@ -47,10 +47,11 @@
 
 ## 3. 現在地
 
-- 現在ステージ: **C1**
-- 次ゲート: **C2**
+- 現在ステージ: **C2**
+- 次ゲート: **C3**
 - 直近不足:
-  - 2D/3D 共存回帰ハーネス (`C2-04`)
+  - 3D シーン性能ベースライン採取 (`#366`)
+  - 3D アセット検証コマンド (`#367`)
 
 ## 4. 管理ドキュメント
 
@@ -61,12 +62,16 @@
 
 - C2 の最小契約: `docs/CORE_3D_FOUNDATION_CONTRACT.md`
 - C3/C4 の基盤 / 評価軸: `docs/CORE_3D_PRODUCTION_BASELINE.md`
-- 2026-03-08 実装済み: `C2-01` / `C2-02` / `C2-03`
-- 次段の残件: `C2-04`
+- 2026-03-08 実装済み: `C2-01` / `C2-02` / `C2-03` / `C2-04`
+- 次段の残件: `#366` / `#367`
 
 ## 4.2 C1 証跡
 
 - `#361`: SDK 外部サンプル再利用スモークを追加し、`sample_game` 以外の temp project で `MIYABI::SDK` の configure/build/run が通ることを確認
+
+## 4.3 C2 証跡
+
+- `#363`: `scripts/test_core_2d_3d_coexistence.sh` で 2D title UI/text、3D arena overlay/render log、`G2/G3` スモークを 1 コマンドで再実行できるようにした
 
 ## 5. ステージ別 完了定義（DoD）
 
