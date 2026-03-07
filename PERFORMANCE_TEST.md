@@ -84,6 +84,12 @@
 命名規則（最小例）:
 - ベースライン: `baseline_<os><major>.json`（例: `baseline_macos14.json`）
 - Run別記録: `report_<yyyyMMdd>_<env>.md`（例: `report_20260303_macos14.md`）
+- 比較ログ: `perf_regression_<yyyyMMdd-HHmmss>_<env>_<gitsha7>.log`（例: `perf_regression_20260307-112300_macos14_a1b2c3d.log`）
+
+補足:
+- `<env>` は `macos14-release` のように「OS+主要版+build種別」を連結する。
+- 同一コミットで再計測する場合も `yyyyMMdd-HHmmss` を更新して上書きを避ける。
+- 比較ログは `build/perf/logs/` に保存し、PR説明には採用したログファイル名を明記する。
 
 ---
 
