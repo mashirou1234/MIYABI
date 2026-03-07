@@ -171,6 +171,23 @@ SDK展開後、最短で ABI 整合を確認する手順を以下に固定する
 
 所有権/メモリルールは `docs/DESIGN_FFI.md` と `core/include/miyabi/miyabi.h` を正とする。
 
+### 6.1 外部サンプル再利用スモーク
+
+`sample_game` ではなく SDK 同梱サンプルを temp project で configure/build/run し、外部利用導線が成立することを最小証跡とする。
+
+基準コマンド:
+
+```bash
+./build_sdk.sh
+./scripts/test_sdk_external_sample_reuse.sh ./sdk
+```
+
+このスモークは以下を同時に確認する。
+
+- `sdk/template_CMakeLists.txt` が `find_package(MIYABI CONFIG REQUIRED)` で解決できる
+- `sdk/examples/main.cpp` が `MIYABI::SDK` を経由してビルドできる
+- `init_engine_systems()` → `get_miyabi_vtable()` → `create_game()` → `update_game()` → `destroy_game()` → `shutdown_engine_systems()` の最小実行契約が外部 project でも通る
+
 ## 7. 非スコープ (v0.1)
 
 - ABI互換性の長期保証（同一ZIP内整合のみ保証）

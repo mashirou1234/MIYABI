@@ -66,6 +66,20 @@ MIYABI_SDK_VALIDATE_ONLY=1 ./build_sdk.sh
 - 失敗時は `ERROR: Required SDK artifacts are missing:` の下に不足ファイル一覧が出ること
 - 検証対象の必須同梱物は `build_sdk.sh` の `REQUIRED_ARTIFACTS`（`docs/SDK_DEFINITION.md` を含む）と一致していること
 
+### SDK 外部サンプル再利用スモーク（15〜30分目安）
+
+SDK を temp project へコピーし、`find_package(MIYABI CONFIG REQUIRED)` の外部利用導線が実際に通るかを確認する最短手順です。
+
+```bash
+./build_sdk.sh
+./scripts/test_sdk_external_sample_reuse.sh ./sdk
+```
+
+確認ポイント:
+- temp project が `sdk/template_CMakeLists.txt` と `sdk/examples/main.cpp` だけで configure/build/run できること
+- `sample_game` ではなく SDK 同梱サンプルが `MIYABI::SDK` を経由して起動できること
+- 終了時に `[sdk-reuse] PASS:` が出力されること
+
 ## 新規Contributor向け 最短ビルド確認（15分目安）
 
 1. 依存確認: `cmake --version` と `c++ --version` が実行できることを確認
