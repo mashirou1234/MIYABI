@@ -157,7 +157,7 @@ G4 証跡は、Pause / GAME OVER / CLEAR / Retry、障害物 fail/clear、設定
 | G1 | 本書「2. ステージ定義 / G1」 | https://github.com/mashirou1234/MIYABI/issues/341#issuecomment-4016476986 | 通しプレイ成立を示す Issue/PR を記録 |
 | G2 | 本書「2. ステージ定義 / G2」 | https://github.com/mashirou1234/MIYABI/issues/340#issuecomment-4016476977 | 30分連続プレイ結果を示す Issue/PR を記録 |
 | G3 | 本書「2. ステージ定義 / G3」 | https://github.com/mashirou1234/MIYABI/issues/342#issuecomment-4016476990 | 配布手順の再現結果を示す Issue/PR を記録 |
-| G4 | 本書「2. ステージ定義 / G4」 | 未設定 | 3D縦切り到達を示す Issue/PR を記録 |
+| G4 | 本書「2. ステージ定義 / G4」 | https://github.com/mashirou1234/MIYABI/pull/376 | 3D縦切り到達を示す Issue/PR を記録 |
 
 記入手順:
 1. ステージ更新時に、該当行の「証跡リンク」を `https://github.com/mashirou1234/MIYABI/...` 形式で更新する。
