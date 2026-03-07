@@ -115,6 +115,37 @@
 - 未解決:
   - なし
 
+### 2026-03-08 run: manual issue-361 SDK外部サンプル再利用証跡を追加
+
+- 背景:
+  - C1 の残件として、`sample_game` 以外でも MIYABI SDK を使って最小サンプルを起動できる証跡が必要だった。
+- 変更:
+  - `scripts/test_sdk_external_sample_reuse.sh` を追加し、`sdk/` を temp project にコピーして `find_package(MIYABI CONFIG REQUIRED)` から configure/build/run できる再利用スモークを自動化した。
+  - `scripts/test_build_sdk_required_artifacts.sh` から上記スモークを呼び出すようにし、SDK 配布物確認と外部サンプル再利用確認を一連の手順へまとめた。
+  - `sdk_template_main.cpp` と `sdk/examples/main.cpp` に `shutdown_engine_systems()` を追加し、SDK の最小実行契約を明示的に閉じるようにした。
+  - `README.md` / `docs/SDK_DEFINITION.md` / `docs/CORE_DEVELOPMENT_TRACK.md` / `docs/COMPLETION_ROADMAP.md` / `docs/SAMPLE_GAME_CORE_BOUNDARY.md` / `PLAN.md` を更新し、C1 到達と Wave 4 の再利用条件を分離して記録した。
+  - 関連ファイル:
+    - `scripts/test_sdk_external_sample_reuse.sh`
+    - `scripts/test_build_sdk_required_artifacts.sh`
+    - `sdk_template_main.cpp`
+    - `sdk/examples/main.cpp`
+    - `README.md`
+    - `docs/SDK_DEFINITION.md`
+    - `docs/CORE_DEVELOPMENT_TRACK.md`
+    - `docs/COMPLETION_ROADMAP.md`
+    - `docs/SAMPLE_GAME_CORE_BOUNDARY.md`
+    - `docs/CODEX_MIGRATION_STATUS.md`
+    - `PLAN.md`
+- 検証:
+  - `./build_sdk.sh`
+  - `./scripts/test_sdk_external_sample_reuse.sh ./sdk`
+  - `./scripts/test_build_sdk_required_artifacts.sh`
+  - `cargo test --manifest-path logic/Cargo.toml --lib -- --nocapture`
+  - `./scripts/check_core_no_sample_game_dependency.sh`
+- 未解決:
+  - 外部サンプル 2 本以上での再利用成立は Wave 4 として別途継続する。
+  - 次のコア着手は `C2-03` / `C2-04`。
+
 ### 2026-03-08 run: manual issue-356-359 runtime boot反転と 3D 最小起動
 
 - 背景:

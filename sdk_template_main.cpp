@@ -8,6 +8,7 @@ int main() {
 
     MiyabiVTable vtable = get_miyabi_vtable();
     if (vtable.abi_version != MIYABI_ABI_VERSION) {
+        shutdown_engine_systems();
         return 1;
     }
     Game* game = vtable.create_game();
@@ -16,5 +17,6 @@ int main() {
     vtable.update_game(game);
 
     vtable.destroy_game(game);
+    shutdown_engine_systems();
     return 0;
 }

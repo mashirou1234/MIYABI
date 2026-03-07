@@ -46,4 +46,7 @@ bash ./build_sdk.sh > "${TMP_DIR}/build_sdk.log" 2>&1
 test -f ./MIYABI_SDK.zip
 git diff --exit-code -- logic/src/paths.rs
 
+echo "[test] external sample reuse smoke passes with generated sdk/"
+./scripts/test_sdk_external_sample_reuse.sh ./sdk
+
 echo "[test] PASS"
